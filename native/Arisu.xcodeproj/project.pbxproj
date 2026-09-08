@@ -1,0 +1,270 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		187814739FB55B52BCD12622 /* Pet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CDADDCC98515122B7027967 /* Pet.swift */; };
+		43F0879FFDAA5CC9BF5AF311 /* Ear.swift in Sources */ = {isa = PBXBuildFile; fileRef = F98A8600096F593286FDD18C /* Ear.swift */; };
+		43F0879FFDAA5CC9BF5AF312 /* Live.swift in Sources */ = {isa = PBXBuildFile; fileRef = F98A8600096F593286FDD18D /* Live.swift */; };
+		48BE87FA705E5B62AD28BF3C /* Brain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6533966DE78A54959539DEF8 /* Brain.swift */; };
+		68D8985899D15B24920A9698 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4BAA956715895AECAFB518DC /* Assets.xcassets */; };
+		984C41440E145363B8A5D62F /* Voice.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB4F4FC4C54E56B7A87A605F /* Voice.swift */; };
+		AD8A4B8DB6115482A928E9F1 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF187857D8C65BB89621CF9D /* ContentView.swift */; };
+		D0F3F9CC55EB59088951E273 /* ArisuApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07BAE50857925CE28AFF0464 /* ArisuApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		07BAE50857925CE28AFF0464 /* ArisuApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArisuApp.swift; sourceTree = "<group>"; };
+		379107F4BD9D5823990FCC4B /* Arisu.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Arisu.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4BAA956715895AECAFB518DC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		5CDADDCC98515122B7027967 /* Pet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pet.swift; sourceTree = "<group>"; };
+		6533966DE78A54959539DEF8 /* Brain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Brain.swift; sourceTree = "<group>"; };
+		DB4F4FC4C54E56B7A87A605F /* Voice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Voice.swift; sourceTree = "<group>"; };
+		F98A8600096F593286FDD18C /* Ear.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Ear.swift; sourceTree = "<group>"; };
+		F98A8600096F593286FDD18D /* Live.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Live.swift; sourceTree = "<group>"; };
+		FF187857D8C65BB89621CF9D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		1A32A87EDA2551BB98FA3940 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0860B7216D8E50F68AECF508 = {
+			isa = PBXGroup;
+			children = (
+				6EC6DC3A189D59D88745A96C /* Arisu */,
+				4970996DE6DC5F24B83FB6E8 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		4970996DE6DC5F24B83FB6E8 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				379107F4BD9D5823990FCC4B /* Arisu.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		6EC6DC3A189D59D88745A96C /* Arisu */ = {
+			isa = PBXGroup;
+			children = (
+				07BAE50857925CE28AFF0464 /* ArisuApp.swift */,
+				F98A8600096F593286FDD18C /* Ear.swift */,
+				F98A8600096F593286FDD18D /* Live.swift */,
+				6533966DE78A54959539DEF8 /* Brain.swift */,
+				DB4F4FC4C54E56B7A87A605F /* Voice.swift */,
+				5CDADDCC98515122B7027967 /* Pet.swift */,
+				FF187857D8C65BB89621CF9D /* ContentView.swift */,
+				4BAA956715895AECAFB518DC /* Assets.xcassets */,
+			);
+			path = Arisu;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		23C7D062006F578EAB3EA8B5 /* Arisu */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 397E65F965765C1E89053452 /* Build configuration list for PBXNativeTarget "Arisu" */;
+			buildPhases = (
+				243F36F60FDA55A8B336F5DF /* Sources */,
+				1A32A87EDA2551BB98FA3940 /* Frameworks */,
+				3CD3A5DEB4A65FA1A6022BA3 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Arisu;
+			productName = Arisu;
+			productReference = 379107F4BD9D5823990FCC4B /* Arisu.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		29C0D2110D39579FBF45C7A7 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2650;
+				LastUpgradeCheck = 2650;
+				TargetAttributes = {
+					23C7D062006F578EAB3EA8B5 = {
+						CreatedOnToolsVersion = 26.5;
+					};
+				};
+			};
+			buildConfigurationList = 9FC90F8A493D5518920488A8 /* Build configuration list for PBXProject "Arisu" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 0860B7216D8E50F68AECF508;
+			productRefGroup = 4970996DE6DC5F24B83FB6E8 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				23C7D062006F578EAB3EA8B5 /* Arisu */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		3CD3A5DEB4A65FA1A6022BA3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				68D8985899D15B24920A9698 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		243F36F60FDA55A8B336F5DF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D0F3F9CC55EB59088951E273 /* ArisuApp.swift in Sources */,
+				43F0879FFDAA5CC9BF5AF311 /* Ear.swift in Sources */,
+				43F0879FFDAA5CC9BF5AF312 /* Live.swift in Sources */,
+				48BE87FA705E5B62AD28BF3C /* Brain.swift in Sources */,
+				984C41440E145363B8A5D62F /* Voice.swift in Sources */,
+				187814739FB55B52BCD12622 /* Pet.swift in Sources */,
+				AD8A4B8DB6115482A928E9F1 /* ContentView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		2068C845D99051A8A78901E6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 24XNVH4T8V;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Arisu listens for her name.";
+				INFOPLIST_KEY_UIBackgroundModes = audio;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIStatusBarHidden = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.oscar.arisu;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		7E73BCB4B0DE50588CF929EE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 24XNVH4T8V;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Arisu listens for her name.";
+				INFOPLIST_KEY_UIBackgroundModes = audio;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIStatusBarHidden = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.oscar.arisu;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		9059E6E9796E53D38056008A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		E702A15EB14C53498D5DDDEB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		397E65F965765C1E89053452 /* Build configuration list for PBXNativeTarget "Arisu" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2068C845D99051A8A78901E6 /* Debug */,
+				7E73BCB4B0DE50588CF929EE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		9FC90F8A493D5518920488A8 /* Build configuration list for PBXProject "Arisu" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9059E6E9796E53D38056008A /* Debug */,
+				E702A15EB14C53498D5DDDEB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 29C0D2110D39579FBF45C7A7 /* Project object */;
+}

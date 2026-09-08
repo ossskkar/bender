@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<title>Bender</title>
+<title>Arisu</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&display=swap">
@@ -22,10 +22,26 @@
   #hud{position:absolute;left:50%;transform:translateX(-50%);z-index:5;
     bottom:calc(env(safe-area-inset-bottom,0px) + 22px + max(12px,3vh) + 14px);
     color:var(--eye);font-size:2.1rem;letter-spacing:.28em;text-transform:uppercase;
-    opacity:.9;text-shadow:0 0 12px rgba(57,240,230,.55);pointer-events:none;white-space:nowrap}
+    opacity:.9;white-space:nowrap;cursor:pointer;pointer-events:none;
+    color:var(--cyan);text-shadow:0 0 12px rgba(69,229,247,.55);
+    transition:color .25s,text-shadow .25s}
+  /* her name IS the button — cyan asleep, magenta while she is listening or
+     answering. Only live when the desk answered; otherwise it is just a plate. */
+  #hud{pointer-events:auto}
+  #hud.hear,#hud.think{color:var(--mag);
+    text-shadow:0 0 18px rgba(255,61,138,.7),0 0 40px rgba(255,61,138,.35)}
+  #hud.hear{animation:nm-pulse 1.1s ease-in-out infinite}
+  #hud.think{opacity:.6}
+  @keyframes nm-pulse{0%,100%{opacity:.95}50%{opacity:.45}}
+  /* Hands-free means she is listening the whole time, and a name that strobes
+     the whole time is a fault light. Slow cyan breath = armed, waiting to hear
+     her name; the magenta pulse is kept for a turn that is actually hers. */
+  #hud.live{animation:nm-breathe 3.6s ease-in-out infinite}
+  @keyframes nm-breathe{0%,100%{opacity:.6}50%{opacity:.28}}
 
-  /* The projector pool the hologram stands in — a hologram casts light, not a shadow. */
-  #shadow{position:absolute;bottom:calc(10% - 10px);left:50%;width:180px;height:30px;
+  /* Was the projector pool a small standing figure cast. She fills the screen
+     now, so there is no floor for it to sit on. */
+  #shadow{display:none;position:absolute;bottom:calc(10% - 10px);left:50%;width:180px;height:30px;
     transform:translateX(-50%);border-radius:50%;pointer-events:none;
     background:radial-gradient(closest-side,rgba(69,229,247,.45),rgba(69,229,247,.08) 60%,transparent);
     filter:blur(2px)}
@@ -35,49 +51,104 @@
      animations: one PNG three times (a base and two colour-split ghosts),
      then the scanlines and the sweep over them. --gs scales the ghost
      separation so the engine can glitch him by widening the split. */
-  #bender{position:absolute;bottom:10%;left:50%;width:240px;height:240px;
-    will-change:transform,left,bottom;pointer-events:none;z-index:3;--gs:1}
-  #bender .proj{position:absolute;inset:0;
+  /* Centred and filling the screen. The art is square and the phone is not,
+     so "fill" costs a little off the outer wing tips: the box is 1.35x the
+     viewport width, clipped by #stage. Drop --fill to 1 for no crop at all,
+     raise it for more. */
+  #arisu{position:absolute;left:50%;top:50%;--fill:1.35;
+    width:min(calc(100vw * var(--fill)),100vh);
+    height:min(calc(100vw * var(--fill)),100vh);
+    will-change:transform;pointer-events:none;z-index:3;--gs:1}
+  /* No filter here. It used to be drop-shadow(0 0 22px ...), which made the
+     browser flatten all three full-screen images plus the scan and the sweep
+     into one buffer and blur it -- and since the children never stop moving,
+     it re-blurred every frame. That was the lag. The glow is now a static
+     radial behind her, which the compositor draws once and forgets. */
+  #arisu .proj{position:absolute;inset:0;
     animation:fc-float 7s ease-in-out infinite, fc-flicker 5.5s steps(1) infinite;
-    filter:drop-shadow(0 0 22px rgba(var(--glowc),calc(var(--glow) * 2.2)))}
-  #bender .proj img{position:absolute;inset:0;width:100%;height:100%;
-    object-fit:contain;object-position:50% 40%;
-    -webkit-mask-image:linear-gradient(to bottom,#000 72%,rgba(0,0,0,.4) 90%,transparent 100%);
-    mask-image:linear-gradient(to bottom,#000 72%,rgba(0,0,0,.4) 90%,transparent 100%)}
-  #bender .base{opacity:.96}
-  #bender .ghost{opacity:.34}
-  #bender .cy{animation:fc-drift-a 4.3s ease-in-out infinite}
-  #bender .mg{animation:fc-drift-b 5.1s ease-in-out infinite}
-  #bender .scan{position:absolute;inset:0;pointer-events:none;
+    will-change:transform;
+    /* one mask for the group instead of the same mask on each image */
+    -webkit-mask-image:linear-gradient(to bottom,#000 86%,rgba(0,0,0,.45) 95%,transparent 100%);
+    mask-image:linear-gradient(to bottom,#000 86%,rgba(0,0,0,.45) 95%,transparent 100%)}
+  #arisu .halo{position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(48% 42% at 50% 46%,
+      rgba(var(--glowc),calc(var(--glow) * 1.5)) 0%,
+      rgba(var(--glowc),calc(var(--glow) * .55)) 45%, transparent 72%)}
+  #arisu .proj img{position:absolute;inset:0;width:100%;height:100%;
+    object-fit:contain;object-position:50% 46%}
+  #arisu .base{opacity:.96}
+  /* --gs used to sit inside the drift keyframes, so every change to it forced
+     both ghost layers to re-resolve their animation. It rides on opacity now,
+     which the compositor handles on its own. */
+  #arisu .ghost{opacity:calc(.20 + .05 * var(--gs))}
+  #arisu .cy{animation:fc-drift-a 4.3s ease-in-out infinite;will-change:transform}
+  #arisu .mg{animation:fc-drift-b 5.1s ease-in-out infinite;will-change:transform}
+  #arisu .scan{position:absolute;inset:0;pointer-events:none;
     background:repeating-linear-gradient(to bottom,rgba(69,229,247,.055) 0 1px,transparent 1px 3px);
     -webkit-mask-image:linear-gradient(to bottom,#000 70%,transparent 100%);
     mask-image:linear-gradient(to bottom,#000 70%,transparent 100%)}
-  #bender .sweep{position:absolute;left:0;right:0;height:26%;pointer-events:none;
+  #arisu .sweep{position:absolute;left:0;right:0;height:26%;pointer-events:none;will-change:transform;
     background:linear-gradient(to bottom,transparent,rgba(69,229,247,.13) 45%,rgba(255,61,138,.09) 62%,transparent);
     animation:fc-sweep 5.6s linear infinite}
   /* Angry: the split turns hot and the ghosts stop being subtle. */
-  #bender.hot .ghost{opacity:.6}
-  #bender.hot .sweep{animation-duration:1.4s}
+  #arisu.hot .ghost{opacity:calc(.42 + .05 * var(--gs))}
+  #arisu.hot .sweep{animation-duration:1.4s}
   /* Down: the projection loses its lock and collapses toward the plate. */
   /* the float animation also drives transform, so the collapse has to replace
      it rather than sit under it */
-  #bender.ko .proj{animation:fc-flicker .6s steps(1) infinite;
+  #arisu.ko .proj{animation:fc-flicker .6s steps(1) infinite;
     opacity:.5;transform:scaleY(.42) translateY(58%)}
-  #bender.ko .sweep{animation-duration:.7s}
+  #arisu.ko .sweep{animation-duration:.7s}
 
   @keyframes fc-float   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
   @keyframes fc-flicker { 0%,96%{opacity:1} 96.5%{opacity:.72} 97%{opacity:1}
                           97.6%{opacity:.55} 98.2%{opacity:1} }
-  @keyframes fc-drift-a { 0%,100%{transform:translate(calc(-2px * var(--gs)),calc(1px * var(--gs)))}
-                          50%{transform:translate(calc(-5px * var(--gs)),calc(-1px * var(--gs)))} }
-  @keyframes fc-drift-b { 0%,100%{transform:translate(calc(2px * var(--gs)),calc(-1px * var(--gs)))}
-                          50%{transform:translate(calc(5px * var(--gs)),calc(2px * var(--gs)))} }
+  @keyframes fc-drift-a { 0%,100%{transform:translate(-4px,2px)} 50%{transform:translate(-10px,-2px)} }
+  @keyframes fc-drift-b { 0%,100%{transform:translate(4px,-2px)}  50%{transform:translate(10px,4px)} }
   @keyframes fc-sweep   { from{transform:translateY(-40%)} to{transform:translateY(320%)} }
 
   #meter{position:absolute;left:50%;transform:translateX(-50%);
     bottom:calc(env(safe-area-inset-bottom,0px) + 22px);z-index:6;
     display:flex;gap:4px;width:min(80vw,420px);height:max(12px,3vh);pointer-events:none}
   #meter i{flex:1;border-radius:3px;background:rgba(120,140,150,.14);transition:none}
+
+  /* What he just said, and the button that makes him listen. Both only exist
+     when the desk answered — on GitHub Pages there is no brain and no button. */
+  #speech{position:absolute;left:50%;transform:translateX(-50%);z-index:6;
+    bottom:calc(env(safe-area-inset-bottom,0px) + 22px + max(12px,3vh) + 64px);
+    width:min(86vw,520px);text-align:center;color:var(--eye);font-size:1.6rem;
+    line-height:1.15;letter-spacing:.04em;opacity:0;
+    transform:translateX(-50%) translateY(0);
+    transition:opacity .45s ease-out,transform .45s ease-out;
+    text-shadow:0 0 14px rgba(69,229,247,.5);pointer-events:none}
+  #speech.show{opacity:.95;transform:translateX(-50%) translateY(0)}
+  /* The line stays up until she says the next one -- a caption that timed out
+     left him reading a blank screen. The outgoing copy is what moves: it
+     lifts and thins while the new line fades in underneath it. */
+  .speech-out{position:absolute;left:50%;z-index:5;
+    bottom:calc(env(safe-area-inset-bottom,0px) + 22px + max(12px,3vh) + 64px);
+    width:min(86vw,520px);text-align:center;color:var(--eye);font-size:1.6rem;
+    line-height:1.15;letter-spacing:.04em;pointer-events:none;
+    text-shadow:0 0 14px rgba(69,229,247,.5);
+    opacity:.95;transform:translateX(-50%) translateY(0);
+    transition:opacity 1.8s ease-in,transform 1.8s ease-out}
+  .speech-out.go{opacity:0;transform:translateX(-50%) translateY(-46px)}
+  .speech-out .you{display:block;font-size:1.05rem;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--ui);opacity:.7;margin-bottom:6px}
+  #speech .you{display:block;font-size:1.05rem;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--ui);opacity:.7;margin-bottom:6px}
+  /* Everything the room said that was not for her. It is on screen so the wake
+     list can be tuned to whatever iOS dictation actually returns for "arisu". */
+  #speech.faint{opacity:.4}
+  /* the room, overheard: its own line so it never overwrites hers */
+  #ghostline{position:absolute;left:50%;transform:translateX(-50%);z-index:5;
+    bottom:calc(env(safe-area-inset-bottom,0px) + 22px + max(12px,3vh) + 28px);
+    width:min(86vw,520px);text-align:center;color:var(--ui);font-size:.95rem;
+    letter-spacing:.14em;text-transform:uppercase;pointer-events:none;
+    opacity:0;transition:opacity .5s}
+  #ghostline.show{opacity:.45}
+  #speech .ghost{display:block;font-size:.95rem;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--ui)}
   #meter i.on{background:rgba(57,240,230,.95);box-shadow:0 0 12px rgba(57,240,230,.9)}
   #meter i.hi{background:rgba(255,77,157,.95);box-shadow:0 0 12px rgba(255,77,157,.9)}
   #wake{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;
@@ -92,14 +163,15 @@
   @keyframes bl{50%{opacity:0}}
   @media (prefers-reduced-motion:reduce){
     #scan{display:none}#wake .p::after{animation:none}
-    #bender .proj,#bender .ghost,#bender .sweep{animation:none}
+    #arisu .proj,#arisu .ghost,#arisu .sweep{animation:none}
   }
 </style>
 <div id="stage">
   <div id="scan"></div><div id="rage"></div>
-  <div id="hud">bender</div>
+  <div id="hud">arisu</div>
   <div id="shadow"></div>
-  <div id="bender">
+  <div id="arisu">
+    <div class="halo"></div>
     <div class="proj">
       <img class="base"     src="assets/lain-face.png"    alt="" aria-hidden="true">
       <img class="ghost cy" src="assets/lain-face-cy.png" alt="" aria-hidden="true">
@@ -109,15 +181,16 @@
     </div>
   </div>
   <div id="meter"></div>
+  <div id="speech"></div>
 </div>
 <div id="wake">
-  <div class="name">bender</div>
+  <div class="name">arisu</div>
   <div class="p">tap to wake</div>
-  <div class="s">he hears you, and reacts to taps, drags and shakes. nothing is recorded or sent.</div>
+  <div class="s" id="wake-note">he hears you, and reacts to taps, drags and shakes. nothing is recorded or sent.</div>
 </div>
 <script>
 const R=document.documentElement, stage=document.getElementById('stage'),
-      el=document.getElementById('bender'),
+      el=document.getElementById('arisu'),
       shadow=document.getElementById('shadow'), rageEl=document.getElementById('rage'),
       wake=document.getElementById('wake');
 const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
@@ -125,18 +198,12 @@ const rnd=(a,b)=>a+Math.random()*(b-a);
 const clamp=(v,a,b)=>v<a?a:v>b?b:v;
 
 let W=innerWidth||360,Hh=innerHeight||640;
-function floorPx(){return Hh*0.155;}            // #bender bottom baseline
+function floorPx(){return Hh*0.155;}            // #arisu bottom baseline
 function margin(){return Math.max(70,W*0.16);}
-// size the projection in plain px (no calc/var/min chains — those can collapse
-// to 0 on iOS Safari), and keep him on-screen if the viewport was 0 at parse time
-let BOX=240;
+// She is the screen now — the box is the viewport, so layout only has to keep
+// the viewport size current for everything else that reads W and Hh.
 function layout(){
   W=innerWidth||W||360; Hh=innerHeight||Hh||640;
-  BOX=Math.min(Hh*0.62,W*1.25,560);
-  el.style.width=BOX+'px'; el.style.height=BOX+'px';
-  shadow.style.width=(BOX*0.62)+'px';
-  if(!(B.x>0)||B.x>W){ B.x=W/2; }
-  B.x=clamp(B.x,margin(),W-margin());
 }
 addEventListener('resize',layout);
 addEventListener('orientationchange',layout);
@@ -150,20 +217,32 @@ let nextAct=0;
 const SEGS=20, meterEl=document.getElementById('meter'), segEls=[];
 for(let i=0;i<SEGS;i++){const s=document.createElement('i');meterEl.appendChild(s);segEls.push(s);}
 let analyser=null,freq=null,micOK=false;
+// kept so the brain can hand the mic to speech recognition and take it back
+let micStream=null,micAC=null;
 async function startAudio(){try{
   const AC=window.AudioContext||window.webkitAudioContext; const ac=new AC(); await ac.resume();
   const st=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false}});
+  micAC=ac; micStream=st;
   const src=ac.createMediaStreamSource(st); analyser=ac.createAnalyser(); analyser.fftSize=512;
   analyser.smoothingTimeConstant=0.6; freq=new Uint8Array(analyser.frequencyBinCount);
   src.connect(analyser); micOK=true;
+  buildEar(ac,src);              // same stream, second consumer -- see the ear
 }catch(e){micOK=false;}}
 function sampleLevel(){ if(!analyser)return 0; analyser.getByteFrequencyData(freq);
   let sum=0,n=0; const hi=Math.min(freq.length,90);
   for(let i=3;i<hi;i++){sum+=freq[i];n++;}
   return clamp(((sum/n)/255-0.04)*3.2,0,1); }
+// Every one of these ran on every frame and wrote the same value it wrote
+// last time. Twenty className writes at 60fps is 1200 DOM writes a second for
+// a meter that changes a few times; the custom properties are worse, because
+// they live on documentElement and WebKit restyles the whole document for one.
+// So: nothing is written unless it actually changed.
+let lastLit=-1;
 function drawMeter(){ const lit=Math.round(B.level*SEGS);
-  for(let i=0;i<SEGS;i++){ const on=i<lit; const s=segEls[i];
-    s.className = on ? (i>SEGS*0.8?'hi':'on') : ''; } }
+  if(lit===lastLit)return; lastLit=lit;
+  for(let i=0;i<SEGS;i++){ const on=i<lit;
+    const want = on ? (i>SEGS*0.8?'hi':'on') : '';
+    if(segEls[i].className!==want)segEls[i].className=want; } }
 
 const JUMP=560, G=1500;         // px/s, px/s^2
 function grounded(){return B.y<=0.5 && !B.held;}
@@ -197,10 +276,18 @@ function think(now){
 }
 
 // ---------- physics + state per frame ----------
+const varCache={};
+function setVar(k,v){ if(varCache[k]===v)return; varCache[k]=v; R.style.setProperty(k,v); }
+let lastRage=null, lastGs=null;
+
 function step(dt,now){
   // mic: smooth level, loud sound excites him
   const raw=micOK?sampleLevel():0;
   B.level=B.level+(raw-B.level)*(raw>B.level?0.5:0.12);
+  // his own voice moves the meter and the glitch — the mic is not
+  // listening to the phone's own speaker, so the level has to be faked
+  if(window.SPEAK&&window.SPEAK.on){
+    B.level=Math.max(B.level,0.35+0.32*Math.abs(Math.sin(now/95))); }
   drawMeter();
   if(micOK && B.level>0.45 && B.hypeT<=0 && B.state!=='defeated' && !B.held
      && B.state!=='hurt' && B.state!=='attack' && now>(B.micCool||0)){
@@ -210,9 +297,10 @@ function step(dt,now){
   B.shake=Math.max(0,B.shake-dt*3);
   if(B.ko>0)B.ko-=dt;
   if(B.hypeT>0){B.hypeT-=dt; if(B.hypeT<=0){setState('idle',1);} }
-  R.style.setProperty('--glow',(0.10+B.anger*0.02+ (B.state==='run'?0.15:0)).toFixed(2));
-  R.style.setProperty('--glowc', B.anger>3? '255,77,107':'69,229,247');
-  rageEl.style.opacity=(clamp(B.anger/10,0,1)*0.55).toFixed(2);
+  setVar('--glow',(0.10+B.anger*0.02+ (B.state==='run'?0.15:0)).toFixed(2));
+  setVar('--glowc', B.anger>3? '255,77,107':'69,229,247');
+  const rage=(clamp(B.anger/10,0,1)*0.55).toFixed(2);
+  if(rage!==lastRage){ lastRage=rage; rageEl.style.opacity=rage; }
 
   // gravity for airborne / dropped
   if(!B.held && (B.y>0 || B.vy!==0) && B.state!=='climb'){
@@ -264,7 +352,8 @@ function glitchFor(now){
 function render(now){
   el.classList.toggle('hot', !!B.angry || B.anger>4);
   el.classList.toggle('ko', B.state==='defeated');
-  el.style.setProperty('--gs', glitchFor(now).toFixed(2));
+  const gs=glitchFor(now).toFixed(1);
+  if(gs!==lastGs){ lastGs=gs; el.style.setProperty('--gs',gs); }
 
   let bob=0, rot=0, sy=1, ox=0;
   if(B.state==='idle') bob=Math.sin(now/1500)*3;
@@ -272,24 +361,20 @@ function render(now){
   if(B.state==='attack'){ ox=Math.sin((B.lunge||0)*10)*22; }
   if(B.shake>0){ ox+=Math.sin(now/24)*10*B.shake; rot+=Math.sin(now/30)*4*B.shake; }
   sy=1-B.squash*0.14; if(B.squash>0)bob=-0;
-  el.style.left=B.x+'px';
-  el.style.bottom=(floorPx()+B.y)+'px';
-  el.style.transform=`translateX(-50%) translate(${ox}px,${-bob}px) rotate(${rot}deg) scale(1,${sy})`;
-  // the pool of light brightens as he settles into it and fades as he rises
-  const air=clamp(1-B.y/220,0.35,1);
-  shadow.style.left=B.x+'px';
-  shadow.style.transform=`translateX(-50%) scale(${air},${air})`;
-  shadow.style.opacity=(0.75*air).toFixed(2);
+  // Nothing places her any more: she is centred and full-screen in CSS. What
+  // is left is the reaction — a breath of bob, a jolt when poked or shaken.
+  // the -50%/-50% is what centres her; everything after it is the reaction
+  el.style.transform=`translate(-50%,-50%) translate(${ox}px,${-bob}px) rotate(${rot}deg) scale(1,${sy})`;
 }
 
 // ---------- input ----------
-function benderRect(){ const r=el.getBoundingClientRect(); return r; }
-function hitBender(x,y){ const r=benderRect(); const pad=30;
+function arisuRect(){ const r=el.getBoundingClientRect(); return r; }
+function hitArisu(x,y){ const r=arisuRect(); const pad=30;
   return x>r.left-pad&&x<r.right+pad&&y>r.top-pad&&y<r.bottom+pad; }
 
 let downT=0,downX=0,downY=0,moved=false,lastTap=0,dragging=false,lastX=0,lastY=0,lastMoveT=0;
 function onDown(x,y){ downT=performance.now();downX=x;downY=y;moved=false;
-  if(hitBender(x,y)){ B.grab=true; lastX=x;lastY=y;lastMoveT=downT; } else B.grab=false; }
+  if(hitArisu(x,y)){ B.grab=true; lastX=x;lastY=y;lastMoveT=downT; } else B.grab=false; }
 function onMove(x,y){ if(!B.grab)return;
   if(Math.hypot(x-downX,y-downY)>14){ moved=true; if(!dragging){dragging=true;B.held=true;setState('drag',0);} }
   if(dragging){ B.x=clamp(x,20,W-20); B.y=clamp((Hh-floorPx())-y,0,Hh);
@@ -334,4 +419,401 @@ let last=performance.now();
 function loop(now){ const dt=Math.min(0.05,(now-last)/1000); last=now; step(dt,now); requestAnimationFrame(loop); }
 layout(); schedule(performance.now()); requestAnimationFrame(loop);
 addEventListener('load',layout);
+</script>
+
+<script>
+/* ---------- the brain ----------
+   The face is only a face. Everything he SAYS comes from the desk: the server
+   half lives in lain (server/arisu.py) and answers three routes next to this
+   page — state, idle, heard. They are relative URLs on purpose. Served off the
+   Mac at /arisu/ they resolve to the brain and he talks; served off GitHub
+   Pages they 404 and he stays exactly the pet he was before, with no button
+   and nothing leaving the phone.
+
+   A long poll, not an event stream: the phone reaches the Mac through
+   `tailscale serve`, and a buffering proxy turns SSE into a pet that speaks in
+   bursts of five. */
+const BRAIN={on:false,seq:-1,seen:-1};
+const TALK={busy:false};
+window.SPEAK={on:false};                 // read by step() to move the meter
+const btn=document.getElementById('hud'), speechEl=document.getElementById('speech');
+
+/* ---- what a mood and an action do to the projection ---- */
+function wear(mood){
+  if(mood==='hot'){ B.anger=Math.max(B.anger,7); B.angry=true; }
+  else if(mood==='wired'){ B.hypeT=Math.max(B.hypeT||0,3.2); B.anger=Math.max(0,B.anger-1); }
+  else if(mood==='sad'){ B.anger=0; B.angry=false; }
+  else { B.anger=Math.min(B.anger,2); B.angry=false; }
+}
+function act(a){
+  if(B.state==='defeated')return;
+  if(a==='walk'||a==='run'){ B.goalX=rnd(margin(),W-margin()); setState(a,0); }
+  else if(a==='jump'){ if(grounded()){ B.vy=JUMP; setState('jump',0); } }
+  else if(a==='attack'){ setState('attack',1.2); }
+  else if(a==='climb'){ setState('climb',rnd(2.6,3.4)); }
+  else { setState('idle',rnd(3,6)); B.goalX=null; }
+}
+
+/* ---- voice ----
+   Made on the Mac, not here. iOS speechSynthesis in a pinned page silently
+   never speaks and never fires `onend`; the missing event also left the mute
+   below unarmed, so she heard her own reply through the speaker two inches
+   from the mic and answered herself.
+
+   It plays through the same AudioContext that already holds the mic, not an
+   <audio> tag. The context is unlocked the moment the mic is granted, so
+   there is no second autoplay gate to satisfy -- an <audio> element was tried
+   first and its play() was rejected even after a tap. decodeAudioData also
+   hands over an exact duration, so the mute fits the speech instead of
+   guessing from the length of the text. */
+let voiceReady=false;
+function unlockVoice(){ voiceReady=true; }   // the mic's context is the unlock
+
+let voiceSrc=null;
+async function speak(text,seq){
+  if(!text)return;
+  // deaf while she talks and for a beat after, armed up front from the text so
+  // a fetch that never lands still lifts the guard; the real duration replaces
+  // it as soon as the audio is decoded
+  const est=Math.min(15000,700+text.length*75);
+  EAR.mute=Date.now()+est;
+  window.SPEAK.on=true;
+  const done=()=>{ window.SPEAK.on=false; EAR.mute=Date.now()+TAIL_MS; voiceSrc=null; };
+  try{
+    const r=await fetch('voice?seq='+(seq||0),{cache:'no-store'});
+    if(!r.ok){ done(); return; }
+    const buf=await r.arrayBuffer();
+    const ac=micAC;
+    if(!ac){ done(); return; }
+    if(ac.state==='suspended'){ try{ await ac.resume(); }catch(e){} }
+    const audio=await ac.decodeAudioData(buf);
+    try{ if(voiceSrc)voiceSrc.stop(); }catch(e){}
+    const src=ac.createBufferSource();
+    src.buffer=audio; src.connect(ac.destination);
+    src.onended=done;
+    EAR.mute=Date.now()+audio.duration*1000+TAIL_MS;
+    voiceSrc=src; src.start();
+  }catch(e){ done(); }
+}
+
+/* ---- the caption ---- */
+let captionT=0,ghostT=0;
+function caption(line,heard){
+  clearTimeout(ghostT); speechEl.classList.remove('faint');
+  // the line already on screen leaves as a copy, so the new one can appear at
+  // once instead of waiting for a fade to finish
+  if(speechEl.classList.contains('show') && speechEl.textContent.trim()){
+    const out=document.createElement('div');
+    out.className='speech-out';
+    out.innerHTML=speechEl.innerHTML;
+    speechEl.parentNode.insertBefore(out,speechEl);
+    requestAnimationFrame(()=>out.classList.add('go'));
+    setTimeout(()=>out.remove(),2000);
+  }
+  speechEl.innerHTML='';
+  if(heard){ const y=document.createElement('span'); y.className='you';
+             y.textContent='you: '+heard; speechEl.appendChild(y); }
+  speechEl.appendChild(document.createTextNode(line||''));
+  speechEl.classList.add('show');
+  clearTimeout(captionT);   // no timeout: it stays until she says the next thing
+}
+
+/* ---- one utterance, applied to the whole face ---- */
+function apply(snap,voice){
+  if(!snap||typeof snap.seq!=='number')return;
+  // a counter that went backwards means the desk restarted and lost its
+  // place; take his word for it rather than staying deaf until it catches up
+  if(snap.seq<BRAIN.seen)BRAIN.seen=snap.seq-1;
+  BRAIN.seq=snap.seq;
+  if(snap.seq<=BRAIN.seen||!snap.line)return;   // the poll re-reads what the
+  BRAIN.seen=snap.seq;                          // POST already handed back
+  wear(snap.mood); act(snap.action);
+  caption(snap.line,snap.heard);
+  if(voice!==false)speak(snap.line,snap.seq);
+}
+
+/* ---- listening ----
+   The phone records; the desk hears. iOS Safari's own speech recognition was
+   tried first and abandoned: it wants a fresh gesture for every session, ends
+   itself on its own schedule, and refuses the mic outright in standalone mode
+   -- which is the mode she actually lives in. What replaced it: capture raw
+   audio here, ship one utterance at a time to whisper on the Mac, and let the
+   desk decide both what was said and whether it was meant for her.
+
+   The mic is opened once, by startAudio, and shared -- the level meter and the
+   recorder hang off the same MediaStream. That is the whole reason this works
+   where the last attempt did not: iOS lends the microphone to one consumer,
+   and now there is only ever one.
+
+   Nothing is uploaded until the room goes quiet. A block counts as speech only
+   when it is louder than the room's own drifting noise floor, and the silence
+   after it is what closes the clip. */
+const SR_OUT=16000;      // whisper wants 16k mono and resamples anything else
+const PRE_ROLL=0.45;     // seconds kept from before he started, so no clipped word
+// Long enough to ride out the pause in the middle of a sentence. At 0.9 she
+// cut him off mid-thought and shipped the half she had -- "tell me...",
+// "Arisu." -- then answered the fragment, which read as her talking nonsense.
+const HANG=1.5;          // seconds of quiet that end an utterance
+const MIN_UTT=0.5, MAX_UTT=15;
+const TAIL_MS=650;       // deaf for this long after her own voice stops
+
+window.HEAR={lvl:0,on:false};
+const EAR={on:false,node:null,hold:[],buf:[],held:0,speaking:false,
+           since:0,loudAt:0,quiet:0,mute:0,busy:false,floor:null,beat:0,
+           peak:0,gate:0,drops:0,lastSpoke:0};
+
+/* the name, saying which of the three things she is doing */
+function paint(){
+  btn.classList.remove('live','hear','think');
+  if(TALK.busy||EAR.busy){ btn.classList.add('think'); return; }
+  if(!EAR.on)return;                       // plain cyan: she is not listening
+  btn.classList.add(EAR.speaking?'hear':'live');
+}
+setInterval(paint,400);
+
+/* ---- the recorder ---- */
+function buildEar(ac,src){
+  if(EAR.node)return;
+  const N=4096, ratio=ac.sampleRate/SR_OUT;
+  const mk=ac.createScriptProcessor||ac.createJavaScriptNode;
+  if(!mk)return;
+  const node=mk.call(ac,N,1,1);
+  node.onaudioprocess=e=>{
+    EAR.beat=Date.now();                   // proof the graph is still running
+    if(!EAR.on)return;
+    const inp=e.inputBuffer.getChannelData(0);
+    let sum=0; for(let i=0;i<inp.length;i++)sum+=inp[i]*inp[i];
+    const rms=Math.sqrt(sum/inp.length);
+    const out=new Float32Array(Math.floor(inp.length/ratio));
+    for(let i=0;i<out.length;i++)out[i]=inp[(i*ratio)|0];
+    feed(out,rms);
+  };
+  src.connect(node);
+  // a ScriptProcessor is only clocked while it reaches the destination; a
+  // silent gain keeps it running without putting the room back through the
+  // phone's own speaker
+  const hush=ac.createGain(); hush.gain.value=0;
+  node.connect(hush); hush.connect(ac.destination);
+  EAR.node=node;
+}
+
+function feed(chunk,rms){
+  const now=Date.now();
+  if(now<EAR.mute){ EAR.hold.length=0; EAR.held=0;
+                    EAR.speaking=false; EAR.buf=[]; return; }
+  // the gate rides on the room's own noise floor rather than a fixed number,
+  // so a loud room raises the bar instead of talking to her all night
+  EAR.floor=EAR.floor===null?rms:EAR.floor*0.995+rms*0.005;
+  const gate=Math.max(0.0020,EAR.floor*2.6), loud=rms>gate;
+  EAR.gate=gate; if(rms>EAR.peak)EAR.peak=rms;
+
+  if(!EAR.speaking){
+    EAR.hold.push(chunk); EAR.held+=chunk.length;
+    while(EAR.hold.length>1&&EAR.held-EAR.hold[0].length>PRE_ROLL*SR_OUT){
+      EAR.held-=EAR.hold[0].length; EAR.hold.shift(); }
+    if(loud&&!EAR.busy){ EAR.speaking=true; EAR.since=now; EAR.loudAt=now;
+                         EAR.quiet=0; EAR.buf=EAR.hold.slice(); }
+  }else{
+    EAR.buf.push(chunk);
+    if(loud){ EAR.quiet=0; EAR.loudAt=now; } else if(!EAR.quiet)EAR.quiet=now;
+    if((EAR.quiet&&now-EAR.quiet>HANG*1000)||(now-EAR.since)/1000>MAX_UTT){
+      const done=EAR.buf;
+      // how long he was actually making noise, not how long the clip is --
+      // the clip always carries the hang silence on the end, so measuring
+      // that instead lets every cough through as a second of "speech"
+      const spoke=(EAR.loudAt-EAR.since)/1000;
+      EAR.speaking=false; EAR.buf=[]; EAR.quiet=0; EAR.hold=[]; EAR.held=0;
+      EAR.lastSpoke=spoke;
+      if(spoke>=MIN_UTT)ship(done); else { EAR.drops++; paint(); }
+    }
+  }
+}
+
+/* ---- the ear is checked, not trusted ----
+   Two iOS habits each leave her permanently deaf after her first reply, and
+   both look identical from the outside: speechSynthesis often never fires
+   onend, and the audio graph stops being clocked whenever the page plays
+   sound of its own. So: end the mute when the speaking actually stops, and if
+   no audio block has arrived in three seconds, build the whole chain again. */
+setInterval(()=>{
+  if(!EAR.on)return;
+  const now=Date.now();
+  if(window.SPEAK.on&&!voiceSrc){
+    window.SPEAK.on=false;
+    if(EAR.mute>now+TAIL_MS)EAR.mute=now+TAIL_MS;
+  }
+  if(now<EAR.mute)return;
+  if(micAC&&micAC.state==='suspended'&&micAC.resume){ try{micAC.resume();}catch(e){} }
+  if(EAR.beat&&now-EAR.beat>3000&&(EAR.rebuilds||0)<3){
+    EAR.rebuilds=(EAR.rebuilds||0)+1;
+    EAR.beat=0;
+    try{ if(EAR.node){ EAR.node.onaudioprocess=null; EAR.node.disconnect(); } }catch(e){}
+    EAR.node=null; EAR.speaking=false; EAR.buf=[]; EAR.hold=[]; EAR.held=0;
+    try{ if(micStream)micStream.getTracks().forEach(t=>t.stop()); }catch(e){}
+    micStream=null; micOK=false;
+    // the old context is closed, not abandoned: iOS hands out a handful and
+    // then refuses, which is a deafness no amount of retrying recovers from
+    try{ if(micAC&&micAC.close)micAC.close(); }catch(e){}
+    micAC=null; startAudio();
+  }
+},1000);
+
+/* ---- what the phone can see of itself ----
+   There is no console on a phone in a stand. One line a second to the desk,
+   only while `?debug=1` is on the url, so the log is opt-in and finite. */
+if(/[?&]debug=1/.test(location.search)){
+  setInterval(()=>{
+    const b={on:EAR.on,busy:EAR.busy,spk:EAR.speaking,beat:EAR.beat?Date.now()-EAR.beat:-1,
+             mute:Math.max(0,EAR.mute-Date.now()),floor:+(EAR.floor||0).toFixed(4),
+             micOK:micOK,ac:micAC?micAC.state:'none',rb:EAR.rebuilds||0,
+             brain:BRAIN.on,say:!!voiceSrc,
+             pk:+(EAR.peak||0).toFixed(4),gate:+(EAR.gate||0).toFixed(4),
+             drop:EAR.drops||0,ls:+(EAR.lastSpoke||0).toFixed(2)};
+    EAR.peak=0;
+    fetch('debug',{method:'POST',cache:'no-store',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).catch(()=>{});
+  },1000);
+}
+
+/* ---- one utterance, as a wav, to the desk ---- */
+function wav16(f32){
+  const n=f32.length, b=new ArrayBuffer(44+n*2), v=new DataView(b);
+  const tag=(o,t)=>{for(let i=0;i<t.length;i++)v.setUint8(o+i,t.charCodeAt(i));};
+  tag(0,'RIFF'); v.setUint32(4,36+n*2,true); tag(8,'WAVEfmt ');
+  v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,SR_OUT,true); v.setUint32(28,SR_OUT*2,true);
+  v.setUint16(32,2,true); v.setUint16(34,16,true);
+  tag(36,'data'); v.setUint32(40,n*2,true);
+  for(let i=0;i<n;i++){ const x=Math.max(-1,Math.min(1,f32[i]));
+    v.setInt16(44+i*2,x<0?x*0x8000:x*0x7fff,true); }
+  return new Blob([b],{type:'audio/wav'});
+}
+
+async function ship(blocks){
+  if(EAR.busy)return;
+  EAR.busy=true; paint();
+  let n=0; for(const c of blocks)n+=c.length;
+  const pcm=new Float32Array(n); let o=0;
+  for(const c of blocks){ pcm.set(c,o); o+=c.length; }
+  // The phone's mic is very quiet -- speech peaks around 0.007, about -43dBFS,
+  // and whisper was being handed something barely above silence. It transcribes
+  // level, not effort, so the clip is lifted to a normal speaking level before
+  // it is sent. Capped so a loud room cannot clip, and a floor on the divisor
+  // so near-silence is not amplified into hiss.
+  let peak=0; for(let i=0;i<n;i++){ const a=pcm[i]<0?-pcm[i]:pcm[i]; if(a>peak)peak=a; }
+  const gain=Math.min(24,0.55/Math.max(peak,0.0025));
+  if(gain>1.2) for(let i=0;i<n;i++) pcm[i]*=gain;
+  try{
+    const r=await fetch('listen',{method:'POST',cache:'no-store',
+      headers:{'Content-Type':'audio/wav'},body:wav16(pcm)});
+    if(!r.ok)throw new Error(r.status);
+    const snap=await r.json();
+    // `ignored` is the room talking rather than him talking to her: show it
+    // faintly, so a missed wake word looks different from being unheard
+    if(snap.ignored)ghost(snap.heard);
+    else apply(snap,true);
+  }catch(e){ ghost('ear down'); }
+  EAR.busy=false; paint();
+}
+
+/* ---- what the room said that was not for her ---- */
+function ghost(t){
+  if(!t)return;
+  // It gets its own line. It used to be written into the caption, which meant
+  // a cough in the room wiped the last thing she actually said.
+  clearTimeout(ghostT);
+  let g=document.getElementById('ghostline');
+  if(!g){ g=document.createElement('div'); g.id='ghostline';
+          speechEl.parentNode.insertBefore(g,speechEl); }
+  g.textContent=t;
+  requestAnimationFrame(()=>g.classList.add('show'));
+  ghostT=setTimeout(()=>g.classList.remove('show'),2600);
+}
+
+/* ---- typed, for when there is no microphone at all ---- */
+async function send(text){
+  TALK.busy=true; paint(); caption('…',text);
+  try{
+    const res=await fetch('heard',{method:'POST',cache:'no-store',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
+    if(!res.ok)throw new Error(res.status);
+    apply(await res.json(),true);
+  }catch(e){ caption('Desk brain is out. Try me later.',text); }
+  TALK.busy=false; paint();
+}
+
+/* ---- the switch ---- */
+function arm(){
+  if(!BRAIN.on){ caption('No desk brain. Nothing to answer you with.'); return; }
+  EAR.on=true; window.HEAR.on=true;
+  try{ localStorage.setItem('arisu.hands','1'); }catch(e){}
+  unlockVoice();
+  if(!micOK)startAudio();                  // first tap, or permission just given
+  else if(micAC&&micAC.resume)micAC.resume();
+  paint();
+}
+function disarm(){
+  EAR.on=false; window.HEAR.on=false;
+  EAR.speaking=false; EAR.buf=[]; EAR.hold=[]; EAR.held=0;
+  try{ localStorage.setItem('arisu.hands','0'); }catch(e){}
+  paint();
+}
+// #hud sits inside #stage, so without this the same tap also pokes her
+btn.addEventListener('pointerdown',e=>e.stopPropagation());
+btn.addEventListener('click',e=>{
+  e.stopPropagation();
+  if(EAR.on)disarm(); else arm();
+});
+
+/* She listens unless he turned it off. The mic is already open by then --
+   boot() asked for it on the first tap -- so there is no second permission
+   sheet and nothing to race. */
+function maybeArm(){
+  if(!BRAIN.on||EAR.on)return;
+  let want=null; try{ want=localStorage.getItem('arisu.hands'); }catch(e){}
+  if(want!=='0')arm();
+}
+
+/* ---- the line he starts, rather than answers ---- */
+function mutter(){
+  if(document.visibilityState!=='visible'||TALK.busy)return;
+  fetch('idle',{cache:'no-store'}).then(r=>r.json()).then(s=>apply(s,true)).catch(()=>{});
+}
+function scheduleMutter(){
+  setTimeout(()=>{ mutter(); scheduleMutter(); }, 5*60000+Math.random()*6*60000);
+}
+
+/* ---- the open line to the desk ---- */
+async function poll(){
+  while(BRAIN.on){
+    try{
+      const r=await fetch('state?wait=1&since='+BRAIN.seq,{cache:'no-store'});
+      if(!r.ok)throw new Error(r.status);
+      apply(await r.json(),true);
+    }catch(e){
+      await new Promise(f=>setTimeout(f,5000));   // desk asleep; keep knocking
+    }
+  }
+}
+
+async function brainProbe(){
+  try{
+    const r=await fetch('state',{cache:'no-store'});
+    if(!r.ok)throw new Error(r.status);
+    const s=await r.json();
+    if(typeof s.seq!=='number')throw new Error('not the brain');
+    BRAIN.on=true; BRAIN.seq=s.seq; BRAIN.seen=s.seq;   // boot line is history
+    document.body.classList.add('wired');
+    const note=document.getElementById('wake-note');
+    if(note)note.textContent='he hears you, and reacts to taps, drags and shakes. '+
+      'say her name and keep talking — she stays listening. tap her name to mute her. '+
+      'only what you say to her leaves the phone.';
+    poll(); scheduleMutter();
+  }catch(e){ BRAIN.on=false; return; }  /* no brain: the pet, exactly as it was */
+  // outside the try on purpose: a throw in here is a microphone problem, not
+  // evidence the desk is gone, and swallowing it as one leaves her inert
+  maybeArm();
+}
+wake.addEventListener('click',()=>{ unlockVoice(); setTimeout(maybeArm,600); });
+brainProbe();
 </script>

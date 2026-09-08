@@ -1,0 +1,7 @@
+# Xcode per-user state: window layout, breakpoints, the last scheme run. Noise
+# in a diff, and it changes on every build.
+native/**/xcuserdata/
+native/**/*.xcuserstate
+native/build/
+DerivedData/
+.DS_Store
