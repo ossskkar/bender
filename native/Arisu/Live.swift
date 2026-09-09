@@ -82,6 +82,11 @@ final class Live: ObservableObject {
     /// flag it has to consult cannot be main-actor isolated.
     private let halted = OSAllocatedUnfairLock(initialState: false)
     private var floor: Float = 0
+    /// Buffers of hers scheduled but not yet out of the speaker. `response.done`
+    /// says the *server* stopped sending, which on a long answer is seconds
+    /// before she stops being audible; this is the only thing that knows when
+    /// she has actually finished talking.
+    private var pending = 0
 
     // MARK: - the socket
 
@@ -101,6 +106,7 @@ final class Live: ObservableObject {
         socket = nil
         connected = false
         player.stop()
+        pending = 0
         Task { await connect() }
     }
 
@@ -148,6 +154,7 @@ final class Live: ObservableObject {
         dormant = true
         speaking = false
         player.stop()
+        pending = 0
         status = "idle"
     }
 
@@ -161,6 +168,7 @@ final class Live: ObservableObject {
         speaking = false
         level = 0
         player.stop()
+        pending = 0
         idleTimer?.cancel()
         socket?.cancel(with: .goingAway, reason: nil)
         socket = nil
@@ -285,7 +293,10 @@ final class Live: ObservableObject {
             speaking = true
 
         case "response.output_audio.done", "response.done":
-            speaking = false
+            // Only if the speaker is already dry. Otherwise she is still
+            // talking and `speaking` has to stay true, or the idle watch and
+            // the interrupt path both believe a silent socket means silence.
+            if pending == 0 { speaking = false }
 
         case "response.output_audio_transcript.done":
             if let t = ev["transcript"] as? String {
@@ -305,7 +316,12 @@ final class Live: ObservableObject {
             // which is the part he would otherwise still hear.
             hearing = true
             lastVoice = Date()
-            if speaking { flush() }
+            // Unconditionally. This used to be gated on `speaking`, which
+            // `response.done` had already cleared while several seconds of her
+            // audio were still queued here -- so interrupting late in a long
+            // answer threw nothing away, she talked over him to the end, and
+            // then answered the thing he had said underneath her.
+            flush()
 
         case "input_audio_buffer.speech_stopped":
             hearing = false
@@ -555,12 +571,23 @@ final class Live: ObservableObject {
               let out = Live.resampleBuffer(buf, with: toMix, to: mixFormat)
         else { return }
         if !player.isPlaying { player.play() }
-        player.scheduleBuffer(out, completionHandler: nil)
+        pending += 1
+        player.scheduleBuffer(out, completionCallbackType: .dataPlayedBack) {
+            [weak self] _ in
+            Task { @MainActor in self?.drained() }
+        }
+    }
+
+    /// One buffer has actually left the speaker.
+    private func drained() {
+        pending = max(0, pending - 1)
+        if pending == 0 { speaking = false }
     }
 
     /// Everything of hers still queued, thrown away mid-word.
     private func flush() {
         player.stop()
+        pending = 0
         player.play()
         speaking = false
     }
