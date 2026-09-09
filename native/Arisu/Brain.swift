@@ -30,7 +30,11 @@ final class Brain {
 
     private let session: URLSession = {
         let c = URLSessionConfiguration.default
-        c.timeoutIntervalForRequest = 40      // a tool-using turn can take a while
+        // Her one tool is a whole turn of Hermes' conversation on architect,
+        // not an MCP call: 3.5-7.5s warm, 17s measured on a quota failover,
+        // and worse if the agent has to build itself. lain prewarms it at boot
+        // so that cost is not paid here, but the budget still has to allow it.
+        c.timeoutIntervalForRequest = 120
         c.waitsForConnectivity = true
         return URLSession(configuration: c)
     }()
