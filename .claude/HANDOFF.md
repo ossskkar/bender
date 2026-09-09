@@ -34,43 +34,26 @@ architect):**
 ("Say something and I'll beep it back"), not the sardonic pet. Debug logging
 to `/arisu/debug` is still on and should come out.
 
-## REGRESSION 2026-09-09 — barge-in stopped working, and the pause fix is the suspect
+## Barge-in — fixed and installed 2026-09-09, awaiting his verdict
 
-**Reported by Oscar the same day the pause fix went in: she no longer allows
-interrupting mid-sentence.** Not yet investigated, not yet reproduced by anyone
-but him.
+**Cause confirmed by reading the diff, not guessed.** The pause fix (`3016f50`)
+did not only add guards; it changed the shape of the receive loop. The success
+branch used to call `listen()` immediately on URLSession's callback thread and
+now hopped to the main actor first, so the next `receive()` queued behind
+hundreds of audio deltas a second. `input_audio_buffer.speech_started` — the
+event that *is* barge-in — arrived after her own voice had already been
+scheduled.
 
-Context: pausing used to leave her acting like the conversation was still
-running — frames already in the socket kept moving her face and could still fire
-lain tool calls. Two guards went in (commit `3016f50`):
+**Fix:** the loop re-arms on the callback thread again, via a `nonisolated`
+`arm(_:)` that takes the socket. Only `handle()` hops to the main actor. The
+`stopped` check stays in the re-arm, where it has to be, as an
+`OSAllocatedUnfairLock` copy the callback thread can read — so the pause bug the
+guards fixed stays fixed.
 
-- `Live.handle()` returns early while `stopped`.
-- `Live.listen()` re-arms the receive loop only while `stopped` is false.
-- `Pet.apply()` returns early unless `running`.
-
-**The prime suspect is the second one, and it is a shape change, not just a
-guard.** The success branch used to call `self.listen()` immediately, on
-URLSession's own callback thread. It now hops to the main actor first:
-
-```swift
-Task { @MainActor in
-    guard !self.stopped else { return }
-    if let text { self.handle(text) }
-    self.listen()
-}
-```
-
-Barge-in in the realtime path is the `input_audio_buffer.speech_started` event
-reaching `handle()` and calling `flush()`. Putting a main-actor hop in front of
-every re-arm serialises hundreds of audio-delta frames through the main queue
-and delays the next `receive()`, so the one event that has to feel instant is
-exactly the one that now queues behind the audio. That would present as "she
-cannot be interrupted any more".
-
-**Fix direction, untested:** keep the `stopped` check but restore the immediate
-re-arm — check `stopped` with an atomic/nonisolated read in the callback and
-call `listen()` there, hopping to the main actor only for `handle()`. Do not
-simply revert the guards; the pause bug they fixed was real.
+Builds clean, signed, and **installed on the iPad** (`com.oscar.arisu`, via
+`xcrun devicectl device install app`). Not yet tried by him: the open question
+is whether he can interrupt her mid-sentence again, and whether pausing still
+leaves her silent.
 
 ## Decisions & open questions
 
