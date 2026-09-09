@@ -147,10 +147,10 @@ struct ContentView: View {
                 showTranscript.toggle()
             }
             // Conversation, not transport: this is whether the two of them are
-            // talking at all, so it is two speech bubbles rather than a pause
-            // bar. Lit while she is listening.
-            iconButton(pet.running ? "bubble.left.and.bubble.right.fill"
-                                   : "bubble.left.and.bubble.right",
+            // talking at all. A voice in a circle rather than a pause bar --
+            // his choice, 2026-09-09, and the right one: speech bubbles read
+            // as messages, and nothing here is typed.
+            iconButton(pet.running ? "waveform.circle.fill" : "waveform.circle",
                        tint: pet.running ? glow : off) {
                 pet.toggleRunning()
             }
