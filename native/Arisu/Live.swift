@@ -113,6 +113,21 @@ final class Live: ObservableObject {
         Task { await connect() }
     }
 
+    /// Start the session again, so anything fixed to it at mint time -- her
+    /// instructions, her voice -- is picked up. There is no way to change
+    /// either on a live session, which is why changing her voice from the
+    /// settings sheet has to come through here.
+    func reconnect() async {
+        guard !stopped else { return }
+        socket?.cancel(with: .goingAway, reason: nil)
+        socket = nil
+        connected = false
+        player.stop()
+        pending = 0
+        speaking = false
+        await connect()
+    }
+
     /// Swap models mid-conversation. The session carries her whole context,
     /// so this is a new conversation, not a new voice on the old one.
     func use(model name: String) {

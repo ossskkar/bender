@@ -30,6 +30,11 @@ struct ContentView: View {
     /// magenta the meter now uses to mean she is working.
     private let voice = Color(red: 0.27, green: 0.90, blue: 0.97)
 
+    /// Recording red. The one colour on this screen that is not part of the
+    /// hologram's palette, on purpose: a record light should look like a
+    /// record light and not like a mood.
+    private let recording = Color(red: 1.0, green: 0.27, blue: 0.31)
+
     /// His voice, and the colour his words are already written in. The meter
     /// borrows it so that "who is making this move" needs no legend: the bars
     /// are the colour of whoever's caption is on screen.
@@ -122,34 +127,41 @@ struct ContentView: View {
         }
     }
 
-    /// The workbench controls. Three times the size they were, because he
-    /// reaches for them from across the desk and half of them are held rather
-    /// than tapped -- a 28pt target for push-to-talk is a target you miss
-    /// mid-sentence.
+    /// Off. Colour means on and grey means off everywhere on this screen --
+    /// before, the pause button went magenta when it was *stopped*, which made
+    /// the loudest thing on screen the thing that was doing nothing.
+    private let off = Color.white.opacity(0.3)
+
+    /// The workbench controls, stacked up the right edge. Three times the size
+    /// they were, because he reaches for them from across the desk and one of
+    /// them is held rather than tapped -- a 28pt target for push-to-talk is a
+    /// target you miss mid-sentence.
     ///
     /// The model picker is gone. It cycled mini, full and whisper, and two of
     /// those are no longer choices anyone makes: the desk decides which
     /// realtime model to spend on at mint time, and whisper is the old path.
     private var controls: some View {
-        HStack(spacing: 18) {
+        VStack(spacing: 16) {
             iconButton(showTranscript ? "text.bubble.fill" : "text.bubble",
-                       tint: showTranscript ? glow : .white.opacity(0.35)) {
+                       tint: showTranscript ? glow : off) {
                 showTranscript.toggle()
             }
-            // Magenta while stopped, the colour nothing she *is* ever uses --
-            // so "she is not listening" cannot be mistaken for a mood.
-            iconButton(pet.running ? "pause.fill" : "play.fill",
-                       tint: pet.running ? glow : working) {
+            // Conversation, not transport: this is whether the two of them are
+            // talking at all, so it is two speech bubbles rather than a pause
+            // bar. Lit while she is listening.
+            iconButton(pet.running ? "bubble.left.and.bubble.right.fill"
+                                   : "bubble.left.and.bubble.right",
+                       tint: pet.running ? glow : off) {
                 pet.toggleRunning()
             }
             talkButton
-            iconButton("slider.horizontal.3", tint: .white.opacity(0.55)) {
+            iconButton("slider.horizontal.3", tint: off) {
                 showSettings = true
             }
         }
         .padding(.trailing, 26)
         .padding(.bottom, 26)
-        .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet) }
+        .sheet(isPresented: $showSettings) { SettingsSheet(live: live) }
     }
 
     /// Hold to say something long.
@@ -157,25 +169,27 @@ struct ContentView: View {
     /// Two states in one control, because they are the same idea: off, the mic
     /// is open and she answers when she thinks he has finished; on, nothing
     /// reaches her until this is held, and letting go ends the turn. A tap
-    /// switches modes, a press-and-hold is the turn itself -- and the icon
-    /// says which, since a filled waveform reads as "speak now" in a way a
-    /// microphone glyph does not.
+    /// switches modes, a press-and-hold is the turn itself.
+    ///
+    /// A record dot rather than a microphone, because a microphone glyph is
+    /// what the *other* button already means -- whether she can hear the room
+    /// at all. This one is about capturing one thing he chooses to say, which
+    /// is what a record button has meant on every device he has ever owned.
     private var talkButton: some View {
         let armed = live.turnMode
-        let symbol = live.pushing ? "waveform"
-                                  : (armed ? "mic.fill" : "mic.slash.fill")
+        let symbol = armed ? "record.circle.fill" : "record.circle"
+        let tint: Color = live.pushing ? recording : (armed ? glow : off)
         return Image(systemName: symbol)
             .font(.system(size: 34, weight: .medium))
-            .foregroundStyle(live.pushing ? listener
-                                          : (armed ? glow : .white.opacity(0.35)))
+            .foregroundStyle(tint)
             .frame(width: 46, height: 40)
             .padding(.horizontal, 22)
             .padding(.vertical, 18)
-            .background(Capsule().fill(live.pushing ? listener.opacity(0.18)
+            .background(Capsule().fill(live.pushing ? recording.opacity(0.2)
                                                     : .black.opacity(0.35)))
-            .overlay(Capsule().stroke(
-                (live.pushing ? listener : glow).opacity(live.pushing ? 0.8 : 0.28),
-                lineWidth: live.pushing ? 2 : 1))
+            .overlay(Capsule().stroke(tint.opacity(live.pushing ? 0.9 : 0.28),
+                                      lineWidth: live.pushing ? 2 : 1))
+            .scaleEffect(live.pushing ? 1.06 : 1)
             .contentShape(Capsule())
             .onTapGesture { live.turnMode.toggle() }
             .gesture(
