@@ -346,7 +346,8 @@ final class Live: ObservableObject {
 
     private func runTool(name: String, callID: String, args: String) async {
         var output = "{\"ok\":true}"
-        if name == "set_mood" {
+        let isBody = name == "set_mood"
+        if isBody {
             if let d = args.data(using: .utf8),
                let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any] {
                 onMood?(o["mood"] as? String ?? "calm",
@@ -365,7 +366,11 @@ final class Live: ObservableObject {
                      "output": output],
         ]
         send(item)
-        send(["type": "response.create"])
+        // `set_mood` is her face, not an answer. Asking for a response after it
+        // made her reply twice to one question: once for the mood call and once
+        // for the thinking call, because she routinely makes both in a turn.
+        // Only the tool that actually fetched something gets a new response.
+        if !isBody { send(["type": "response.create"]) }
     }
 
     // MARK: - audio
