@@ -193,7 +193,7 @@ final class Pet: ObservableObject {
         // is no newer question coming, so anything held can be said now.
         if !shipped, let h = held {
             held = nil
-            voice.say(h)
+            if running { voice.say(h) }
         }
     }
 
@@ -250,6 +250,10 @@ final class Pet: ObservableObject {
     }
 
     private func apply(_ s: Snap) {
+        // Paused is silent. A snapshot can land in the gap between the button
+        // and the watcher noticing it was cancelled, and there is no version of
+        // "she is not listening" in which she still answers.
+        guard running else { return }
         guard s.seq != seen, !s.line.isEmpty else { return }
         seen = s.seq
         line = s.line

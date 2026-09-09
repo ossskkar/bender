@@ -204,10 +204,18 @@ final class Live: ObservableObject {
                     await self.connect()
                 }
             case .success(let message):
-                if case .string(let text) = message {
-                    Task { @MainActor in self.handle(text) }
+                // Re-arming is the loop's own heartbeat, so it has to be the
+                // thing that checks `stopped` -- otherwise a stop only closed
+                // the socket while the receive loop kept queueing itself.
+                let text: String? = {
+                    if case .string(let t) = message { return t }
+                    return nil
+                }()
+                Task { @MainActor in
+                    guard !self.stopped else { return }
+                    if let text { self.handle(text) }
+                    self.listen()
                 }
-                self.listen()
             }
         }
     }
@@ -239,6 +247,11 @@ final class Live: ObservableObject {
     // MARK: - what comes back
 
     private func handle(_ text: String) {
+        // Stopped is not idle. Frames already in the socket when he pressed
+        // pause keep arriving for a moment, and every one of them used to move
+        // her face, her transcript and her hands as though nothing happened --
+        // which is what made a paused pet look like a running one.
+        guard !stopped else { return }
         guard let data = text.data(using: .utf8),
               let ev = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let type = ev["type"] as? String else { return }
