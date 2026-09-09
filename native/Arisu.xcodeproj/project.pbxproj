@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		187814739FB55B52BCD12622 /* Pet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CDADDCC98515122B7027967 /* Pet.swift */; };
+		A11111110000000000000001 /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11111110000000000000002 /* Settings.swift */; };
 		43F0879FFDAA5CC9BF5AF311 /* Ear.swift in Sources */ = {isa = PBXBuildFile; fileRef = F98A8600096F593286FDD18C /* Ear.swift */; };
 		43F0879FFDAA5CC9BF5AF312 /* Live.swift in Sources */ = {isa = PBXBuildFile; fileRef = F98A8600096F593286FDD18D /* Live.swift */; };
 		48BE87FA705E5B62AD28BF3C /* Brain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6533966DE78A54959539DEF8 /* Brain.swift */; };
@@ -22,6 +23,7 @@
 		379107F4BD9D5823990FCC4B /* Arisu.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Arisu.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4BAA956715895AECAFB518DC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5CDADDCC98515122B7027967 /* Pet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pet.swift; sourceTree = "<group>"; };
+		A11111110000000000000002 /* Settings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings.swift; sourceTree = "<group>"; };
 		6533966DE78A54959539DEF8 /* Brain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Brain.swift; sourceTree = "<group>"; };
 		DB4F4FC4C54E56B7A87A605F /* Voice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Voice.swift; sourceTree = "<group>"; };
 		F98A8600096F593286FDD18C /* Ear.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Ear.swift; sourceTree = "<group>"; };
@@ -65,6 +67,7 @@
 				6533966DE78A54959539DEF8 /* Brain.swift */,
 				DB4F4FC4C54E56B7A87A605F /* Voice.swift */,
 				5CDADDCC98515122B7027967 /* Pet.swift */,
+				A11111110000000000000002 /* Settings.swift */,
 				FF187857D8C65BB89621CF9D /* ContentView.swift */,
 				4BAA956715895AECAFB518DC /* Assets.xcassets */,
 			);
@@ -146,6 +149,7 @@
 				48BE87FA705E5B62AD28BF3C /* Brain.swift in Sources */,
 				984C41440E145363B8A5D62F /* Voice.swift in Sources */,
 				187814739FB55B52BCD12622 /* Pet.swift in Sources */,
+				A11111110000000000000001 /* Settings.swift in Sources */,
 				AD8A4B8DB6115482A928E9F1 /* ContentView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

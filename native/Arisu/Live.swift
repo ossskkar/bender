@@ -29,6 +29,18 @@ final class Live: ObservableObject {
     /// Hermes on architect, which is seconds rather than milliseconds, so it
     /// is the one wait long enough that the screen has to account for it.
     @Published private(set) var thinking = false
+    /// One turn at a time instead of an open mic: nothing is streamed until he
+    /// holds the button, and the turn ends when he lets go rather than when a
+    /// model decides he has finished. He asked for this after the open mic
+    /// answered half a sentence -- and it is the only way to say something
+    /// long, or to think mid-sentence, without being interrupted.
+    @Published private(set) var pushing = false
+    /// Whether the open mic is off entirely. Set from the button; when true,
+    /// the tap runs (the meter still moves) but nothing reaches her until
+    /// `pushing`.
+    @Published var turnMode = false {
+        didSet { if turnMode != oldValue { applyTurnMode() } }
+    }
     @Published private(set) var status = ""
     @Published var level: Float = 0
 
@@ -138,6 +150,9 @@ final class Live: ObservableObject {
             lastVoice = Date()
             listen()
             startIdleWatch()
+            // Every session is minted with the open mic, so a reconnect in
+            // turn mode has to say so again or she starts answering the room.
+            if turnMode { applyTurnMode() }
         } catch {
             connected = false
             status = "no session"
@@ -172,6 +187,7 @@ final class Live: ObservableObject {
         speaking = false
         hearing = false
         thinking = false
+        pushing = false
         level = 0
         player.stop()
         pending = 0
@@ -348,6 +364,48 @@ final class Live: ObservableObject {
         }
     }
 
+    // MARK: - one turn at a time
+
+    /// Tell her end which way the microphone works now.
+    ///
+    /// Turn detection has to go off, not just quiet: with semantic VAD still
+    /// listening, the burst that arrives when he lets go looks like a whole
+    /// utterance and she would answer it twice -- once because the server
+    /// decided he stopped, once because we asked.
+    private func applyTurnMode() {
+        pushing = false
+        guard connected else { return }
+        let detection: Any = turnMode
+            ? NSNull()
+            : ["type": "semantic_vad",
+               "eagerness": "low",
+               "create_response": true,
+               "interrupt_response": false] as [String: Any]
+        send(["type": "session.update",
+              "session": ["type": "realtime",
+                          "audio": ["input": ["turn_detection": detection]]]])
+    }
+
+    /// He is holding the button. Anything of hers still playing stops, because
+    /// starting to talk is starting to talk however it was signalled.
+    func startTurn() {
+        guard turnMode, connected, !pushing else { return }
+        flush()
+        pushing = true
+        hearing = true
+        send(["type": "input_audio_buffer.clear"])
+    }
+
+    /// He let go. Commit what was said and ask for one answer.
+    func endTurn() {
+        guard pushing else { return }
+        pushing = false
+        hearing = false
+        lastVoice = Date()
+        send(["type": "input_audio_buffer.commit"])
+        send(["type": "response.create"])
+    }
+
     // MARK: - her hands, which are on the desk
 
     private func runTool(name: String, callID: String, args: String) async {
@@ -504,6 +562,10 @@ final class Live: ObservableObject {
                 return
             }
             guard self.connected else { return }
+            // In turn mode the tap keeps running -- the meter is how he knows
+            // the microphone is alive -- but the audio goes nowhere until he
+            // is actually holding the button down.
+            guard !self.turnMode || self.pushing else { return }
             self.send(["type": "input_audio_buffer.append", "audio": b64])
         }
     }

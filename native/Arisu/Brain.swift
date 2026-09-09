@@ -22,6 +22,19 @@ struct LiveToken: Decodable {
     let model: String
 }
 
+/// What she is like, as the desk holds it. Three dials from 0 to 1, a voice,
+/// and a free-text note he can write in his own words. `voices` is the desk's
+/// list rather than the app's, so a voice the API stops accepting disappears
+/// from the picker instead of leaving her mute.
+struct Persona: Codable {
+    var warmth: Double
+    var playfulness: Double
+    var brevity: Double
+    var voice: String
+    var notes: String
+    var voices: [String]?
+}
+
 /// architect, over Tailscale. The brain is unchanged from the web version --
 /// same `/arisu/listen`, same JSON -- so everything Arisu knows how to do
 /// (planner, board, habits, diary, the lot) works here on day one.
@@ -68,6 +81,31 @@ final class Brain {
             throw URLError(.badServerResponse)
         }
         return try JSONDecoder().decode(LiveToken.self, from: data)
+    }
+
+    /// What she is like right now.
+    func persona() async throws -> Persona {
+        let (data, resp) = try await session.data(
+            from: Brain.base.appendingPathComponent("persona"))
+        guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(Persona.self, from: data)
+    }
+
+    /// Change part of what she is like. Sent as a patch, not a whole object,
+    /// so two settings screens open at once cannot undo each other.
+    @discardableResult
+    func setPersona(_ patch: [String: Any]) async throws -> Persona {
+        var r = URLRequest(url: Brain.base.appendingPathComponent("persona"))
+        r.httpMethod = "POST"
+        r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        r.httpBody = try JSONSerialization.data(withJSONObject: patch)
+        let (data, resp) = try await session.data(for: r)
+        guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(Persona.self, from: data)
     }
 
     /// Run one of her tools on the desk, where the MCP bridge lives.

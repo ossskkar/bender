@@ -17,6 +17,7 @@ struct ContentView: View {
     /// her from across the desk and watching her from the sofa want different
     /// answers, and neither should reset every morning.
     @AppStorage("arisu.transcript") private var showTranscript = true
+    @State private var showSettings = false
 
     /// The colour of work being done. Deliberately not one of the moods --
     /// nothing she ever *is* looks like this, so it reads as a state and not
@@ -44,6 +45,7 @@ struct ContentView: View {
         // The whisper path has no duplex: it knows it is working and nothing
         // else, so its only two states are working and not.
         if pet.mode == .whisper { return pet.thinking ? .thinking : .idle }
+        if live.pushing { return .listening }
         if live.thinking { return .thinking }
         if live.speaking { return .speaking }
         if live.hearing { return .listening }
@@ -120,12 +122,17 @@ struct ContentView: View {
         }
     }
 
-    /// The three workbench controls, together in the corner. Small and dim on
-    /// purpose: they sit on an ornament, and should lose every argument with
-    /// the hologram about attention.
+    /// The workbench controls. Three times the size they were, because he
+    /// reaches for them from across the desk and half of them are held rather
+    /// than tapped -- a 28pt target for push-to-talk is a target you miss
+    /// mid-sentence.
+    ///
+    /// The model picker is gone. It cycled mini, full and whisper, and two of
+    /// those are no longer choices anyone makes: the desk decides which
+    /// realtime model to spend on at mint time, and whisper is the old path.
     private var controls: some View {
-        HStack(spacing: 12) {
-            iconButton(showTranscript ? "captions.bubble.fill" : "captions.bubble",
+        HStack(spacing: 18) {
+            iconButton(showTranscript ? "text.bubble.fill" : "text.bubble",
                        tint: showTranscript ? glow : .white.opacity(0.35)) {
                 showTranscript.toggle()
             }
@@ -135,42 +142,60 @@ struct ContentView: View {
                        tint: pet.running ? glow : working) {
                 pet.toggleRunning()
             }
-            modeButton
+            talkButton
+            iconButton("slider.horizontal.3", tint: .white.opacity(0.55)) {
+                showSettings = true
+            }
         }
-        .padding(.trailing, 22)
-        .padding(.bottom, 22)
+        .padding(.trailing, 26)
+        .padding(.bottom, 26)
+        .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet) }
+    }
+
+    /// Hold to say something long.
+    ///
+    /// Two states in one control, because they are the same idea: off, the mic
+    /// is open and she answers when she thinks he has finished; on, nothing
+    /// reaches her until this is held, and letting go ends the turn. A tap
+    /// switches modes, a press-and-hold is the turn itself -- and the icon
+    /// says which, since a filled waveform reads as "speak now" in a way a
+    /// microphone glyph does not.
+    private var talkButton: some View {
+        let armed = live.turnMode
+        let symbol = live.pushing ? "waveform"
+                                  : (armed ? "mic.fill" : "mic.slash.fill")
+        return Image(systemName: symbol)
+            .font(.system(size: 34, weight: .medium))
+            .foregroundStyle(live.pushing ? listener
+                                          : (armed ? glow : .white.opacity(0.35)))
+            .frame(width: 46, height: 40)
+            .padding(.horizontal, 22)
+            .padding(.vertical, 18)
+            .background(Capsule().fill(live.pushing ? listener.opacity(0.18)
+                                                    : .black.opacity(0.35)))
+            .overlay(Capsule().stroke(
+                (live.pushing ? listener : glow).opacity(live.pushing ? 0.8 : 0.28),
+                lineWidth: live.pushing ? 2 : 1))
+            .contentShape(Capsule())
+            .onTapGesture { live.turnMode.toggle() }
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in if armed { live.startTurn() } }
+                    .onEnded { _ in live.endTurn() })
+            .animation(.easeOut(duration: 0.12), value: live.pushing)
     }
 
     private func iconButton(_ symbol: String, tint: Color,
                             action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 20, weight: .medium))
+                .font(.system(size: 34, weight: .medium))
                 .foregroundStyle(tint)
-                .frame(width: 28, height: 24)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 11)
+                .frame(width: 46, height: 40)
+                .padding(.horizontal, 22)
+                .padding(.vertical, 18)
                 .background(Capsule().fill(.black.opacity(0.35)))
                 .overlay(Capsule().stroke(glow.opacity(0.28), lineWidth: 1))
-        }
-    }
-
-    /// Which brain she is running on, and a tap to change it.
-    private var modeButton: some View {
-        Button { pet.cycleMode() } label: {
-            HStack(spacing: 9) {
-                Circle()
-                    .fill(pet.mode == .whisper ? Color.white.opacity(0.4)
-                                               : (live.connected ? glow : working))
-                    .frame(width: 8, height: 8)
-                Text(pet.mode.label)
-                    .font(.system(size: 17, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.55))
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 11)
-            .background(Capsule().fill(.black.opacity(0.35)))
-            .overlay(Capsule().stroke(glow.opacity(0.28), lineWidth: 1))
         }
     }
 
