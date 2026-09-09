@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import os
 
 /// Speech to speech, straight to OpenAI.
 ///
@@ -76,12 +77,17 @@ final class Live: ObservableObject {
     /// failed mint, and the receive loop's error branch -- and a stop that
     /// only closed the socket would be undone by whichever fired first.
     private var stopped = false
+    /// `stopped`, in a form URLSession's callback thread can read. The receive
+    /// loop re-arms itself over there rather than on the main actor, so the one
+    /// flag it has to consult cannot be main-actor isolated.
+    private let halted = OSAllocatedUnfairLock(initialState: false)
     private var floor: Float = 0
 
     // MARK: - the socket
 
     func begin() {
         stopped = false
+        halted.withLock { $0 = false }
         guard socket == nil else { return }
         Task { await connect() }
     }
@@ -150,6 +156,7 @@ final class Live: ObservableObject {
     /// billed. `begin()` builds all of it back.
     func end() {
         stopped = true
+        halted.withLock { $0 = true }
         dormant = false
         speaking = false
         level = 0
@@ -193,7 +200,22 @@ final class Live: ObservableObject {
     }
 
     private func listen() {
-        socket?.receive { [weak self] result in
+        guard let socket else { return }
+        arm(socket)
+    }
+
+    /// Re-arms on URLSession's own callback thread, deliberately. Waiting for
+    /// the main actor before asking for the next frame put hundreds of audio
+    /// deltas a second in front of `receive()`, and the one event that has to
+    /// feel instant -- `input_audio_buffer.speech_started`, which *is*
+    /// barge-in -- queued behind her own voice. So the loop checks `halted`
+    /// here, re-arms straight away, and sends only the frame to the main actor.
+    ///
+    /// Re-arming is still the loop's own heartbeat, and still the thing that
+    /// checks whether he stopped her: without that check a stop closed the
+    /// socket while the receive loop kept queueing itself.
+    private nonisolated func arm(_ socket: URLSessionWebSocketTask) {
+        socket.receive { [weak self] result in
             guard let self else { return }
             switch result {
             case .failure:
@@ -204,18 +226,10 @@ final class Live: ObservableObject {
                     await self.connect()
                 }
             case .success(let message):
-                // Re-arming is the loop's own heartbeat, so it has to be the
-                // thing that checks `stopped` -- otherwise a stop only closed
-                // the socket while the receive loop kept queueing itself.
-                let text: String? = {
-                    if case .string(let t) = message { return t }
-                    return nil
-                }()
-                Task { @MainActor in
-                    guard !self.stopped else { return }
-                    if let text { self.handle(text) }
-                    self.listen()
-                }
+                guard !self.halted.withLock({ $0 }) else { return }
+                self.arm(socket)
+                guard case .string(let text) = message else { return }
+                Task { @MainActor in self.handle(text) }
             }
         }
     }
