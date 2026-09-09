@@ -29,6 +29,13 @@ final class Live: ObservableObject {
     /// Hermes on architect, which is seconds rather than milliseconds, so it
     /// is the one wait long enough that the screen has to account for it.
     @Published private(set) var thinking = false
+    /// Tools out. A flag was not enough: two tool calls in one turn, or a turn
+    /// abandoned when the socket was replaced, could leave it stuck on -- and
+    /// a permanent "thinking" is worse than none, because it stops meaning
+    /// anything. Anything that ends a turn zeroes this.
+    private var toolsOut = 0 {
+        didSet { thinking = toolsOut > 0 }
+    }
     /// One turn at a time instead of an open mic: nothing is streamed until he
     /// holds the button, and the turn ends when he lets go rather than when a
     /// model decides he has finished. He asked for this after the open mic
@@ -125,6 +132,7 @@ final class Live: ObservableObject {
         player.stop()
         pending = 0
         speaking = false
+        toolsOut = 0
         await connect()
     }
 
@@ -207,6 +215,7 @@ final class Live: ObservableObject {
         connected = false
         dormant = true
         speaking = false
+        toolsOut = 0
         player.stop()
         pending = 0
         status = "idle"
@@ -221,7 +230,7 @@ final class Live: ObservableObject {
         dormant = false
         speaking = false
         hearing = false
-        thinking = false
+        toolsOut = 0
         pushing = false
         level = 0
         player.stop()
@@ -345,6 +354,10 @@ final class Live: ObservableObject {
 
         switch type {
         case "response.output_audio.delta":
+            // She is talking, so whatever she was thinking about is finished.
+            // The count is the truth in the normal case; this is what catches
+            // the abnormal one, and it costs nothing to be sure.
+            toolsOut = 0
             if let b64 = ev["delta"] as? String { play(b64) }
             if !speaking { brain.debug(["ev": "audio-began"]) }
             speaking = true
@@ -446,8 +459,8 @@ final class Live: ObservableObject {
     private func runTool(name: String, callID: String, args: String) async {
         var output = "{\"ok\":true}"
         let isBody = name == "set_mood"
-        if !isBody { thinking = true }
-        defer { if !isBody { thinking = false } }
+        if !isBody { toolsOut += 1 }
+        defer { if !isBody { toolsOut = max(0, toolsOut - 1) } }
         if isBody {
             if let d = args.data(using: .utf8),
                let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any] {
