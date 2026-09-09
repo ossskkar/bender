@@ -34,26 +34,41 @@ architect):**
 ("Say something and I'll beep it back"), not the sardonic pet. Debug logging
 to `/arisu/debug` is still on and should come out.
 
-## Barge-in — fixed and installed 2026-09-09, awaiting his verdict
+## Barge-in — fixed, confirmed by Oscar 2026-09-09
 
-**Cause confirmed by reading the diff, not guessed.** The pause fix (`3016f50`)
-did not only add guards; it changed the shape of the receive loop. The success
-branch used to call `listen()` immediately on URLSession's callback thread and
-now hopped to the main actor first, so the next `receive()` queued behind
-hundreds of audio deltas a second. `input_audio_buffer.speech_started` — the
-event that *is* barge-in — arrived after her own voice had already been
-scheduled.
+**The main-actor hop was not the cause.** It was a real slowdown and it was
+reverted (the loop re-arms on URLSession's callback thread again, via a
+`nonisolated arm(_:)`, with the `stopped` check kept as an
+`OSAllocatedUnfairLock` copy the callback thread can read). But it did not fix
+interruption, and the face log on architect said why.
 
-**Fix:** the loop re-arms on the callback thread again, via a `nonisolated`
-`arm(_:)` that takes the socket. Only `handle()` hops to the main actor. The
-`stopped` check stays in the re-arm, where it has to be, as an
-`OSAllocatedUnfairLock` copy the callback thread can read — so the pause bug the
-guards fixed stays fixed.
+**`response.done` means the server stopped sending, not that she stopped
+talking.** At 16:22:48 the log shows `response.output_audio.done` and
+`response.done`; the interruption came at 16:22:50, still two seconds into
+audio the player had already scheduled. Both events cleared `speaking`, and
+`flush()` was gated on `speaking` — so interrupting late in any answer threw
+nothing away. She talked over him to the end and then answered the sentence he
+had said underneath her, which is exactly what he reported.
 
-Builds clean, signed, and **installed on the iPad** (`com.oscar.arisu`, via
-`xcrun devicectl device install app`). Not yet tried by him: the open question
-is whether he can interrupt her mid-sentence again, and whether pausing still
-leaves her silent.
+**Fix:** `input_audio_buffer.speech_started` flushes unconditionally, and
+`speaking` now counts buffers that have actually left the speaker
+(`scheduleBuffer(_:completionCallbackType: .dataPlayedBack)`) rather than
+frames off the socket. Every `player.stop()` resets that count. The idle watch
+gets a truthful `speaking` out of it too.
+
+Installed on the iPad and **confirmed working by him.**
+
+Note: server-side `interrupt_response` is still off (`LAIN_ARISU_INTERRUPT`
+defaults to 0). The flush is local, and it is enough.
+
+## Her mind is Hermes now (2026-09-09)
+
+The realtime session is minted with two tools, not 37: `set_mood` and
+`ask_hermes`. Everything that is not banter goes to Hermes on architect
+through `lain/server/hermes.py`. The 36 lain MCP tools are gone from her
+session — Hermes reaches the same data through his own mount, plus his memory,
+skills and board. Her tool budget in `Brain.swift` is 120s because a Hermes
+turn measured 9–18s today.
 
 ## Decisions & open questions
 
