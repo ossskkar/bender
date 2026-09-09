@@ -182,18 +182,15 @@ struct ContentView: View {
         return Image(systemName: symbol)
             .font(.system(size: 34, weight: .medium))
             .foregroundStyle(tint)
-            .frame(width: 46, height: 40)
-            .padding(.horizontal, 22)
-            .padding(.vertical, 18)
-            .background(Capsule().fill(live.pushing ? recording.opacity(0.2)
-                                                    : .black.opacity(0.35)))
-            // The same edge as every other button. It used to take the tint,
-            // so a grey record button had a grey ring while its neighbours had
-            // a cyan one, and the odd one out was the button that does nothing
-            // until you hold it.
-            .overlay(Capsule().stroke(glow.opacity(0.28), lineWidth: 1))
-            .scaleEffect(live.pushing ? 1.06 : 1)
-            .contentShape(Capsule())
+            // No capsule, no edge -- his call, 2026-09-09. The glyphs sit on
+            // the hologram's own black, and a shadow does the separating work
+            // the border used to, without drawing a second shape around every
+            // icon.
+            .frame(width: 52, height: 46)
+            .padding(10)
+            .shadow(color: .black.opacity(0.85), radius: 5)
+            .contentShape(Rectangle())
+            .scaleEffect(live.pushing ? 1.12 : 1)
             .onTapGesture { live.turnMode.toggle() }
             .gesture(
                 DragGesture(minimumDistance: 0)
@@ -208,11 +205,12 @@ struct ContentView: View {
             Image(systemName: symbol)
                 .font(.system(size: 34, weight: .medium))
                 .foregroundStyle(tint)
-                .frame(width: 46, height: 40)
-                .padding(.horizontal, 22)
-                .padding(.vertical, 18)
-                .background(Capsule().fill(.black.opacity(0.35)))
-                .overlay(Capsule().stroke(glow.opacity(0.28), lineWidth: 1))
+                .frame(width: 52, height: 46)
+                .padding(10)
+                // The only thing keeping a pale glyph legible over the pale
+                // part of her face, now that there is no capsule behind it.
+                .shadow(color: .black.opacity(0.85), radius: 5)
+                .contentShape(Rectangle())
         }
     }
 
