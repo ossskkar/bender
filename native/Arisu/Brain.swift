@@ -33,6 +33,10 @@ struct Persona: Codable {
     var voice: String
     var notes: String
     var voices: [String]?
+    /// A sentence in her current manner, chosen by the desk. The phone does
+    /// not compose it: what counts as warm at 0.9 is a decision that belongs
+    /// next to the instructions it has to match.
+    var sample: String?
 }
 
 /// architect, over Tailscale. The brain is unchanged from the web version --

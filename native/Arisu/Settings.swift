@@ -26,6 +26,7 @@ struct SettingsSheet: View {
     @State private var voices: [String] = []
     @State private var failed = false
     @State private var notesPush: Task<Void, Never>?
+    @State private var previewing = false
 
     private let brain = Brain()
     private let accent = Color(red: 0.27, green: 0.90, blue: 0.97)
@@ -88,6 +89,31 @@ struct SettingsSheet: View {
                 header("Manner")
             } footer: {
                 footer("Takes effect on her next answer.")
+            }
+
+            Section {
+                Button {
+                    Task { await preview() }
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: previewing ? "waveform" : "play.circle.fill")
+                            .font(.system(size: 24))
+                        Text(previewing ? "Listening to her..." : "Hear her")
+                            .font(.system(size: 19, weight: .medium))
+                        Spacer()
+                        if let line = draft?.sample, !previewing {
+                            Text("\u{201C}" + line + "\u{201D}")
+                                .font(.system(size: 14))
+                                .foregroundStyle(.white.opacity(0.4))
+                                .lineLimit(2)
+                                .multilineTextAlignment(.trailing)
+                        }
+                    }
+                }
+                .disabled(previewing)
+            } footer: {
+                footer("She reconnects to say it, so she goes quiet for a "
+                       + "moment first. Her voice, her manner, as set above.")
             }
 
             Section {
@@ -190,6 +216,23 @@ struct SettingsSheet: View {
             guard !Task.isCancelled else { return }
             try? await brain.setPersona(["notes": text])
         }
+    }
+
+    /// Have her say the sample line as she is currently set.
+    ///
+    /// Any pending edit is written first: the manner is baked into her session
+    /// when it is minted, so previewing before the desk has the new value
+    /// would demonstrate the old one.
+    private func preview() async {
+        guard let draft else { return }
+        previewing = true
+        defer { previewing = false }
+        notesPush?.cancel()
+        let got = try? await brain.setPersona([
+            "warmth": draft.warmth, "playfulness": draft.playfulness,
+            "brevity": draft.brevity, "notes": draft.notes])
+        if let got { self.draft = got }
+        await live.preview(got?.sample ?? draft.sample ?? "")
     }
 
     private func reload() async {

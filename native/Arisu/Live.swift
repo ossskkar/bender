@@ -128,6 +128,26 @@ final class Live: ObservableObject {
         await connect()
     }
 
+    /// Reconnect and have her say one line, so a setting can be heard before
+    /// it is lived with.
+    ///
+    /// Through her own session rather than a synthesiser on the desk: the
+    /// OpenAI key is not permitted to call audio/speech, and going through the
+    /// session means the preview is the actual voice carrying the actual
+    /// instructions rather than an approximation of both.
+    func preview(_ line: String) async {
+        guard !stopped, !line.isEmpty else { return }
+        await reconnect()
+        guard connected else { return }
+        send(["type": "conversation.item.create",
+              "item": ["type": "message", "role": "user",
+                       "content": [["type": "input_text",
+                                    "text": "Say this out loud, word for word, "
+                                          + "and nothing else. Do not call any "
+                                          + "tool: \"" + line + "\""]]]])
+        send(["type": "response.create"])
+    }
+
     /// Swap models mid-conversation. The session carries her whole context,
     /// so this is a new conversation, not a new voice on the old one.
     func use(model name: String) {

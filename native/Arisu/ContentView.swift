@@ -187,8 +187,11 @@ struct ContentView: View {
             .padding(.vertical, 18)
             .background(Capsule().fill(live.pushing ? recording.opacity(0.2)
                                                     : .black.opacity(0.35)))
-            .overlay(Capsule().stroke(tint.opacity(live.pushing ? 0.9 : 0.28),
-                                      lineWidth: live.pushing ? 2 : 1))
+            // The same edge as every other button. It used to take the tint,
+            // so a grey record button had a grey ring while its neighbours had
+            // a cyan one, and the odd one out was the button that does nothing
+            // until you hold it.
+            .overlay(Capsule().stroke(glow.opacity(0.28), lineWidth: 1))
             .scaleEffect(live.pushing ? 1.06 : 1)
             .contentShape(Capsule())
             .onTapGesture { live.turnMode.toggle() }
