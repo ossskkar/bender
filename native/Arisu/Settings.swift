@@ -98,7 +98,7 @@ struct SettingsSheet: View {
                     HStack(spacing: 12) {
                         Image(systemName: previewing ? "waveform" : "play.circle.fill")
                             .font(.system(size: 24))
-                        Text(previewing ? "Listening to her..." : "Hear her")
+                        Text(previewing ? "Playing..." : "Play sample")
                             .font(.system(size: 19, weight: .medium))
                         Spacer()
                         if let line = draft?.sample, !previewing {
@@ -110,10 +110,12 @@ struct SettingsSheet: View {
                         }
                     }
                 }
-                .disabled(previewing)
+                .disabled(previewing || live.paused)
             } footer: {
-                footer("She reconnects to say it, so she goes quiet for a "
-                       + "moment first. Her voice, her manner, as set above.")
+                footer(live.paused
+                       ? "She is paused. Start the conversation to hear her."
+                       : "She reconnects to say it, so she goes quiet for a "
+                         + "moment first. Her voice, her manner, as set above.")
             }
 
             Section {

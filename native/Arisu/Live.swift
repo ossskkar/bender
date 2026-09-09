@@ -23,6 +23,11 @@ import os
 @MainActor
 final class Live: ObservableObject {
     @Published private(set) var connected = false
+    /// He stopped her, as opposed to the socket being briefly away. The
+    /// settings screen needs it: a sample cannot play through a session that
+    /// is deliberately shut, and a dead button with no reason is what "it
+    /// doesn't work" means.
+    @Published private(set) var paused = false
     @Published private(set) var speaking = false      // she is talking
     @Published private(set) var hearing = false       // he is talking
     /// A tool is out. On this path that means `think` -- a whole turn of
@@ -115,6 +120,7 @@ final class Live: ObservableObject {
 
     func begin() {
         stopped = false
+        paused = false
         halted.withLock { $0 = false }
         guard socket == nil else { return }
         Task { await connect() }
@@ -147,13 +153,18 @@ final class Live: ObservableObject {
         guard !stopped, !line.isEmpty else { return }
         await reconnect()
         guard connected else { return }
-        send(["type": "conversation.item.create",
-              "item": ["type": "message", "role": "user",
-                       "content": [["type": "input_text",
-                                    "text": "Say this out loud, word for word, "
-                                          + "and nothing else. Do not call any "
-                                          + "tool: \"" + line + "\""]]]])
-        send(["type": "response.create"])
+        // A one-off response with its own instructions, rather than a message
+        // pushed into the conversation. Two reasons: she is told to think
+        // before every turn he addresses to her, so a message asking her to
+        // read a line got thought about instead of read; and `tool_choice`
+        // none is the only way to say that with any certainty. It also leaves
+        // no trace in the conversation, which a sample should not.
+        send(["type": "response.create",
+              "response": ["instructions":
+                            "Say exactly this out loud, word for word, and "
+                            + "nothing else: \"" + line + "\"",
+                           "output_modalities": ["audio"],
+                           "tool_choice": "none"]])
     }
 
     /// Swap models mid-conversation. The session carries her whole context,
@@ -226,6 +237,7 @@ final class Live: ObservableObject {
     /// billed. `begin()` builds all of it back.
     func end() {
         stopped = true
+        paused = true
         halted.withLock { $0 = true }
         dormant = false
         speaking = false
