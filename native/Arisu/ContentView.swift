@@ -29,6 +29,45 @@ struct ContentView: View {
     /// magenta the meter now uses to mean she is working.
     private let voice = Color(red: 0.27, green: 0.90, blue: 0.97)
 
+    /// His voice, and the colour his words are already written in. The meter
+    /// borrows it so that "who is making this move" needs no legend: the bars
+    /// are the colour of whoever's caption is on screen.
+    private let listener = Color.white
+
+    /// Who is doing something, right now. Exactly one of them, because two
+    /// things lighting up at once is what made the old meter unreadable --
+    /// it moved for his microphone whether he was talking, she was talking,
+    /// or nothing was happening at all.
+    private enum Phase { case idle, listening, thinking, speaking }
+
+    private var phase: Phase {
+        // The whisper path has no duplex: it knows it is working and nothing
+        // else, so its only two states are working and not.
+        if pet.mode == .whisper { return pet.thinking ? .thinking : .idle }
+        if live.thinking { return .thinking }
+        if live.speaking { return .speaking }
+        if live.hearing { return .listening }
+        return .idle
+    }
+
+    private var phaseColor: Color {
+        switch phase {
+        case .thinking:  return working
+        case .speaking:  return voice
+        case .listening: return listener
+        case .idle:      return glow
+        }
+    }
+
+    private var phaseLabel: String? {
+        switch phase {
+        case .thinking:  return "thinking"
+        case .speaking:  return "arisu"
+        case .listening: return "you"
+        case .idle:      return nil
+        }
+    }
+
     private var glow: Color {
         switch pet.mood {
         case "hot":   return Color(red: 1.0, green: 0.30, blue: 0.42)
@@ -46,8 +85,13 @@ struct ContentView: View {
             let reach = max(geo.size.width, geo.size.height)
             ZStack {
                 Color.black
-                RadialGradient(colors: [glow.opacity(0.24), glow.opacity(0.06), .clear],
+                // The ground under her carries the same colour as the meter,
+                // so the state is readable from across the room, where the
+                // twenty bars are not.
+                RadialGradient(colors: [phaseColor.opacity(0.24),
+                                        phaseColor.opacity(0.06), .clear],
                                center: .center, startRadius: 4, endRadius: reach * 0.75)
+                    .animation(.easeInOut(duration: 0.35), value: phaseColor)
 
                 face
                 scanlines.allowsHitTesting(false)
@@ -65,6 +109,7 @@ struct ContentView: View {
         }
         .ignoresSafeArea()
         .animation(.easeInOut(duration: 0.25), value: pet.thinking)
+        .animation(.easeInOut(duration: 0.25), value: live.thinking)
         .animation(.easeInOut(duration: 0.25), value: pet.running)
         .onAppear {
             // Only if she was left running: coming back to the app should not
@@ -193,10 +238,32 @@ struct ContentView: View {
     /// busy in a different place from where she listens. Working is the same
     /// object moving differently, in a colour she is never otherwise.
     private var meter: some View {
-        Group {
-            if pet.thinking { working_meter } else { level_meter }
+        VStack(spacing: 7) {
+            Group {
+                switch phase {
+                // Thinking and speaking are both things happening off-screen
+                // with no signal to plot, so both are the same travelling
+                // wave; only the colour separates them. Listening plots his
+                // actual microphone, because there the signal exists.
+                case .thinking, .speaking: wave(phaseColor)
+                case .listening, .idle:    level_meter
+                }
+            }
+            .frame(height: 16)
+            if let phaseLabel {
+                Text(phaseLabel)
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .tracking(2.2)
+                    .foregroundStyle(phaseColor.opacity(0.85))
+                    .shadow(color: phaseColor.opacity(0.6), radius: 6)
+                    .transition(.opacity)
+            } else {
+                // Held open, so the meter does not hop up and down the screen
+                // every time one of them stops talking.
+                Color.clear.frame(height: 13)
+            }
         }
-        .frame(height: 16)
+        .animation(.easeInOut(duration: 0.2), value: phaseLabel)
     }
 
     private var level_meter: some View {
@@ -204,10 +271,13 @@ struct ContentView: View {
             ForEach(0..<20, id: \.self) { i in
                 let lit = Float(i) / 20 < pet.level
                 RoundedRectangle(cornerRadius: 1)
-                    .fill(lit ? (i > 16 ? Color.pink : glow) : Color.white.opacity(0.12))
+                    .fill(lit ? (i > 16 ? Color.pink : phaseColor)
+                              : Color.white.opacity(0.12))
                     .frame(width: 5, height: 10)
             }
         }
+        .shadow(color: phase == .listening ? phaseColor.opacity(0.5) : .clear,
+                radius: 7)
         .animation(.easeOut(duration: 0.12), value: pet.level)
     }
 
@@ -215,19 +285,22 @@ struct ContentView: View {
     /// clock rather than an animation on a `@State` flag: twenty bars each
     /// with their own phase is exactly the shape SwiftUI's implicit
     /// animation cannot express.
-    private var working_meter: some View {
+    private func wave(_ tint: Color) -> some View {
         TimelineView(.animation) { tl in
             let t = tl.date.timeIntervalSinceReferenceDate
+            // She speaks faster than she thinks, and the bars should say so
+            // before the colour does.
+            let speed = phase == .speaking ? 1.5 : 0.85
             HStack(spacing: 3) {
                 ForEach(0..<20, id: \.self) { i in
-                    let phase = Double(i) / 20 - t * 0.85
-                    let wave = (sin(phase * .pi * 2) + 1) / 2
+                    let offset = Double(i) / 20 - t * speed
+                    let w = (sin(offset * .pi * 2) + 1) / 2
                     RoundedRectangle(cornerRadius: 1)
-                        .fill(working.opacity(0.18 + wave * 0.82))
-                        .frame(width: 5, height: 4 + wave * 12)
+                        .fill(tint.opacity(0.18 + w * 0.82))
+                        .frame(width: 5, height: 4 + w * 12)
                 }
             }
-            .shadow(color: working.opacity(0.7), radius: 8)
+            .shadow(color: tint.opacity(0.7), radius: 8)
         }
     }
 }

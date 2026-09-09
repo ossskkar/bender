@@ -25,6 +25,10 @@ final class Live: ObservableObject {
     @Published private(set) var connected = false
     @Published private(set) var speaking = false      // she is talking
     @Published private(set) var hearing = false       // he is talking
+    /// A tool is out. On this path that means `think` -- a whole turn of
+    /// Hermes on architect, which is seconds rather than milliseconds, so it
+    /// is the one wait long enough that the screen has to account for it.
+    @Published private(set) var thinking = false
     @Published private(set) var status = ""
     @Published var level: Float = 0
 
@@ -166,6 +170,8 @@ final class Live: ObservableObject {
         halted.withLock { $0 = true }
         dormant = false
         speaking = false
+        hearing = false
+        thinking = false
         level = 0
         player.stop()
         pending = 0
@@ -347,6 +353,8 @@ final class Live: ObservableObject {
     private func runTool(name: String, callID: String, args: String) async {
         var output = "{\"ok\":true}"
         let isBody = name == "set_mood"
+        if !isBody { thinking = true }
+        defer { if !isBody { thinking = false } }
         if isBody {
             if let d = args.data(using: .utf8),
                let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any] {
