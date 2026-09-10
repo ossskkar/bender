@@ -1,14 +1,29 @@
-# HANDOFF — Arisu (2026-09-10)
+# HANDOFF — Arisu (2026-09-10, evening)
 
 *Her lain-side routes are `lain/docs/arisu-brain.md`; lain's own state is
 `lain/.claude/HANDOFF.md`. The homelab handoff owns the Hermes side.*
 
 ## State
 
-**Nothing is deployed. He asked for that** — the iPad was not nearby. Both
-repos are committed and pushed to GitHub only. `lain` has **not** been pushed
-to the `architect` remote and architect has **not** pulled or restarted, so the
-desk is still running the old server.
+**Deployed. lain is live on architect** with the cast, the cleanup and the
+single mind. Verified there: `set_mood` moves the hologram, `think` answers
+from his real day, an unknown tool 400s, and the whisper path returns
+`source: hermes`.
+
+**She has one mind now, and it is Hermes.** `/arisu/listen` used to run a
+second, smaller Arisu — the Messages API on Haiku with its own key, its own
+JSON contract and a subprocess bridge onto the lain MCP tools. Whisper mode was
+therefore a different pet from mini and full, which were already going through
+`hermes.ask`. All three now take the same path, so what she knows no longer
+depends on which mode is selected. 300 lines went with it.
+
+**The browser face is deleted.** `index.html`, its assets, `preview.html` and
+`deploy.sh` (which copied it into the retired Mac HUD), plus the three lain
+routes only it used — `heard`, `idle` and `voice`. The app calls seven routes
+and nothing else.
+
+**Hermes itself moved to Claude Sonnet 5** on 2026-09-10, which is the actual
+answer to "she feels not so smart". Detail in `homelab/README.md`.
 
 **Her face is a live renderer.** The `signal-face` animation he downloaded, in
 a `WKWebView`. Five states of its own — idle, listening, thinking, speaking,
@@ -55,16 +70,24 @@ reference, so a new character needs no Xcode edit.
    `python3 faces/build.py chopper`. Guessing the landmarks gives a face that
    blinks beside its own eye. Drop `backdrop` from the config if the new one is
    already on a plain ground.
-2. **Deploy lain when he says so** — `git push architect main`, then pull and
-   restart on architect. Until then `/arisu/characters` 404s, the cast fetch
-   fails quietly and the picker does not appear. That is what the simulator
-   shows today and it is not a bug.
-3. **Build and install on the iPad**, then check the picker switches face,
-   voice and manner together.
+2. **Build and install on the iPad**, then check the picker switches face,
+   voice and manner together, and that she now answers from the graph — ask her
+   where she has travelled.
+3. **Check `set_mood` actually moves her.** It errored on every call until
+   today, so nobody has ever seen the hologram change mood from a realtime
+   turn. If it still does not move, the fault is now in the app or the model,
+   not the route.
 4. Watch the battery. A web view for a face is a real cost; the algorithm
    would port to a Metal shader if it matters.
 
 ## Gotchas
+
+- **An uncommitted change of his sits in `faces/renderer.js`** — a per-character
+  `FILL` that widens her to 0.98 of the screen. Left alone deliberately; it is
+  his in-flight work, not part of the cleanup.
+- **Whisper mode leaves the hologram where it was.** The deleted JSON contract
+  used to carry mood and action out of every turn; only the realtime model sets
+  them now, through `set_mood`.
 
 - **A `file://` image taints the canvas** and `getImageData` then throws, which
   is the whole renderer. Portraits are inlined as data URIs. `build.py` does it.
