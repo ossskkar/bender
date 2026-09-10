@@ -77,6 +77,12 @@ const MOUTH = F.mouth || [0.512, 0.672];
 const EYE_SCALE = F.eyeScale == null ? 1 : F.eyeScale;
 const MOUTH_SCALE = F.mouthScale == null ? 1 : F.mouthScale;
 const FACE_JAW = F.jaw == null ? 0.66 : F.jaw;
+// How much of the screen she covers, as a fraction of the tighter dimension.
+// It was 0.70, which left her a portrait hung on a wall rather than a head in
+// the room -- on a 12.9" iPad that is a third of the glass unused. Per
+// character because a portrait cropped tight at the chin and one with shoulders
+// in frame do not want the same number.
+const FILL = F.fill == null ? 0.98 : F.fill;
 
 // 8x8 ordered (Bayer) dither — temporally stable, so the plate doesn't crawl
 const BAYER = new Float32Array([
@@ -614,13 +620,13 @@ class Component extends DCLogic {
     // life comes from discrete refreshes instead of drift
     const fit = eink
       ? (h / BH) * 0.98
-      : Math.min(w / BW, h / BH) * 0.70;
+      : Math.min(w / BW, h / BH) * FILL;
     const scale = eink ? fit : fit * (1 + breath * 0.004);
     const dw = BW * scale, dh = BH * scale;
     const cxp = eink ? w / 2 : w / 2 + Math.sin(t * 0.31) * 6 * this.dpr * alive;
     const cyp = eink
       ? h / 2 - Math.sin(s.nod * Math.PI) * 6 * this.dpr
-      : h * 0.435 + Math.sin(t * 0.47) * 5 * this.dpr * alive - Math.sin(s.nod * Math.PI) * 22 * this.dpr;
+      : h * 0.47 + Math.sin(t * 0.47) * 5 * this.dpr * alive - Math.sin(s.nod * Math.PI) * 22 * this.dpr;
 
     ctx.save();
     ctx.translate(cxp, cyp);
