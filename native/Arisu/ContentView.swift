@@ -47,6 +47,9 @@ struct ContentView: View {
     private enum Phase { case idle, listening, thinking, speaking }
 
     private var phase: Phase {
+        // A muted microphone cannot be listening, whatever the socket thinks,
+        // and the meter must not move as though it were.
+        if live.muted && !live.thinking && !live.speaking { return .idle }
         // The whisper path has no duplex: it knows it is working and nothing
         // else, so its only two states are working and not.
         if pet.mode == .whisper { return pet.thinking ? .thinking : .idle }
@@ -154,6 +157,14 @@ struct ContentView: View {
                 pet.toggleRunning()
             }
             talkButton
+            // The room, private, without hanging up. A slashed mic is the one
+            // glyph that means this everywhere, and it is the only control here
+            // that is louder off than on -- muted is a state you must not
+            // forget you are in, so it takes the recording red.
+            iconButton(live.muted ? "mic.slash.fill" : "mic.fill",
+                       tint: live.muted ? recording : off) {
+                live.muted.toggle()
+            }
             iconButton("slider.horizontal.3", tint: off) {
                 showSettings = true
             }
@@ -217,7 +228,10 @@ struct ContentView: View {
     /// asleep, which is not a phase of a conversation but the absence of one:
     /// the microphone is down and there is nothing to be idle about.
     private var faceState: String {
-        guard pet.running else { return "asleep" }
+        // Muted is not a phase of a conversation either. She should look like
+        // she is waiting rather than listening, or the face says the room is
+        // being heard when it is not.
+        guard pet.running, !live.muted else { return "asleep" }
         switch phase {
         case .idle:      return "idle"
         case .listening: return "listening"

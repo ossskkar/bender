@@ -53,6 +53,22 @@ final class Live: ObservableObject {
     @Published var turnMode = false {
         didSet { if turnMode != oldValue { applyTurnMode() } }
     }
+    /// The microphone, off, without ending the conversation.
+    ///
+    /// Distinct from both the other two controls and worth saying why. The
+    /// waveform button ends the conversation: the socket goes, the tap comes
+    /// down, nothing is heard or billed. The record button is push-to-talk: the
+    /// mic is live and she is simply waiting to be handed a turn. This is the
+    /// third thing -- stay connected, keep her context, and let the room be
+    /// private for a minute. He can pick the conversation back up mid-thought
+    /// rather than starting a new one.
+    ///
+    /// The tap keeps running while muted so the meter still moves. That is the
+    /// only honest way to show a microphone that is alive and going nowhere,
+    /// and it is the same choice `turnMode` already made.
+    @Published var muted = false {
+        didSet { if muted != oldValue { applyMute() } }
+    }
     @Published private(set) var status = ""
     @Published var level: Float = 0
 
@@ -204,9 +220,11 @@ final class Live: ObservableObject {
             lastVoice = Date()
             listen()
             startIdleWatch()
-            // Every session is minted with the open mic, so a reconnect in
-            // turn mode has to say so again or she starts answering the room.
-            if turnMode { applyTurnMode() }
+            // Every session is minted with the open mic, so a reconnect while
+            // muted or in turn mode has to say so again or she starts
+            // answering the room. Mute first: it is the stricter of the two and
+            // it is what applyMute would have sent anyway.
+            if muted { applyMute() } else if turnMode { applyTurnMode() }
         } catch {
             connected = false
             status = "no session"
@@ -446,10 +464,33 @@ final class Live: ObservableObject {
                           "audio": ["input": ["turn_detection": detection]]]])
     }
 
+    /// Tell her end that the room has gone quiet, or come back.
+    ///
+    /// Turn detection goes off for the same reason it does in turn mode, and
+    /// then some: with semantic VAD still running, unmuting after a silence
+    /// hands the server a discontinuity it reads as the end of an utterance,
+    /// and she answers a sentence that was never spoken to her. Unmuting
+    /// restores whichever mode the buttons actually say, so the two controls
+    /// cannot fight over the session.
+    private func applyMute() {
+        pushing = false
+        hearing = false
+        guard connected else { return }
+        if muted {
+            send(["type": "session.update",
+                  "session": ["type": "realtime",
+                              "audio": ["input": ["turn_detection": NSNull()]]]])
+            // Whatever was captured before the button went down is not hers.
+            send(["type": "input_audio_buffer.clear"])
+        } else {
+            applyTurnMode()
+        }
+    }
+
     /// He is holding the button. Anything of hers still playing stops, because
     /// starting to talk is starting to talk however it was signalled.
     func startTurn() {
-        guard turnMode, connected, !pushing else { return }
+        guard turnMode, connected, !pushing, !muted else { return }
         flush()
         pushing = true
         hearing = true
@@ -622,6 +663,9 @@ final class Live: ObservableObject {
                 return
             }
             guard self.connected else { return }
+            // Muted outranks everything: no audio leaves this device, whether
+            // the mic is open or a turn is being held.
+            guard !self.muted else { return }
             // In turn mode the tap keeps running -- the meter is how he knows
             // the microphone is alive -- but the audio goes nowhere until he
             // is actually holding the button down.
