@@ -11,6 +11,7 @@ import SwiftUI
 struct ContentView: View {
     @ObservedObject var pet: Pet
     @ObservedObject var live: Live
+    @ObservedObject var room: Room
     @State private var sweep = false
     /// Whether the two of them are subtitled. Kept across launches because it
     /// is a preference about the room, not about the conversation -- reading
@@ -108,6 +109,7 @@ struct ContentView: View {
 
                 VStack {
                     Spacer()
+                    if room.isGroup { company }
                     if showTranscript { caption }
                     // A meter for a microphone that is down would be a lie.
                     if pet.running { meter.padding(.bottom, 22) }
@@ -164,6 +166,24 @@ struct ContentView: View {
             iconButton(live.muted ? "mic.slash.fill" : "mic.fill",
                        tint: live.muted ? recording : off) {
                 live.muted.toggle()
+            }
+            // Alone or with the others. Solo is one screen with one
+            // microphone, which is what this has always been; group hands the
+            // room to the desk, which decides whose microphone is live and who
+            // is allowed to be talking. Room-wide rather than per screen: half
+            // a house in group mode is the open-microphone failure it exists
+            // to prevent.
+            iconButton(room.isGroup ? "person.2.fill" : "person.fill",
+                       tint: room.isGroup ? glow : off) {
+                room.set(mode: room.isGroup ? "solo" : "group")
+            }
+            // Which device is listening. Only meaningful in a group, so it is
+            // only there -- an ear that cannot move is a button that lies.
+            if room.isGroup {
+                iconButton(room.isListener ? "ear.fill" : "ear",
+                           tint: room.isListener ? listener : off) {
+                    room.listenHere()
+                }
             }
             iconButton("slider.horizontal.3", tint: off) {
                 showSettings = true
@@ -258,6 +278,33 @@ struct ContentView: View {
                 }
             }.fill(glow.opacity(0.055))
         }.ignoresSafeArea()
+    }
+
+    /// Who else is in the room, and who is talking.
+    ///
+    /// Small and always-on rather than a screen he has to open: the two things
+    /// that go wrong in a group are invisible otherwise -- a device that
+    /// dropped out, and a microphone he thinks is here when it is on the
+    /// kitchen counter. The ear is marked, the speaker is lit, and this device
+    /// is the one in his own colour.
+    private var company: some View {
+        HStack(spacing: 14) {
+            ForEach(room.members) { m in
+                HStack(spacing: 4) {
+                    if room.listener == m.device {
+                        Image(systemName: "ear.fill").font(.system(size: 11))
+                    }
+                    Text(m.name)
+                }
+                .font(.system(size: 13, weight: room.holder == m.device
+                                            ? .semibold : .regular))
+                .foregroundStyle(room.holder == m.device ? voice
+                                 : m.device == room.device ? listener
+                                 : Color.white.opacity(0.45))
+            }
+        }
+        .padding(.bottom, 10)
+        .animation(.easeInOut(duration: 0.25), value: room.holder)
     }
 
     /// The last thing each of them said, and nothing older. A new line does

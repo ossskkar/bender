@@ -47,6 +47,10 @@ final class Pet: ObservableObject {
     let ear = Ear()
     let live = Live()
     let voice = Voice()
+    /// The other screens in the house. Always running, even alone: a room of
+    /// one is what "solo" is, and joining it is how this device becomes
+    /// pickable as the ear from another one.
+    let room = Room()
     private let brain = Brain()
     private var seen = -1
     private var levelSink: Task<Void, Never>?
@@ -60,6 +64,7 @@ final class Pet: ObservableObject {
     private var lastWav: Data?
 
     init() {
+        wireRoom()
         voice.onSpeakingChanged = { [weak self] talking in
             self?.ear.herVoice = talking
         }
@@ -83,14 +88,57 @@ final class Pet: ObservableObject {
         }
     }
 
-    /// Whose face is on screen. The desk decides -- the session is minted
-    /// there with that character's identity and voice -- so this is what the
-    /// desk last said, not a preference held on the phone. Two devices in the
-    /// house therefore agree about who is on the desk.
+    /// Whose face is on screen.
+    ///
+    /// It used to be whoever the desk had active, so that two devices in the
+    /// house agreed about who he was talking to. A room wants the opposite:
+    /// four screens showing four different people is the entire point, so the
+    /// character is this device's, held in `Room`, and the desk's active one
+    /// is only what a fresh install starts from.
     @Published private(set) var face = "arisu"
+
+    /// The room and the session, kept in step.
+    ///
+    /// Everything here is a consequence of one rule -- a session's identity is
+    /// fixed at mint time -- so a character change is a reconnection, and the
+    /// two things that are not (the ear moving, somebody taking the floor)
+    /// are a `session.update` instead.
+    private func wireRoom() {
+        room.onChange = { [weak self] in
+            guard let self else { return }
+            self.live.role = Live.Role(group: self.room.isGroup,
+                                       listener: self.room.isListener,
+                                       blocked: self.room.othersSpeaking)
+        }
+        room.onCharacter = { [weak self] cid in
+            guard let self else { return }
+            self.face = cid
+            self.live.character = cid
+            guard self.running, self.mode != .whisper else { return }
+            self.live.end()
+            self.beginLive()
+        }
+        // He said something to somebody else's microphone. Every screen is
+        // told; exactly one is asked to answer.
+        room.onHeard = { [weak self] text, answer in
+            guard let self else { return }
+            if !text.isEmpty {
+                self.heard = text
+                self.live.hear(text, from: "Oscar")
+            }
+            if answer == self.room.device { self.live.answer() }
+        }
+        // One of them said something. Context, never a cue to reply -- the
+        // desk has already decided who is answering, and a character that
+        // answered every remark would turn a room into a loop.
+        room.onSaid = { [weak self] name, character, text in
+            self?.live.hear(text, from: character.isEmpty ? name : character)
+        }
+    }
 
     func begin() {
         running = true
+        room.start()
         mode == .whisper ? beginWhisper() : beginLive()
         Task { await refreshCast() }
     }
@@ -111,14 +159,18 @@ final class Pet: ObservableObject {
     /// The face changes with it rather than before it, so the two never
     /// disagree about who he is talking to.
     func switchCharacter(to id: String) async {
-        guard let cast = try? await brain.setCast(["to": id]) else { return }
-        adopt(cast)
-        guard running, mode != .whisper else { return }
-        live.end()
-        beginLive()
+        // The desk still learns about it -- a device with no character of its
+        // own, and the dashboard, both read the active one -- but this screen
+        // no longer waits for that answer to know who it is showing.
+        room.character = id
+        _ = try? await brain.setCast(["to": id])
     }
 
     private func adopt(_ cast: Cast) {
+        // Only as a default. Once this device has picked a character of its
+        // own -- which the room does on the first join -- the desk's active
+        // one is somebody else's screen and must not repaint this one.
+        guard room.character.isEmpty else { return }
         face = cast.characters[cast.active]?.face ?? cast.active
     }
 
@@ -141,6 +193,9 @@ final class Pet: ObservableObject {
         level = 0
         live.end()
         ear.stop()
+        // Stopping is not muting: this device is out of the room, so the ear
+        // moves to a screen that can actually hear him.
+        room.stop()
     }
 
     /// Speech to speech. Nothing here decides when he has stopped talking or
@@ -154,9 +209,20 @@ final class Pet: ObservableObject {
             Task { @MainActor in self?.line = t }
         }
         live.onHeard = { [weak self] t in
-            Task { @MainActor in self?.heard = t }
+            Task { @MainActor in
+                self?.heard = t
+                // Only the ear gets here, because only the ear has a live
+                // microphone -- and it is the one device that can tell the
+                // others what he just said.
+                self?.room.report(heard: t)
+            }
         }
         live.model = mode.model ?? "gpt-realtime-2.1-mini"
+        live.character = room.character
+        live.room = room
+        live.role = Live.Role(group: room.isGroup,
+                              listener: room.isListener,
+                              blocked: room.othersSpeaking)
         live.begin()
     }
 

@@ -83,6 +83,36 @@ final class Live: ObservableObject {
     /// the next connection, so the socket is dropped when it changes.
     var model = "gpt-realtime-2.1-mini"
 
+    /// Which of them this screen is. Baked into the session at mint time, so a
+    /// change only lands on the next connection -- `Pet` drops the socket.
+    var character = ""
+
+    /// What the room says this device may do right now.
+    ///
+    /// Three states rather than a flag, because they fail differently. Not in
+    /// a group at all: the session works the way it always has. In a group but
+    /// not the ear: the microphone must reach nothing, and everything this
+    /// screen knows arrives as text. Blocked: somebody else is mid-sentence,
+    /// so even the ear stops feeding -- her voice coming out of another phone
+    /// two feet away is indistinguishable to a VAD from him starting to talk,
+    /// which is the same collision `realtime.INTERRUPT` was turned off for.
+    struct Role: Equatable {
+        var group = false
+        var listener = false
+        var blocked = false
+    }
+    var role = Role() {
+        didSet { if role != oldValue { applyInput() } }
+    }
+
+    /// True when nothing this microphone hears may reach a model.
+    private var silenced: Bool {
+        muted || (role.group && (!role.listener || role.blocked))
+    }
+
+    /// The room, when there is one. Set by `Pet`.
+    weak var room: Room?
+
     /// Seconds of nobody talking before the socket is dropped. The session is
     /// billed by the minute it is open, not by the minute it is used: at a ten
     /// hour day an always-open one is $100+/month. Nil keeps it open forever,
@@ -208,7 +238,8 @@ final class Live: ObservableObject {
             return
         }
         do {
-            let token = try await brain.realtimeToken(model: model)
+            let token = try await brain.realtimeToken(model: model,
+                                                      character: character)
             var r = URLRequest(url: URL(string: token.url)!)
             r.setValue("Bearer " + token.value, forHTTPHeaderField: "Authorization")
             let ws = session.webSocketTask(with: r)
@@ -224,7 +255,10 @@ final class Live: ObservableObject {
             // muted or in turn mode has to say so again or she starts
             // answering the room. Mute first: it is the stricter of the two and
             // it is what applyMute would have sent anyway.
-            if muted { applyMute() } else if turnMode { applyTurnMode() }
+            // One call rather than three: mute, turn mode and the room all
+            // decide the same field, and sending them in sequence let the
+            // looser one land last and undo the stricter.
+            applyInput()
         } catch {
             connected = false
             status = "no session"
@@ -401,6 +435,10 @@ final class Live: ObservableObject {
         case "response.output_audio_transcript.done":
             if let t = ev["transcript"] as? String {
                 onTranscript?(t)
+                // The other screens cannot hear her -- only the ear has a live
+                // microphone, and it is deaf while she talks -- so the room is
+                // how what she just said reaches them.
+                room?.report(said: t)
                 brain.debug(["ev": "said", "text": String(t.prefix(200))])
             }
 
@@ -450,14 +488,35 @@ final class Live: ObservableObject {
     /// listening, the burst that arrives when he lets go looks like a whole
     /// utterance and she would answer it twice -- once because the server
     /// decided he stopped, once because we asked.
-    private func applyTurnMode() {
+    private func applyTurnMode() { applyInput() }
+
+    /// How this session treats its microphone, decided in one place.
+    ///
+    /// Four things have an opinion -- the mute button, turn mode, whether this
+    /// device is the room's ear, and whether somebody else is speaking -- and
+    /// they all write the same field. Deciding them separately is how a mute
+    /// used to be undone by a mode change arriving a frame later.
+    ///
+    /// The group case turns `create_response` off even on the ear. In a room
+    /// the desk names who answers each sentence, so a session that answered
+    /// what it heard by itself would be a fourth voice nobody asked for.
+    private func applyInput() {
         pushing = false
         guard connected else { return }
+        if silenced {
+            hearing = false
+            send(["type": "session.update",
+                  "session": ["type": "realtime",
+                              "audio": ["input": ["turn_detection": NSNull()]]]])
+            // Whatever was captured before this is not hers to answer.
+            send(["type": "input_audio_buffer.clear"])
+            return
+        }
         let detection: Any = turnMode
             ? NSNull()
             : ["type": "semantic_vad",
                "eagerness": "low",
-               "create_response": true,
+               "create_response": !role.group,
                "interrupt_response": false] as [String: Any]
         send(["type": "session.update",
               "session": ["type": "realtime",
@@ -472,20 +531,7 @@ final class Live: ObservableObject {
     /// and she answers a sentence that was never spoken to her. Unmuting
     /// restores whichever mode the buttons actually say, so the two controls
     /// cannot fight over the session.
-    private func applyMute() {
-        pushing = false
-        hearing = false
-        guard connected else { return }
-        if muted {
-            send(["type": "session.update",
-                  "session": ["type": "realtime",
-                              "audio": ["input": ["turn_detection": NSNull()]]]])
-            // Whatever was captured before the button went down is not hers.
-            send(["type": "input_audio_buffer.clear"])
-        } else {
-            applyTurnMode()
-        }
-    }
+    private func applyMute() { applyInput() }
 
     /// He is holding the button. Anything of hers still playing stops, because
     /// starting to talk is starting to talk however it was signalled.
@@ -505,6 +551,48 @@ final class Live: ObservableObject {
         lastVoice = Date()
         send(["type": "input_audio_buffer.commit"])
         send(["type": "response.create"])
+    }
+
+    // MARK: - the room
+
+    /// Put words this session never heard into it, as though it had.
+    ///
+    /// The speaker is named in the text rather than carried in a field: the
+    /// realtime schema has one user role and no notion of a room, so the only
+    /// place "who said this" can survive is the sentence itself. Without it a
+    /// character answers every remark as though he had made it, and thanks him
+    /// for things another character said.
+    func hear(_ text: String, from who: String) {
+        guard connected, !text.isEmpty else { return }
+        let line = who.isEmpty ? text : "\(who) said: \(text)"
+        send(["type": "conversation.item.create",
+              "item": ["type": "message",
+                       "role": "user",
+                       "content": [["type": "input_text", "text": line]]]])
+    }
+
+    /// Say something, once the room allows it.
+    ///
+    /// The floor is asked for before the response rather than after, because
+    /// after is too late: the audio starts arriving within a few hundred
+    /// milliseconds and two devices that both decided to speak are already
+    /// talking over each other by the time either finds out. A refusal waits
+    /// for the room to go quiet rather than giving up -- being told to answer
+    /// and then not answering is the one outcome that reads as broken.
+    func answer() {
+        guard connected else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            let deadline = Date().addingTimeInterval(25)
+            while Date() < deadline {
+                if await self.room?.takeFloor() ?? true {
+                    self.send(["type": "response.create"])
+                    return
+                }
+                try? await Task.sleep(nanoseconds: 400_000_000)
+            }
+            self.brain.debug(["ev": "floor-timeout"])
+        }
     }
 
     // MARK: - her hands, which are on the desk
@@ -664,8 +752,10 @@ final class Live: ObservableObject {
             }
             guard self.connected else { return }
             // Muted outranks everything: no audio leaves this device, whether
-            // the mic is open or a turn is being held.
-            guard !self.muted else { return }
+            // the mic is open or a turn is being held. In a room this also
+            // covers every screen that is not the ear, and the ear itself
+            // while another one is talking.
+            guard !self.silenced else { return }
             // In turn mode the tap keeps running -- the meter is how he knows
             // the microphone is alive -- but the audio goes nowhere until he
             // is actually holding the button down.
@@ -760,7 +850,13 @@ final class Live: ObservableObject {
     /// One buffer has actually left the speaker.
     private func drained() {
         pending = max(0, pending - 1)
-        if pending == 0 { speaking = false }
+        if pending == 0 {
+            speaking = false
+            // Not on `response.done`: that fires while seconds of her are
+            // still queued here, and handing the floor back then lets the next
+            // device start talking over the end of her own sentence.
+            room?.giveFloor()
+        }
     }
 
     /// Everything of hers still queued, thrown away mid-word.
@@ -769,5 +865,6 @@ final class Live: ObservableObject {
         pending = 0
         player.play()
         speaking = false
+        room?.giveFloor()
     }
 }

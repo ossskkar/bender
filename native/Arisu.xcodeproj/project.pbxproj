@@ -17,6 +17,7 @@
 		AD8A4B8DB6115482A928E9F1 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF187857D8C65BB89621CF9D /* ContentView.swift */; };
 		D0F3F9CC55EB59088951E273 /* ArisuApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07BAE50857925CE28AFF0464 /* ArisuApp.swift */; };
 		A22222220000000000000001 /* FaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A22222220000000000000002 /* FaceView.swift */; };
+		A22222220000000000000005 /* Room.swift in Sources */ = {isa = PBXBuildFile; fileRef = A22222220000000000000006 /* Room.swift */; };
 		A22222220000000000000003 /* Face in Resources */ = {isa = PBXBuildFile; fileRef = A22222220000000000000004 /* Face */; };
 /* End PBXBuildFile section */
 
@@ -32,6 +33,7 @@
 		F98A8600096F593286FDD18D /* Live.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Live.swift; sourceTree = "<group>"; };
 		FF187857D8C65BB89621CF9D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A22222220000000000000002 /* FaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceView.swift; sourceTree = "<group>"; };
+		A22222220000000000000006 /* Room.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Room.swift; sourceTree = "<group>"; };
 		A22222220000000000000004 /* Face */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Face; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -74,6 +76,7 @@
 				A11111110000000000000002 /* Settings.swift */,
 				FF187857D8C65BB89621CF9D /* ContentView.swift */,
 				A22222220000000000000002 /* FaceView.swift */,
+				A22222220000000000000006 /* Room.swift */,
 				4BAA956715895AECAFB518DC /* Assets.xcassets */,
 				A22222220000000000000004 /* Face */,
 			);
@@ -159,6 +162,7 @@
 				A11111110000000000000001 /* Settings.swift in Sources */,
 				AD8A4B8DB6115482A928E9F1 /* ContentView.swift in Sources */,
 				A22222220000000000000001 /* FaceView.swift in Sources */,
+				A22222220000000000000005 /* Room.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

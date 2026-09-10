@@ -20,6 +20,10 @@ struct LiveToken: Decodable {
     let value: String
     let url: String
     let model: String
+    /// Which of them the desk actually baked into this session. Asked for by
+    /// the app and resolved there, so a character deleted from another screen
+    /// comes back as whoever is on the desk rather than as silence.
+    let character: String?
 }
 
 /// What she is like, as the desk holds it. Three dials from 0 to 1, a voice,
@@ -100,10 +104,17 @@ final class Brain {
     /// Mint a session for the speech-to-speech path. The desk decides which
     /// models are allowed; anything else it does not recognise falls back to
     /// its own default rather than being spent on.
-    func realtimeToken(model: String) async throws -> LiveToken {
+    /// `character` is which of them this screen is showing. It is the app's to
+    /// choose because in a room the four screens are four different people,
+    /// and the desk only holds one active character. Empty means whoever that
+    /// is, which is what every caller wanted when there was one screen.
+    func realtimeToken(model: String, character: String = "") async throws -> LiveToken {
         var c = URLComponents(url: Brain.base.appendingPathComponent("realtime"),
                               resolvingAgainstBaseURL: false)!
         c.queryItems = [URLQueryItem(name: "model", value: model)]
+        if !character.isEmpty {
+            c.queryItems?.append(URLQueryItem(name: "character", value: character))
+        }
         let (data, resp) = try await session.data(from: c.url!)
         guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else {
             throw URLError(.badServerResponse)
