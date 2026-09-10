@@ -33,8 +33,10 @@ developer-signed app cannot launch on either. Installed fine; will not run.
 
 - **Deferred, his words, do not start it:** the iPad showing **up to six
   characters on a divided screen**, one conversation between them.
-- **Open, and his: TestFlight or nothing** for the managed phones. It needs the
-  $99/yr account he declined in `native/SETUP.md`.
+- **Settled 2026-09-10: the managed phones are closed. Do not reopen.** He said
+  no to the $99/yr account, so TestFlight is out, and erasing a phone does not
+  help — a supervised device re-enrols itself and reapplies the same
+  developer-trust restriction. The iPad and the SE are the only seats.
 - The room is **in memory**: a lain restart drops everyone to solo. Deliberate.
 - Unchanged and still open: Chopper's better portrait, and Chopper's voice.
 

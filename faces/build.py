@@ -58,6 +58,11 @@ from PIL import Image, ImageFilter
 
 HERE = Path(__file__).resolve().parent
 OUT = HERE.parent / "native" / "Arisu" / "Face"
+# The same page is the face in Safari. lain serves its own directory as static
+# files, so a copy under `lain/arisu/` is reachable at `/arisu/<id>.html` on the
+# tailnet -- which is the only way onto the two work phones, whose MDM refuses
+# a developer-signed app. Emitting both here is what keeps them from drifting.
+WEB = HERE.parent.parent / "lain" / "arisu"
 
 HEAD = """<!DOCTYPE html>
 <html>
@@ -309,12 +314,18 @@ def build(cid, renderer):
     page = (HEAD % {"name": name, "portrait": uri,
                     "config": json.dumps(config, indent=2)}
             + renderer + TAIL)
-    OUT.mkdir(parents=True, exist_ok=True)
-    out = OUT / (cid + ".html")
-    out.write_text(page, encoding="utf-8")
+    written = []
+    for folder in (OUT, WEB):
+        if folder is WEB and not folder.parent.is_dir():
+            continue          # no lain checkout beside us; the app copy is enough
+        folder.mkdir(parents=True, exist_ok=True)
+        out = folder / (cid + ".html")
+        out.write_text(page, encoding="utf-8")
+        written.append(out)
     print("%-10s %s  (%dx%d portrait, %d KB page)"
-          % (cid, out.relative_to(HERE.parent), size[0], size[1],
-             len(page.encode()) // 1024))
+          % (cid, ", ".join(str(w).replace(str(HERE.parent.parent) + "/", "")
+                            for w in written),
+             size[0], size[1], len(page.encode()) // 1024))
 
 
 def main(argv):
