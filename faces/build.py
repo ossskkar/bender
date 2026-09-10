@@ -16,7 +16,21 @@ The JSON is the landmarks, as fractions of the frame:
     {"bw": 300, "bh": 314,
      "eyeL": [0.375, 0.470], "eyeR": [0.674, 0.468],
      "mouth": [0.512, 0.672],
-     "eyeScale": 1.0, "mouthScale": 1.0, "jaw": 0.66}
+     "eyeScale": 1.0, "mouthScale": 1.0, "jaw": 0.66,
+     "backdrop": 14, "sharpen": 140,
+     "props": {"bloom": 1.0, "lineSpacing": 3.1, "aliveness": 0.8}}
+
+`backdrop` blacks out a photographic background, spreading in from the borders
+with that colour tolerance; leave it out for artwork already on a plain ground.
+`sharpen` is the unsharp percentage applied when the portrait is fitted to the
+buffer -- see `fit_buffer`, which is the difference between a character being
+lit and being sanded smooth.
+
+`props` is optional and goes to the renderer itself. It matters more than it
+sounds: the hologram lights contours, so how bright a character comes out
+depends entirely on how much line there is in the artwork. Dense line art needs
+nothing; flat cel-shaded colour with a thin outline comes out almost invisible
+at the same settings, which is what Chopper did at first.
 
 Measure them off the artwork rather than guessing -- `grid.py` beside this file
 prints a portrait with a coordinate grid over it for exactly that. Eyes and
@@ -39,6 +53,8 @@ import io
 import json
 import sys
 from pathlib import Path
+
+from PIL import Image, ImageFilter
 
 HERE = Path(__file__).resolve().parent
 OUT = HERE.parent / "native" / "Arisu" / "Face"
@@ -95,7 +111,7 @@ TAIL = """
 
 const stub = () => document.createElement('div');
 
-const face = new Component({
+const face = new Component(Object.assign({
   palette: 'Neon Bloom',
   renderMode: 'Hologram',
   lineSpacing: 3.1,
@@ -104,7 +120,7 @@ const face = new Component({
   // 60 on a pet that runs all day is a waste of a battery; the effect is
   // bloom-soft and interlaced, so half of it reads the same across the room.
   fpsCap: 30
-});
+}, window.CHARACTER_FACE.props || {}));
 
 face.canvasRef.current = document.getElementById('face');
 face.stageRef.current  = document.getElementById('stage');
@@ -157,9 +173,93 @@ window.arisuFace = face;
 """
 
 
-def portrait_uri(path):
-    """The portrait as a data URI, flattened onto black if it has any alpha."""
-    from PIL import Image
+def cut_backdrop(im, tolerance, edge_stop=26):
+    """Black out a photographic backdrop, spreading in from the borders.
+
+    The renderer has a backdrop remover of its own and it is better than this
+    one -- but it only follows a *smooth* gradient, so it takes a studio sweep
+    and leaves a sky with clouds in it. Chopper arrived standing in front of one
+    and rendered inside a dim glowing rectangle, because the sky it could not
+    remove still had luminance for the contour pass to light.
+
+    Two tests, and the second one is not optional. The first is local, like the
+    renderer's: a pixel joins the backdrop only if it is close to the neighbour
+    the fill arrived from, so a graded sky is followed all the way round. On its
+    own that erased him completely -- his outline is anti-aliased, so it ramps
+    from sky to ink over three pixels in steps small enough to walk, and once
+    the fill was inside him every flat cel-shaded fill was locally uniform too.
+    The second test is the guard the renderer uses: the fill may not enter a
+    pixel that sits on a strong gradient. A drawn outline is a ridge, and a
+    ridge is what stops it.
+    """
+    import numpy as np
+    a = np.asarray(im.convert("RGB"), dtype=np.int16)
+    h, w, _ = a.shape
+
+    # Gradient magnitude, the largest channel step to the next pixel across or
+    # down. Cheap, and an outline scores far above anything inside a flat fill.
+    grad = np.zeros((h, w), dtype=np.int16)
+    grad[:, :-1] = np.abs(a[:, 1:] - a[:, :-1]).max(axis=2)
+    grad[:-1, :] = np.maximum(grad[:-1, :], np.abs(a[1:] - a[:-1]).max(axis=2))
+    ridge = grad > edge_stop
+
+    seen = np.zeros((h, w), dtype=bool)
+    work = []
+    for y, x in ([(0, x) for x in range(w)] + [(h - 1, x) for x in range(w)]
+                 + [(y, 0) for y in range(h)] + [(y, w - 1) for y in range(h)]):
+        if not seen[y, x] and not ridge[y, x]:
+            seen[y, x] = True
+            work.append((y, x))
+    while work:
+        y, x = work.pop()
+        here = a[y, x]
+        for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            ny, nx = y + dy, x + dx
+            if (0 <= ny < h and 0 <= nx < w and not seen[ny, nx]
+                    and not ridge[ny, nx]
+                    and int(np.abs(a[ny, nx] - here).max()) <= tolerance):
+                seen[ny, nx] = True
+                work.append((ny, nx))
+    a[seen] = 0
+    return Image.fromarray(a.astype("uint8"), "RGB")
+
+
+def fit_buffer(im, size, sharpen):
+    """Resize to the renderer's own buffer, keeping the lines.
+
+    This is the fix for the thing that actually made Chopper dim, and it took
+    two wrong guesses to find. The hologram lights contours, and it samples the
+    portrait by drawing it into a 300px-wide buffer. Arisu's portrait is 532px
+    across, barely a reduction. His is 1386, and his outlines are about four
+    pixels wide -- so the browser's bilinear downscale averaged every one of
+    them down to under a pixel and handed the contour pass a soft pastel blur
+    with almost no gradient in it. He was not badly lit, he had been sanded
+    smooth before the renderer ever saw him.
+
+    Lanczos keeps far more of an edge than a bilinear halving does, and the
+    unsharp pass afterwards puts back what the reduction still cost. Doing it
+    here rather than raising the buffer size keeps the per-frame cost where it
+    was: the renderer redraws that buffer thirty times a second, and this runs
+    once at build time.
+    """
+    im = im.resize(size, Image.LANCZOS)
+    if sharpen:
+        im = im.filter(ImageFilter.UnsharpMask(radius=1.2, percent=int(sharpen),
+                                               threshold=2))
+    return im
+
+
+def portrait_uri(path, config):
+    """The portrait as a data URI, prepared for the renderer.
+
+    Flattened onto black if it has any alpha: a PNG's fully transparent pixels
+    still carry colour, `getImageData` hands it back unpremultiplied, and the
+    renderer lights that junk as though it were a subject.
+
+    Returns the URI and the buffer size the page should use, which is this
+    image's size -- the renderer then blits it one to one instead of resampling
+    it every frame.
+    """
     im = Image.open(path)
     if im.mode in ("RGBA", "LA", "P"):
         im = im.convert("RGBA")
@@ -168,10 +268,20 @@ def portrait_uri(path):
             flat = Image.new("RGB", im.size, (0, 0, 0))
             flat.paste(im, mask=alpha)
             im = flat
-        else:
-            im = im.convert("RGB")
+    im = im.convert("RGB")
+
+    # Backdrop first, at full size: the fill needs the hard outline around the
+    # character to stop it, and a reduction is exactly what softens that.
+    cut = config.get("backdrop")
+    if cut:
+        im = cut_backdrop(im, 12 if cut is True else int(cut))
+
+    bw = int(config.get("bw") or 300)
+    bh = int(config.get("bh") or max(1, round(bw * im.size[1] / im.size[0])))
+    im = fit_buffer(im, (bw, bh), config.get("sharpen", 140))
+
     buf = io.BytesIO()
-    im.convert("RGB").save(buf, format="PNG", optimize=True)
+    im.save(buf, format="PNG", optimize=True)
     return ("data:image/png;base64,"
             + base64.b64encode(buf.getvalue()).decode("ascii"), im.size)
 
@@ -186,12 +296,14 @@ def build(cid, renderer):
                  if p.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp")]
     if not portraits:
         raise SystemExit("no faces/portraits/%s.* -- the face needs a picture" % cid)
-    uri, size = portrait_uri(portraits[0])
-
     # The buffer keeps the portrait's aspect ratio, so a face is never squashed
-    # by the frame it is sampled into. Width is fixed: it is a cost, not a look.
-    config.setdefault("bw", 300)
-    config.setdefault("bh", max(1, round(config["bw"] * size[1] / size[0])))
+    # by the frame it is sampled into. Width is a cost, not a look: every pixel
+    # of it is redrawn thirty times a second.
+    with Image.open(portraits[0]) as probe:
+        config.setdefault("bw", 300)
+        config.setdefault("bh", max(1, round(config["bw"] * probe.size[1]
+                                             / probe.size[0])))
+    uri, size = portrait_uri(portraits[0], config)
 
     name = config.get("name", cid.capitalize())
     page = (HEAD % {"name": name, "portrait": uri,

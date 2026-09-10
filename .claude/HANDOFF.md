@@ -34,10 +34,11 @@ reference, so a new character needs no Xcode edit.
 
 ## Decisions & open questions
 
-- **Blocked, and his: Chopper has no portrait.** He said an image was
-  attached; it was not reachable from this session — not in Downloads, Desktop
-  or Pictures. Chopper exists on the desk with a written prompt and voice
-  `shimmer`, and falls back to Arisu's face until a picture lands.
+- **Chopper's portrait is provisional and he is replacing it.** The image he
+  sent was a video screenshot: wide, low contrast, and standing in front of a
+  cloudy sky. It builds and reads clearly now, but he said on 2026-09-10 to
+  forget it and that he would upload a better format. Do not tune it further —
+  redo the landmarks and the backdrop when the real one lands.
 - **Open, and his: Chopper's voice.** `shimmer` was picked blind. Voice is his
   taste, the same as `coral` was.
 - **Only the identity swaps.** Speech rules, tool rules and the facts about his
@@ -48,10 +49,12 @@ reference, so a new character needs no Xcode edit.
 
 ## Next steps
 
-1. **Get Chopper's picture.** Save it as `faces/portraits/chopper.png`, then
-   `python3 faces/grid.py chopper`, read the eye and mouth centres off the
-   grid, write `faces/chopper.json`, and `python3 faces/build.py chopper`.
-   Guessing the landmarks gives a face that blinks beside its own eye.
+1. **Chopper's better portrait, when he sends it.** Save it as
+   `faces/portraits/chopper.png`, then `python3 faces/grid.py chopper`, read
+   the eye and mouth centres off the grid into `faces/chopper.json`, and
+   `python3 faces/build.py chopper`. Guessing the landmarks gives a face that
+   blinks beside its own eye. Drop `backdrop` from the config if the new one is
+   already on a plain ground.
 2. **Deploy lain when he says so** — `git push architect main`, then pull and
    restart on architect. Until then `/arisu/characters` 404s, the cast fetch
    fails quietly and the picker does not appear. That is what the simulator
@@ -73,9 +76,22 @@ reference, so a new character needs no Xcode edit.
   drew a perfectly running nothing. A `ResizeObserver` on the stage fixes it.
 - **A character switch must re-mint the session.** Identity and voice are baked
   in at mint time.
+- **A portrait is fitted to the render buffer at build time, and that is why
+  characters are lit at all.** The renderer samples into a 300px-wide buffer.
+  Arisu's portrait is 532 across, barely a reduction; Chopper's was 1386, and
+  the browser's bilinear downscale averaged his four-pixel outlines away to
+  nothing. He was not badly lit, he had been sanded smooth before the renderer
+  saw him. Lanczos plus an unsharp pass, once, at build time.
+- **The backdrop cutter needs its gradient guard.** With only a local colour
+  tolerance the fill walked the anti-aliased outline into him and erased him
+  entirely — every cel-shaded fill is locally uniform once you are inside. It
+  may not enter a pixel sitting on a strong gradient; a drawn outline is a
+  ridge, and a ridge is what stops it.
 
 ## Resume
 
 Brief as: the face and the mute button are done and verified in the simulator,
-the cast exists end to end but is not deployed, and Chopper is waiting on a
-picture. Ask him for the image first — it is the only thing blocking.
+both characters build and ship in the bundle, and the cast is not deployed.
+Chopper is drawn from a provisional screenshot he is replacing. Nothing is
+blocked — the next move is his: send the better Chopper image, or say when to
+deploy lain.

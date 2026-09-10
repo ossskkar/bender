@@ -1,0 +1,26 @@
+{
+  "name": "Chopper",
+  "bw": 300,
+  "eyeL": [
+    0.395,
+    0.618
+  ],
+  "eyeR": [
+    0.613,
+    0.618
+  ],
+  "mouth": [
+    0.503,
+    0.7
+  ],
+  "eyeScale": 0.8,
+  "mouthScale": 0.7,
+  "jaw": 0.72,
+  "props": {
+    "bloom": 1.25,
+    "lineSpacing": 2.8,
+    "aliveness": 0.9
+  },
+  "backdrop": 10,
+  "sharpen": 170
+}
