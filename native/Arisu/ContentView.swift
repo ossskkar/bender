@@ -1,16 +1,16 @@
 import SwiftUI
 
-/// The hologram. Three stacked copies of the same face -- one solid, two
-/// colour-split ghosts that drift -- plus scanlines and a sweep.
+/// The hologram: `FaceView` for her, plus scanlines and a sweep over the top.
 ///
-/// The web version drew this with a `filter: drop-shadow` wrapping the whole
-/// group, which forced Safari to flatten and re-blur every layer on every
-/// frame. Here the glow is a shadow the compositor caches, and the drift is a
-/// plain animation on two image layers, so nothing is rasterised per frame.
+/// Her face used to be three stacked copies of one still -- a solid and two
+/// colour-split ghosts on a slow drift -- which read well from the sofa and
+/// did nothing at all in response to her. It is a live renderer now, and the
+/// colour-split, the bloom and the soft bottom edge moved inside it. The
+/// scanlines and the sweep stayed here because they belong to the room rather
+/// than to her, and they still cost nothing per frame.
 struct ContentView: View {
     @ObservedObject var pet: Pet
     @ObservedObject var live: Live
-    @State private var drift = false
     @State private var sweep = false
     /// Whether the two of them are subtitled. Kept across launches because it
     /// is a preference about the room, not about the conversation -- reading
@@ -122,7 +122,6 @@ struct ContentView: View {
             // Only if she was left running: coming back to the app should not
             // undo a stop.
             if pet.running { pet.begin() }
-            withAnimation(.easeInOut(duration: 4.3).repeatForever(autoreverses: true)) { drift = true }
             withAnimation(.linear(duration: 5.6).repeatForever(autoreverses: false)) { sweep = true }
         }
     }
@@ -214,21 +213,25 @@ struct ContentView: View {
         }
     }
 
-    private var face: some View {
-        ZStack {
-            Image("lain-face-cy").resizable().scaledToFit()
-                .opacity(0.34).offset(x: drift ? -9 : -3, y: drift ? -2 : 2)
-            Image("lain-face-mg").resizable().scaledToFit()
-                .opacity(0.34).offset(x: drift ? 9 : 3, y: drift ? 3 : -2)
-            Image("lain-face").resizable().scaledToFit()
-                .opacity(0.96)
+    /// The renderer's own vocabulary. `Phase` already says all of it except
+    /// asleep, which is not a phase of a conversation but the absence of one:
+    /// the microphone is down and there is nothing to be idle about.
+    private var faceState: String {
+        guard pet.running else { return "asleep" }
+        switch phase {
+        case .idle:      return "idle"
+        case .listening: return "listening"
+        case .thinking:  return "thinking"
+        case .speaking:  return "speaking"
         }
-        .shadow(color: glow.opacity(0.55), radius: 22)
-        .mask(LinearGradient(stops: [
-            .init(color: .black, location: 0.86),
-            .init(color: .black.opacity(0.45), location: 0.95),
-            .init(color: .clear, location: 1.0)], startPoint: .top, endPoint: .bottom))
-        .padding(.horizontal, -40)
+    }
+
+    private var face: some View {
+        // No shadow, no mask, no drift. The colour-split, the bloom and the
+        // soft bottom edge are all things the renderer does itself now, and
+        // stacking SwiftUI's versions on top only muddied them.
+        FaceView(state: faceState, amplitude: Double(pet.level))
+            .allowsHitTesting(false)
     }
 
     private var scanlines: some View {
