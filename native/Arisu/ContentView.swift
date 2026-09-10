@@ -177,9 +177,11 @@ struct ContentView: View {
                        tint: room.isGroup ? glow : off) {
                 room.set(mode: room.isGroup ? "solo" : "group")
             }
-            // Which device is listening. Only meaningful in a group, so it is
-            // only there -- an ear that cannot move is a button that lies.
-            if room.isGroup {
+            // Which device is listening. Shown as soon as there is anyone
+            // else to hand it to, rather than only in a group: hiding it until
+            // the mode is switched means the one control he needs to fix a
+            // room appears only after the room is already wrong.
+            if room.members.count > 1 {
                 iconButton(room.isListener ? "ear.fill" : "ear",
                            tint: room.isListener ? listener : off) {
                     room.listenHere()

@@ -39,7 +39,28 @@ final class Live: ObservableObject {
     /// a permanent "thinking" is worse than none, because it stops meaning
     /// anything. Anything that ends a turn zeroes this.
     private var toolsOut = 0 {
-        didSet { thinking = toolsOut > 0 }
+        didSet {
+            thinking = toolsOut > 0
+            watchThinking()
+        }
+    }
+    /// A tool that never came back must not leave her thinking forever.
+    ///
+    /// `runTool` decrements in a `defer`, so the count cannot leak on its own
+    /// -- but the desk's budget for one Hermes turn is two minutes, and a
+    /// socket replaced mid-call abandons the task holding that `defer`. Either
+    /// way the face sits in the thinking animation with nothing behind it,
+    /// which is what he saw. The count is the truth until it is plainly stale.
+    private var thinkingWatch: Task<Void, Never>?
+    private func watchThinking() {
+        thinkingWatch?.cancel()
+        guard toolsOut > 0 else { thinkingWatch = nil; return }
+        thinkingWatch = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 45_000_000_000)
+            guard !Task.isCancelled, let self, self.toolsOut > 0 else { return }
+            self.brain.debug(["ev": "thinking-stuck"])
+            self.toolsOut = 0
+        }
     }
     /// One turn at a time instead of an open mic: nothing is streamed until he
     /// holds the button, and the turn ends when he lets go rather than when a
@@ -625,7 +646,10 @@ final class Live: ObservableObject {
         // made her reply twice to one question: once for the mood call and once
         // for the thinking call, because she routinely makes both in a turn.
         // Only the tool that actually fetched something gets a new response.
-        if !isBody { send(["type": "response.create"]) }
+        // Through the room rather than straight at the socket: a tool answer
+        // is still an answer, and one that skipped the floor would be the one
+        // way a device could start talking over another.
+        if !isBody { answer() }
     }
 
     // MARK: - audio
