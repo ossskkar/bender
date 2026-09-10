@@ -171,7 +171,7 @@ struct ContentView: View {
         }
         .padding(.trailing, 26)
         .padding(.bottom, 26)
-        .sheet(isPresented: $showSettings) { SettingsSheet(live: live) }
+        .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet, live: live) }
     }
 
     /// Hold to say something long.
@@ -244,7 +244,7 @@ struct ContentView: View {
         // No shadow, no mask, no drift. The colour-split, the bloom and the
         // soft bottom edge are all things the renderer does itself now, and
         // stacking SwiftUI's versions on top only muddied them.
-        FaceView(state: faceState, amplitude: Double(pet.level))
+        FaceView(face: pet.face, state: faceState, amplitude: Double(pet.level))
             .allowsHitTesting(false)
     }
 

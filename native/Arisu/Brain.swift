@@ -27,16 +27,40 @@ struct LiveToken: Decodable {
 /// list rather than the app's, so a voice the API stops accepting disappears
 /// from the picker instead of leaving her mute.
 struct Persona: Codable {
+    var name: String?
     var warmth: Double
     var playfulness: Double
     var brevity: Double
     var voice: String
     var notes: String
+    /// Who this character is, in their own words. Empty means the built-in
+    /// Arisu persona, which lives in code on the desk because the rest of the
+    /// system was written around her.
+    var prompt: String?
+    /// Which face page to draw. Resolved against the app bundle, so a
+    /// character can exist on the desk before its portrait has been built.
+    var face: String?
     var voices: [String]?
     /// A sentence in her current manner, chosen by the desk. The phone does
     /// not compose it: what counts as warm at 0.9 is a decision that belongs
     /// next to the instructions it has to match.
     var sample: String?
+}
+
+/// Everyone who could be on the desk, and who is.
+struct Cast: Codable {
+    var active: String
+    var characters: [String: Persona]
+    var voices: [String]?
+
+    /// Sorted for a menu, and stably: a picker whose rows move between
+    /// launches is a picker he has to read every time.
+    var ordered: [(id: String, persona: Persona)] {
+        characters
+            .map { (id: $0.key, persona: $0.value) }
+            .sorted { ($0.persona.name ?? $0.id).localizedCaseInsensitiveCompare(
+                       $1.persona.name ?? $1.id) == .orderedAscending }
+    }
 }
 
 /// architect, over Tailscale. The brain is unchanged from the web version --
@@ -110,6 +134,31 @@ final class Brain {
             throw URLError(.badServerResponse)
         }
         return try JSONDecoder().decode(Persona.self, from: data)
+    }
+
+    /// Everyone on the desk, and who is on it now.
+    func cast() async throws -> Cast {
+        let (data, resp) = try await session.data(
+            from: Brain.base.appendingPathComponent("characters"))
+        guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(Cast.self, from: data)
+    }
+
+    /// Switch, add, edit or delete -- one call, because they are one screen
+    /// and the desk applies them in that order.
+    @discardableResult
+    func setCast(_ body: [String: Any]) async throws -> Cast {
+        var r = URLRequest(url: Brain.base.appendingPathComponent("characters"))
+        r.httpMethod = "POST"
+        r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        r.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, resp) = try await session.data(for: r)
+        guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(Cast.self, from: data)
     }
 
     /// Run one of her tools on the desk, where the MCP bridge lives.

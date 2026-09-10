@@ -10,6 +10,7 @@ import SwiftUI
 /// memory, and the rules that keep her straight about his data are not here
 /// and are not reachable from here.
 struct SettingsSheet: View {
+    @ObservedObject var pet: Pet
     @ObservedObject var live: Live
     @Environment(\.dismiss) private var dismiss
 
@@ -23,6 +24,10 @@ struct SettingsSheet: View {
     /// value while he is touching it, and the desk hears about it when he
     /// lets go.
     @State private var draft: Persona?
+    /// Everyone the desk knows about, and who is on it. Held here rather than
+    /// on the pet because it is only ever looked at on this screen.
+    @State private var cast: Cast?
+    @State private var switching = false
     @State private var voices: [String] = []
     @State private var failed = false
     @State private var notesPush: Task<Void, Never>?
@@ -37,7 +42,7 @@ struct SettingsSheet: View {
                 if draft != nil { form } else if failed { retry } else { loading }
             }
             .background(Color.black.ignoresSafeArea())
-            .navigationTitle("How she is")
+            .navigationTitle(draft?.name.map { "How \($0) is" } ?? "How she is")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -77,6 +82,8 @@ struct SettingsSheet: View {
 
     private var form: some View {
         Form {
+            if let cast, cast.characters.count > 1 { castSection(cast) }
+
             Section {
                 dial("Warmth", "Friendly distance", "Openly fond",
                      get: { $0.warmth }, set: { $0.warmth = $1 }, key: "warmth")
@@ -153,6 +160,51 @@ struct SettingsSheet: View {
             }
         }
         .tint(accent)
+    }
+
+    /// Who is on the desk.
+    ///
+    /// A picker and not a list of cards: this is one choice with a small
+    /// number of answers, and it is the first thing on the screen because
+    /// everything under it describes whoever is picked. Changing it reloads
+    /// the whole form -- the dials, the voice and the note all belong to the
+    /// character, not to the app.
+    private func castSection(_ cast: Cast) -> some View {
+        Section {
+            Picker("Who", selection: Binding(
+                get: { cast.active },
+                set: { pick($0) })) {
+                ForEach(cast.ordered, id: \.id) { row in
+                    Text(row.persona.name ?? row.id.capitalized).tag(row.id)
+                }
+            }
+            .font(.system(size: 19))
+            .disabled(switching)
+        } header: {
+            header("On the desk")
+        } footer: {
+            footer(switching
+                   ? "Handing over..."
+                   : "Each of them has their own face, voice and manner. She "
+                     + "reconnects to change, so there is a quiet moment while "
+                     + "they swap.")
+        }
+    }
+
+    /// Switch character, then reload the form against whoever answered.
+    ///
+    /// The reload is not optional. The dials below are bound to `draft`, which
+    /// is the old character's settings until this returns -- leaving them would
+    /// show Chopper's name over Arisu's warmth, and the first slider he touched
+    /// would write her value onto him.
+    private func pick(_ id: String) {
+        guard !switching, id != cast?.active else { return }
+        switching = true
+        Task {
+            await pet.switchCharacter(to: id)
+            await reload()
+            switching = false
+        }
     }
 
     private func header(_ text: String) -> some View {
@@ -240,9 +292,15 @@ struct SettingsSheet: View {
     private func reload() async {
         failed = false
         do {
-            let got = try await brain.persona()
+            // Both, because the form shows one character's settings under a
+            // picker of all of them, and a picker that lists someone the
+            // dials do not describe is worse than no picker.
+            async let persona = brain.persona()
+            async let everyone = brain.cast()
+            let got = try await persona
             voices = got.voices ?? [got.voice]
             draft = got
+            cast = try? await everyone
         } catch {
             failed = true
         }

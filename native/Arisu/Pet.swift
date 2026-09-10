@@ -83,9 +83,43 @@ final class Pet: ObservableObject {
         }
     }
 
+    /// Whose face is on screen. The desk decides -- the session is minted
+    /// there with that character's identity and voice -- so this is what the
+    /// desk last said, not a preference held on the phone. Two devices in the
+    /// house therefore agree about who is on the desk.
+    @Published private(set) var face = "arisu"
+
     func begin() {
         running = true
         mode == .whisper ? beginWhisper() : beginLive()
+        Task { await refreshCast() }
+    }
+
+    /// Ask the desk who is on it. Quiet on failure: the fallback face is
+    /// already on screen and a character that cannot be fetched is not worth
+    /// putting an error in front of him for.
+    func refreshCast() async {
+        guard let cast = try? await brain.cast() else { return }
+        adopt(cast)
+    }
+
+    /// Put someone else on the desk.
+    ///
+    /// The identity and the voice are baked into the realtime session at mint
+    /// time, so a switch is not a repaint -- the conversation has to be minted
+    /// again or he gets Chopper's face saying Arisu's lines in Arisu's voice.
+    /// The face changes with it rather than before it, so the two never
+    /// disagree about who he is talking to.
+    func switchCharacter(to id: String) async {
+        guard let cast = try? await brain.setCast(["to": id]) else { return }
+        adopt(cast)
+        guard running, mode != .whisper else { return }
+        live.end()
+        beginLive()
+    }
+
+    private func adopt(_ cast: Cast) {
+        face = cast.characters[cast.active]?.face ?? cast.active
     }
 
     /// The stop button. Whichever path owns the microphone, it lets go of it

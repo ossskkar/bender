@@ -15,17 +15,33 @@ import WebKit
 /// the battery says otherwise later, the algorithm is a dithered palette over a
 /// contour pass and would go into a Metal shader without much argument.
 struct FaceView: UIViewRepresentable {
+    /// Which face page to draw, from the active character. A character can
+    /// exist on the desk before its portrait has been built, so an id with no
+    /// page falls back rather than showing nothing.
+    let face: String
     /// One of idle, listening, thinking, speaking, asleep.
     let state: String
     /// Her voice, 0...1. Drives the jaw and the glow at her mouth.
     let amplitude: Double
 
+    /// The page for a character, or the fallback. `arisu` is the fallback
+    /// because hers is the portrait the renderer was authored against, so it
+    /// is the one face guaranteed to be in the bundle.
+    private static func url(for face: String) -> URL? {
+        Bundle.main.url(forResource: face, withExtension: "html", subdirectory: "Face")
+            ?? Bundle.main.url(forResource: "arisu", withExtension: "html", subdirectory: "Face")
+    }
+
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     final class Coordinator: NSObject, WKNavigationDelegate {
         private var loaded = false
+        /// Which page is in the view. A character switch reloads it, and the
+        /// state has to be re-sent afterwards -- the new page starts idle and
+        /// knows nothing of the conversation it is joining.
+        var shown: String?
         private var sentState: String?
-        private var sentAmplitude = -1.0
+        fileprivate var sentAmplitude = -1.0
         private var lastAmplitudeAt = Date.distantPast
         weak var web: WKWebView?
 
@@ -33,6 +49,19 @@ struct FaceView: UIViewRepresentable {
             loaded = true
             // Whatever arrived while the page was still parsing.
             if let s = sentState { sentState = nil; apply(state: s) }
+        }
+
+        /// Put a different character on screen. Everything the old page knew
+        /// goes with it, so the sent values reset or the first update after a
+        /// switch would be skipped as unchanged and the new face would sit
+        /// there idle through a conversation.
+        func show(_ face: String, url: URL?) {
+            guard face != shown, let url, let web else { return }
+            shown = face
+            loaded = false
+            sentState = nil
+            sentAmplitude = -1
+            web.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
         }
 
         func apply(state: String) {
@@ -77,14 +106,12 @@ struct FaceView: UIViewRepresentable {
         web.navigationDelegate = context.coordinator
         context.coordinator.web = web
 
-        if let url = Bundle.main.url(forResource: "face", withExtension: "html",
-                                     subdirectory: "Face") {
-            web.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
-        }
+        context.coordinator.show(face, url: FaceView.url(for: face))
         return web
     }
 
     func updateUIView(_ web: WKWebView, context: Context) {
+        context.coordinator.show(face, url: FaceView.url(for: face))
         context.coordinator.apply(state: state)
         context.coordinator.apply(amplitude: amplitude)
     }
