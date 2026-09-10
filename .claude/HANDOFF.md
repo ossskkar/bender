@@ -1,82 +1,81 @@
-# HANDOFF — Arisu (2026-09-09)
+# HANDOFF — Arisu (2026-09-10)
 
 *Her lain-side routes are `lain/docs/arisu-brain.md`; lain's own state is
 `lain/.claude/HANDOFF.md`. The homelab handoff owns the Hermes side.*
 
 ## State
 
-**Her mind is the whole of Hermes, through one tool.** The realtime session is
-minted with two: `set_mood`, her body, and `think`, her mind. `think` was
-called `ask_hermes` for one afternoon and that name was the bug — the model
-narrated it and treated Hermes as a third party in the room. It is now
-described as her own memory, with a rule never to name where an answer came
-from. `lain/server/hermes.py` holds one `hermes serve` conversation open.
+**Nothing is deployed. He asked for that** — the iPad was not nearby. Both
+repos are committed and pushed to GitHub only. `lain` has **not** been pushed
+to the `architect` remote and architect has **not** pulled or restarted, so the
+desk is still running the old server.
 
-**She remembers, and it is verified.** An instruction put through `think`
-reaches Hermes' `USER.md` on architect. Tested by planting "call me Fish",
-restarting lain to force a brand new session, getting Fish back, then removing
-it. Her instructions now say she remembers, because she was claiming otherwise.
+**Her face is a live renderer.** The `signal-face` animation he downloaded, in
+a `WKWebView`. Five states of its own — idle, listening, thinking, speaking,
+asleep — with blinks, gaze drift, breathing, and a jaw band driven by
+amplitude. `ContentView.Phase` already said four; the fifth is the mic being
+down. Verified on an iPad Pro simulator.
 
-**Personality is data, not a deploy.** `lain/server/persona.py` holds three
-dials (warmth, playfulness, brevity), a voice and a free-text note in a file on
-architect; `GET/POST /arisu/persona`. Folded in at mint time, so a change lands
-on her next connection. Identity and honesty stayed in code deliberately — a
-slider cannot reach her tools, her memory, or the rules about his data. She is
-warm now, not sardonic, and no longer uses nicknames.
+**A mute button.** Third control that is not the other two: the waveform ends
+the conversation, the record dot is push-to-talk, mute keeps the session and
+her context while no audio leaves the device. Turn detection goes off while
+muted, or unmuting makes her answer a sentence nobody said.
 
-**The app was reworked.** Four bare icons stacked up the right edge, no
-capsules: captions, conversation (waveform in a circle), hold-to-talk (record
-dot), settings. The model picker is gone. A four-state indicator says who is
-doing something, in colour — he is white, she is cyan, thinking is magenta —
-across the meter, a word, and the light she stands on. Settings sheet with the
-dials, a voice picker and **Play sample**.
+**There is a cast now.** `persona.py` holds a set of characters and which is
+active; each has an identity (`prompt`), the three dials, a voice, a face and
+his note. `load()` still returns one settings dict, so nothing downstream
+changed. `POST /arisu/characters` does switch, add, edit and delete in one
+call. The picker is at the top of the settings sheet.
 
-**Push-to-talk works.** Tap the record dot to close the open mic; hold it to
-speak one turn, let go to commit. Turn detection is switched off over
-`session.update` while armed, or the burst on release is answered twice.
-
-**Fixed this session:** barge-in (`response.done` means the *server* stopped
-sending, not that she stopped being audible — `flush()` was gated on the flag
-those events cleared); double replies (semantic VAD eagerness `auto` cut him
-off mid-sentence, and `set_mood` was asking for a second response); a stuck
-"thinking" (a flag that could never come back down, now a count); the filler
-line before every answer, which he found grating.
-
-**Unverified:** everything since his last "that works" — Play sample, the bare
-icons, the no-filler rule, the thinking count. All built, installed on the
-iPad, and pushed; he had not reported back.
+**Faces are generated.** `faces/` holds `renderer.js` once, plus
+`portraits/<id>.png` and `<id>.json` per character; `python3 faces/build.py`
+writes one self-contained page into `native/Arisu/Face/`, which is a folder
+reference, so a new character needs no Xcode edit.
 
 ## Decisions & open questions
 
-- **Voice is `coral`, chosen blind.** He asked for the film *Her*; taste is his.
-- **Preview goes through her own session,** not `audio/speech` — the OpenAI key
-  is restricted and lacks `api.model.audio.request`. Widening it is his call
-  and is not needed.
-- **Open, and his: a paid Gemini key.** A turn is 10–40s and every free lever
-  was tried and reverted. Detail in `homelab/README.md`.
-- `brain.debug` stays in `Live.swift` for now — `/tmp/arisu-face.log` on
-  architect is what identified the barge-in cause and the double replies.
+- **Blocked, and his: Chopper has no portrait.** He said an image was
+  attached; it was not reachable from this session — not in Downloads, Desktop
+  or Pictures. Chopper exists on the desk with a written prompt and voice
+  `shimmer`, and falls back to Arisu's face until a picture lands.
+- **Open, and his: Chopper's voice.** `shimmer` was picked blind. Voice is his
+  taste, the same as `coral` was.
+- **Only the identity swaps.** Speech rules, tool rules and the facts about his
+  day are assembled around a character and cannot be replaced from the phone.
+- **Open, unchanged: the paid Gemini key.** Detail in `homelab/README.md`.
+- Generated face pages are committed. Build output in git, deliberately: the
+  bundle needs them and there is no build phase.
 
 ## Next steps
 
-1. **Ask him what is still wrong.** Four changes are installed and unreported.
-2. Build and install after any change — he never does it:
-   `cd arisu/native && xcodebuild -project Arisu.xcodeproj -scheme Arisu -configuration Debug -destination 'id=085B9100-31D5-5A2D-B44C-82D143A30ACA' -allowProvisioningUpdates build`
-   then `xcrun devicectl device install app --device 085B9100-31D5-5A2D-B44C-82D143A30ACA <DerivedData>/Build/Products/Debug-iphoneos/Arisu.app`
-3. `conversation.item.input_audio_transcription.failed` — switched to
-   `gpt-4o-mini-transcribe`; confirm his half of the transcript now appears.
+1. **Get Chopper's picture.** Save it as `faces/portraits/chopper.png`, then
+   `python3 faces/grid.py chopper`, read the eye and mouth centres off the
+   grid, write `faces/chopper.json`, and `python3 faces/build.py chopper`.
+   Guessing the landmarks gives a face that blinks beside its own eye.
+2. **Deploy lain when he says so** — `git push architect main`, then pull and
+   restart on architect. Until then `/arisu/characters` 404s, the cast fetch
+   fails quietly and the picker does not appear. That is what the simulator
+   shows today and it is not a bug.
+3. **Build and install on the iPad**, then check the picker switches face,
+   voice and manner together.
+4. Watch the battery. A web view for a face is a real cost; the algorithm
+   would port to a Metal shader if it matters.
 
 ## Gotchas
 
-- **Anything minted is fixed for the session.** Voice and instructions cannot
-  change on a live socket; `Live.reconnect()` is the only way. This is why
-  changing the voice looked broken.
-- **A response asking her to read a line gets thought about instead.** She is
-  told to `think` every turn, so a sample must be `response.create` with its
-  own `instructions` and `tool_choice: "none"`.
-- **`response.done` is not "she stopped talking."** Count scheduled buffers.
-- **`startAudio()` returns early while `playFormat` is set** — anything
-  stopping the engine must clear it, or she is connected and deaf.
-- **`Path.home()` under the lain service is `/var/lib/lain`.** Her keys and
-  `persona.json` live there, owned by `lain`.
-- Deploying lain is both remotes, then one `sudo` per unit. See `lain/CLAUDE.md`.
+- **A `file://` image taints the canvas** and `getImageData` then throws, which
+  is the whole renderer. Portraits are inlined as data URIs. `build.py` does it.
+- **A transparent PNG's clear pixels carry junk colour**, handed back
+  unpremultiplied. Her first portrait rendered as a field of noise with a
+  head-shaped hole. `build.py` flattens onto black.
+- **The canvas sizes itself once at mount, then only on a window resize
+  event.** A web view's first layout fires no such event, so it stayed 1x1 and
+  drew a perfectly running nothing. A `ResizeObserver` on the stage fixes it.
+- **A character switch must re-mint the session.** Identity and voice are baked
+  in at mint time.
+
+## Resume
+
+Brief as: the face and the mute button are done and verified in the simulator,
+the cast exists end to end but is not deployed, and Chopper is waiting on a
+picture. Ask him for the image first — it is the only thing blocking.
