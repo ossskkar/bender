@@ -65,6 +65,28 @@
       });
     });
 
+    // State buttons. Second row so the audio row stays where it was.
+    var states = document.createElement('div');
+    states.style.cssText = 'display:flex;gap:4px;align-items:center';
+    (window.ArisuFace ? window.ArisuFace.states : []).forEach(function (name) {
+      var b = document.createElement('button');
+      b.textContent = name;
+      b.style.cssText = [
+        'font:11px/1.3 inherit', 'color:#fff', 'background:rgba(255,255,255,0.06)',
+        'border:1px solid rgba(255,255,255,0.14)', 'border-radius:6px',
+        'padding:4px 8px', 'cursor:pointer', 'touch-action:manipulation'
+      ].join(';');
+      b.onclick = function (e) {
+        e.stopPropagation();
+        window.ArisuFace.setState(name);
+        [].forEach.call(states.children, function (o) {
+          o.style.color = o === b ? '#7de3ff' : '#fff';
+          o.style.borderColor = o === b ? '#7de3ff' : 'rgba(255,255,255,0.14)';
+        });
+      };
+      states.appendChild(b);
+    });
+
     var meter = document.createElement('div');
     meter.style.cssText = 'width:90px;height:6px;border-radius:3px;background:rgba(255,255,255,0.14);overflow:hidden';
     var fill = document.createElement('div');
@@ -77,6 +99,8 @@
     num.textContent = '0.00';
     bar.appendChild(num);
 
+    bar.style.flexWrap = 'wrap';
+    bar.appendChild(states);
     document.body.appendChild(bar);
 
     // Read-only mirror. value() advances smoothing, so the meter must NOT call
