@@ -156,3 +156,25 @@ Vite binds all interfaces, so the iPad reaches the Mac over tailnet at
 Run it with:
 
     cd live2d/CubismSdkForWeb/Samples/TypeScript/Demo && npm start
+
+## Reaching it from the iPad
+
+Safari upgrades plain `http://` to HTTPS and then fails with "this site can't
+provide a secure connection", so the raw Vite port is unreachable from the iPad.
+Front it with `tailscale serve` on the Mac:
+
+    tailscale serve --bg --https 8444 http://127.0.0.1:5001
+
+That gives https://oscars-macbook-pro.tailaa64e9.ts.net:8444/ and leaves the
+existing :8443 entry alone. Turn it off with `tailscale serve --https=8444 off`.
+
+**Two gotchas, both of which look like a broken proxy and are not.**
+
+- Vite answers a proxied request with a **bare 403** unless the forwarded host is
+  allowed. `vite.config.mts` now carries `allowedHosts: ['.ts.net']`.
+- **That edit lives inside the gitignored SDK directory**, so it does not survive
+  re-unpacking the zip. Re-apply it by hand, or the iPad gets 403 on every file
+  with nothing in the log to explain why.
+
+The Mac's existing serve entry on :8443 still proxies to a dead `127.0.0.1:8887`,
+as the workspace notes say. Untouched here, still rotten.
