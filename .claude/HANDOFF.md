@@ -1,74 +1,84 @@
-# HANDOFF — Arisu (2026-09-10, night)
+# HANDOFF — Arisu (2026-09-12)
 
 *Her lain-side routes are `lain/docs/arisu-brain.md`; lain's own state is
 `lain/.claude/HANDOFF.md`. The homelab handoff owns the Hermes side.*
 
 ## State
 
-**Everything below is committed, pushed and deployed.** arisu at `e63c865`,
-lain at `716dfc6` on both remotes and on architect, both units active.
+**Everything below is committed and pushed.** arisu on `origin` only — there is
+no `architect` remote here.
 
-**She runs in Safari now, with voice, and the work phones are solved.** He
-confirmed it on the **iPhone 16e** the same evening: her face comes up and she
-hears him and answers. The address is
-`https://architect-server.tailaa64e9.ts.net:8443/arisu/`, `?c=chopper` for the
-other one. No app, no signing, so the MDM restriction never applies. Full
-detail and every gotcha are in the **`arisu-in-safari` skill**.
+**Her next face is decided: Live2D, and the prototype clears its gate.** The
+whole avatar question was reopened this session and closed. 3D is out. Booth's
+VRM catalogue and Meshy are both rejected — Meshy auto-rigs a body and leaves
+the facial blendshapes as a manual Blender step, which is the only part that
+matters for something that is mostly a face and a voice.
 
-The trick is the transport. A browser cannot set an Authorization header on a
-WebSocket, so `Live.swift`'s path is unavailable; the browser client uses
-WebRTC and `/arisu/realtime?transport=webrtc` mints the same session minus the
-PCM format fields. `faces/build.py` now emits every face to the app bundle
-*and* to `lain/arisu/`, so the two copies cannot drift.
+**Step 3 passed on real hardware.** The Cubism sample demo renders and animates
+smoothly in Safari on the Mac *and* on the iPad over tailnet, with all eight
+models cycling on tap. That was the gate on the whole direction, and it held.
 
-**The iPad is still the always-on seat.** Safari suspends when the phone locks,
-so the browser is open-it-and-talk. That is a limit of the surface, not a bug.
+**The rig is standing.** `CubismSdkForWeb-5-r.5` unpacked to
+`live2d/CubismSdkForWeb`, gitignored. Built output served by the `live2d` entry
+in `claude-projects/.claude/launch.json` on port 5001, fronted for the iPad by
+`tailscale serve` on `https://oscars-macbook-pro.tailaa64e9.ts.net:8444/`.
 
-**Her face fills the glass** and **the room works between two devices** —
-unchanged from the last session, both still true.
+**Nothing of Arisu's own is wired to it yet.** The existing portrait renderer
+(`faces/renderer.js`) is untouched and still what ships. This is a parallel
+prototype, not a replacement.
+
+**The full plan, model audit and every licence finding live in `LIVE2D.md`.**
+Read that, not this, for detail.
 
 ## Decisions & open questions
 
-- **Settled 2026-09-10: the managed phones are done, by browser. Closed.** No
-  $99 account, no TestFlight, and erasing a phone does nothing — a supervised
-  device re-enrols and reapplies the restriction. Do not reopen.
-- **Deferred, his words, do not start it:** the iPad showing **up to six
-  characters on a divided screen**, one conversation between them.
-- The room is **in memory**: a lain restart drops everyone to solo. Deliberate.
-- The browser client is **solo only** — it does not join the room. Whether it
-  should is open and has not been asked.
-- Unchanged and still open: Chopper's better portrait, and Chopper's voice.
+- **Settled: Live2D via Cubism SDK for Web, inside a `WKWebView`** so iPad and
+  web stay one codebase. The seam to the voice loop is deliberately narrow:
+  audio to amplitude to `ParamMouthOpenY`.
+- **Settled: prototype on Natori**, not Hiyori. Hiyori is the obvious default
+  and ships **zero expressions**; Mao has **no `ParamMouthOpenY` at all**.
+  Natori is the only sample clearing the whole checklist. Haru is the fallback
+  and is what the demo loads first.
+- **Checked, and it opens the market back up: the "no AI" clause on BOOTH
+  listings means no AI *learning*.** It is not a ban on an AI character. The
+  listings carrying it permit app and VTuber use outright.
+- **Open, and his: which character to actually buy.** Not urgent — step 6, and
+  deliberately last.
+- Everything from the previous handoff stays open: Chopper's portrait and
+  voice, the browser client joining the room, the deferred six-character iPad
+  split.
 
 ## Next steps
 
-1. **Lip sync, and the browser already proves the fix.** `Live.swift` drives
-   the jaw off the *input* tap, which is why her mouth moves while he talks and
-   is still while she speaks. The browser client puts an analyser on the output
-   stream instead and her mouth is right. Port the idea into the app.
-2. Then visemes from a band analysis of her output audio, then mouth art — the
-   renderer displaces scanline rows and cannot form a shape.
-3. Optional, unasked: let the browser client join the room, so the 16e can be a
-   third seat beside the iPad and the SE rather than its own conversation.
+1. **Step 4 — wire Arisu's audio to `ParamMouthOpenY`.** The browser client
+   already taps her *output* stream for the existing face; reuse that analyser
+   rather than the microphone. This is the same lesson as the app's lip sync.
+2. Step 5 — auto-blink and idle motion.
+3. Step 6 — only then choose and buy the real character, checking each listing
+   for app use, modification and AI learning.
 
 ## Gotchas
 
-- **A device new to the free provisioning profile fails to install** with
-  `0xe8008012`. Rebuild with `-destination 'id=<that device>'` and
-  `-allowProvisioningUpdates`; a `generic/platform=iOS` binary does not cover it.
-- **The face renders about 30s after launch** in the simulator. A screenshot
-  taken sooner is black and looks like a broken build.
-- Free provisioning expires after **7 days** — reinstall to renew.
-- **arisu has only `origin`**, unlike lain. There is no `architect` remote here;
-  pushing one to both is an error, not a habit.
-- `arisu/deploy.sh` is the dead Mac path. Ignore it.
-- **Her voice and her memory fail separately.** Voice is OpenAI, `think` is
-  Hermes on the Anthropic credit. She can talk fluently and still fail every
-  factual question.
+- **Do not use the Vite dev server for anything on the iPad.** Its HMR socket
+  cannot reach back through the tailscale proxy, gives up, and reloads the page
+  every few seconds. It looks like a stuttering avatar and it also interrupts
+  model loading, which looks like models failing to load. Build and serve
+  `dist` instead.
+- **The `CubismWebSamples` GitHub repo is a trap.** It ships neither Core nor
+  its Framework submodule and cannot build. The licence-gated SDK zip is
+  self-contained; use only that.
+- **Background but no model, clean console, every asset 200, is not a bug.** A
+  tab that is not frontmost pauses the render loop and looks exactly like that.
+- **`vite.config.mts` carries local edits inside the gitignored SDK tree** —
+  `allowedHosts` and the preview block. Re-unpacking the zip silently loses
+  them, and the iPad then gets a bare 403 on every file. `LIVE2D.md` has them.
+- Unchanged: arisu has only `origin`; `arisu/deploy.sh` is the dead Mac path;
+  her voice and her memory fail separately.
 
 ## Resume
 
-Brief as: she now runs in Safari over the tailnet with full voice, which put
-her on the work iPhone 16e that the MDM had locked out — that problem is closed
-and should not be reopened. The iPad is still the always-on seat because Safari
-suspends on lock. The next build is lip sync in the app, and the browser client
-already demonstrates the fix: tap her output, not the microphone.
+Brief as: the avatar question is settled and proven. Live2D on the Cubism Web
+SDK renders smoothly on the iPad, which was the gate, and the eight sample
+models have been audited — use Natori, not Hiyori. Nothing of Arisu's own is
+wired to it yet. The next build is step 4, lip sync, and the fix is already
+known from the browser client: tap her output stream, not the microphone.

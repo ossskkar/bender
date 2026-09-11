@@ -139,8 +139,10 @@ drives the mouth parameter.
   live WebGL context.
 - **Confirmed rendering and animating in Safari on the Mac, 2026-09-12.** Haru
   draws, moves and holds frame. The desktop half of step 3 is done.
-- **Not yet verified: iPad Safari, and frame rate on the iPad.** That is the
-  half of step 3 that actually gates the decision.
+- **Step 3 is complete, 2026-09-12.** Confirmed by Oscar on the iPad over
+  tailnet: renders, animates smoothly, and all eight models cycle on tap. The
+  frame rate holds. Live2D on the iPad is viable and the direction survives its
+  own gate.
 
 Debugging note, so the next session does not repeat it: a page showing only the
 classroom background with no model is **not** a broken render path. Core, the
