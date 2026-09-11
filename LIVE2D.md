@@ -81,7 +81,8 @@ drives the mouth parameter.
    both before writing any glue.
 4. ~~Wire Arisu audio to amplitude to `ParamMouthOpenY`.~~ **Done 2026-09-12**,
    see *Step 4* below.
-5. Add auto-blink and idle motion for liveliness.
+5. ~~Add auto-blink and idle motion for liveliness.~~ **Done 2026-09-12**,
+   and mostly free -- see *Step 5* below.
 6. Only once the pipeline runs end to end, choose and buy the real character.
 
 ## Licence gates — do not skip
@@ -283,3 +284,69 @@ hidden browser pane counts. The symptom is not a frozen picture — it is
 loads 200. `value()` can still be pumped by hand to test the audio path, but
 nothing reaches the model. This is the same trap the previous session hit from
 the other side, and it is worth checking *first* every time.
+
+
+## Step 5 — blink, idle motion, face states, done 2026-09-12
+
+**Auto-blink and idle motion needed no code.** The Cubism SDK already wires eye
+blink, breath, physics and pose, and plays a random idle motion whenever the
+motion queue empties. Measured on Natori over twelve seconds:
+
+| Parameter | Behaviour |
+|---|---|
+| `ParamEyeLOpen` / `ParamEyeROpen` | 2 blinks, full 0 to 1 |
+| `ParamAngleX` / `Y`, `ParamBodyAngleX` | continuous, 200+ distinct values |
+| `ParamBreath` | continuous, full range |
+| `ParamMouthOpenY` | flat 0 — our hook owns it, nothing leaks in |
+
+So the actual gap was **expressions**. Natori ships eleven and nothing selected
+any of them. `live2d/glue/arisu-face.js` now maps Arisu's five states onto them,
+the same five the portrait renderer uses, so the two faces stay interchangeable.
+
+### The mapping, and why not the obvious one
+
+| State | Expression | Why |
+|---|---|---|
+| idle | `Normal` | literally no parameter changes |
+| listening | `exp_02` | brows up, faint smile, **eyes open** |
+| thinking | `exp_04` | brows raised and drawn in, mouth small |
+| speaking | `Normal` | nothing may touch `ParamMouthForm` |
+| asleep | `exp_05` + forced eyes | relaxed brows, soft mouth |
+
+Picked by reading each `.exp3.json`, not by name, and the names mislead:
+
+- **`Smile` closes the eyes.** `ParamEyeLOpen Add -1` turns them into happy
+  crescents. It is the obvious pick for listening and it is wrong — an attentive
+  face with its eyes shut.
+- **`Sad` and `Angry` pull `ParamMouthForm` to -2**, reshaping a mouth that lip
+  sync is opening at the same time. Neither belongs anywhere near speaking.
+- **Every expression writes `ParamEyeLOpen` and `ParamMouthOpenY` as `Add 0`.**
+  That is what makes this layer safe to stack: an expression can never fight the
+  blink or the lip sync. Worth re-checking on a bought model, which may not be
+  authored so politely.
+
+**Asleep forces the eyes shut in the hook rather than trusting `exp_05`.** The
+expression does close them, but the blink updater also writes those parameters
+on its own schedule, and two writers on one parameter is how you get a sleeping
+face that flutters its eyelids. Verified: nine seconds at exactly 0, one
+distinct value.
+
+### The patcher bug, because it will look like something else
+
+`patch-sdk.sh` tested for a single marker string to decide whether a file was
+already patched. When a later edit added something to the same block, the marker
+was still present, so **the entire block was skipped without a word** — and the
+symptom is new code that appears not to load at all. That cost two rounds. The
+script now wraps inserted blocks in sentinel comments and replaces them
+wholesale, so a re-run updates rather than skips. Running it twice is a no-op.
+
+### Verifying without a visible window
+
+`window.__arisuParam('ParamEyeLOpen')` reads any parameter straight off the rig.
+There is no other way to see what it is doing — the model lives in module scope,
+and watching pixels to guess whether blink is running is exactly that, guessing.
+
+To measure at all, the page must be rendering, and **`requestAnimationFrame`
+stops dead when the page is not visible**. For headless checks, replacing
+`window.requestAnimationFrame` with a `setTimeout` shim keeps the app's own loop
+running while hidden. That belongs in the console, never in the page.
