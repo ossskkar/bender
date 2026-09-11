@@ -73,7 +73,10 @@ drives the mouth parameter.
 ## Build steps
 
 1. Download Hiyori from the sample page.
-2. Clone `CubismWebSamples`, download the Cubism SDK for Web, copy `Core/` in.
+2. ~~Clone `CubismWebSamples`~~ **Do not.** That repo ships neither Core nor its
+   Framework submodule and will not build. Download the Cubism SDK for Web
+   instead: it is self-contained (Core, Framework, Samples, all eight models)
+   and is what is now unpacked at `live2d/CubismSdkForWeb`, gitignored.
 3. Get the sample rendering on a desktop browser **and** iPad Safari. Confirm
    both before writing any glue.
 4. Wire Arisu audio to amplitude to `ParamMouthOpenY`. Basic lip-sync loop.
@@ -121,3 +124,25 @@ drives the mouth parameter.
 - Where rendering happens if Arisu runs on constrained hardware. Live2D is far
   lighter than VRM or 3D, so on-device 2D is viable, but confirm the frame rate
   on the actual iPad target.
+
+
+## Prototype status — 2026-09-12
+
+**Step 3 is half done. The demo builds and runs on the Mac.**
+
+- SDK: `CubismSdkForWeb-5-r.5`, unpacked to `live2d/CubismSdkForWeb` and
+  gitignored. Cubism Core reports version 6.0.1.
+- The demo builds clean (`npm run build`) and serves via the `live2d` entry in
+  `claude-projects/.claude/launch.json`, pinned to port 5001.
+- Verified in the browser: Core loads, `CubismFramework.startUp()` and
+  `initialize()` both complete, model index 0 loads, and a 1024x768 canvas has a
+  live WebGL context.
+- **Not yet verified: iPad Safari, and frame rate on the iPad.** That is the
+  half of step 3 that actually gates the decision.
+
+Vite binds all interfaces, so the iPad reaches the Mac over tailnet at
+`http://100.104.94.85:5001/`.
+
+Run it with:
+
+    cd live2d/CubismSdkForWeb/Samples/TypeScript/Demo && npm start

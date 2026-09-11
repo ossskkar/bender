@@ -6,8 +6,9 @@ native/build/
 DerivedData/
 .DS_Store
 
-# Third-party Live2D runtime, cloned not vendored. Re-clone with:
-#   git clone --depth 1 https://github.com/Live2D/CubismWebSamples.git live2d/CubismWebSamples
-# Its Core/ is empty by design -- the three live2dcubismcore.* files are
-# licence-gated and must be downloaded from Live2D by hand.
-live2d/CubismWebSamples/
+# Third-party Live2D runtime, not vendored. It is the unpacked
+# CubismSdkForWeb-5-r.5.zip, which is licence-gated: download it yourself from
+# https://www.live2d.com/download/cubism-sdk/download-web/ and unpack it to
+# live2d/CubismSdkForWeb. Do not use the CubismWebSamples GitHub repo instead --
+# it ships neither Core nor the Framework submodule, and will not build.
+live2d/CubismSdkForWeb/
