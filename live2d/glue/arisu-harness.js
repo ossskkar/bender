@@ -101,6 +101,7 @@
 
     bar.style.flexWrap = 'wrap';
     bar.appendChild(states);
+    bar.id = 'arisu-harness';
     document.body.appendChild(bar);
 
     // Read-only mirror. value() advances smoothing, so the meter must NOT call

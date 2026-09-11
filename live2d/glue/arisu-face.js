@@ -65,7 +65,12 @@
       return EYES_SHUT[state] === undefined ? null : EYES_SHUT[state];
     },
 
-    // Escape hatch for trying the other eight expressions by hand.
-    setExpression: function (name) { pending = name; }
+    // Escape hatch: any expression by name, including the eight the state map
+    // does not use. Transient reactions go through here and then refresh().
+    setExpression: function (name) { pending = name; },
+
+    // Re-apply the current state's expression. setState() returns early when the
+    // state has not changed, so a transient reaction needs this to get back.
+    refresh: function () { pending = EXPRESSION[state]; }
   };
 })();

@@ -66,6 +66,7 @@ apply(
     "  <!-- <<< arisu -->",
     '  <script src = "./arisu-lipsync.js"></script>\n'
     '  <script src = "./arisu-face.js"></script>\n'
+    '  <script src = "./arisu-avatar.js"></script>\n'
     '  <script src = "./arisu-harness.js"></script>\n',
     "  <!-- Build script -->",
 )
