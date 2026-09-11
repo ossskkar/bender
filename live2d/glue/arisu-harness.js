@@ -2,9 +2,12 @@
 // and its script tag once she drives the mouth from her own voice loop.
 //
 // Three buttons, each proving a different link in the chain:
-//   demo  — synthetic envelope. Proves ParamMouthOpenY is wired at all.
-//   wav   — a real audio file through attachAudio(). Proves the analyser math.
-//   mic   — the microphone. Proves live stream capture. Wrong source for real use.
+//   silent demo — synthetic envelope, NO audio. Proves ParamMouthOpenY is wired.
+//   play wav    — a real audio file through attachAudio(). Proves the analyser.
+//   mic         — live capture. Wrong source for real use; test only.
+//
+// The labels say which ones make sound, because a silent envelope moving the
+// lips looks exactly like an audio path that is broken.
 //
 // Also prints the live amplitude, so a dead mouth can be told apart from a dead
 // analyser without opening the console.
@@ -41,15 +44,16 @@
       return b;
     }
 
-    btn('demo', function () { L.speakDemo(); });
+    btn('silent demo', function () { L.speakDemo(); });
 
     var audio = null;
-    btn('wav', function () {
+    btn('play wav \u25b6', function () {
       if (!audio) {
         audio = new Audio(WAV);
-        audio.crossOrigin = 'anonymous';
         L.attachAudio(audio);          // one MediaElementSource per element, ever
-        audio.onended = function () { L.detach(); };
+        // Deliberately no detach() on ended: the analyser reads silence and the
+        // mouth closes on its own. Detaching here left the second press playing
+        // audio with a dead mouth, because nothing re-attached.
       }
       audio.currentTime = 0;
       audio.play();

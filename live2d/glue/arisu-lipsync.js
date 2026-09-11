@@ -144,10 +144,16 @@
     },
 
     // Her output <audio>/<video> element. Same call as the portrait renderer.
+    //
+    // The analyser is a TAP, never a link in the audible path -- the source
+    // fans out to both. Routing sound *through* the analyser to the speakers is
+    // what made the microphone howl: the mic reached the destination through a
+    // connection that only the playback path ever needed.
     attachAudio: function (el) {
       var ac = ensureCtx();
-      ac.createMediaElementSource(el).connect(analyser);
-      analyser.connect(ac.destination); // keep her audible
+      var src = ac.createMediaElementSource(el);
+      src.connect(analyser);        // tap, goes nowhere
+      src.connect(ac.destination);  // audible path
       live = true;
       speech = null;
       return true;
@@ -157,8 +163,8 @@
     attachStream: function (stream) {
       var ac = ensureCtx();
       ac.createMediaStreamSource(stream).connect(analyser);
-      // Deliberately NOT connected to destination: the <audio> element already
-      // plays the remote track, and connecting both doubles her volume.
+      // Tap only. The <audio> element already plays the remote track; adding a
+      // second path here would double her volume.
       live = true;
       speech = null;
       return true;
@@ -180,8 +186,13 @@
         micStream = null;
         return Promise.resolve(false);
       }
-      return navigator.mediaDevices.getUserMedia({ audio: true }).then(function (st) {
+      return navigator.mediaDevices.getUserMedia({
+        // Echo cancellation matters even with the graph fixed: the speakers are
+        // a few centimetres from the microphone on a tablet.
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false }
+      }).then(function (st) {
         var ac = ensureCtx();
+        // Tap only. Never to destination -- that is a feedback loop, not a test.
         ac.createMediaStreamSource(st).connect(analyser);
         micStream = st; micOn = true; live = true; speech = null;
         return true;
