@@ -3,71 +3,88 @@
 *Her lain-side routes are `lain/docs/arisu-brain.md`; lain's own state is
 `lain/.claude/HANDOFF.md`. The homelab handoff owns the Hermes side.*
 
+Second half of this session ran under `away` — decisions were made for him
+rather than asked. **Every one is listed below and every one is cheap to
+overturn.**
+
 ## State
 
 **Everything below is committed and pushed.** arisu on `origin` only — there is
-no `architect` remote here.
+no `architect` remote here. Nothing in lain was touched.
 
-**Step 4 is done: her audio drives `ParamMouthOpenY`.** Verified end to end on
-Natori — real audio through the analyser, through the expander, into the model,
-mouth visibly opening and closing in the rendered frame. Steps 1–3 were already
-done; the avatar direction itself was settled last session and still holds.
+**Steps 4, 4b and 5 are done and verified.** Her audio drives the mouth, her
+five states drive Natori's expressions, and the page exposes the exact
+`window.avatar` interface her clients already call.
 
-**Everything we add to the SDK tree now lives in `live2d/glue/` and is applied
-by `live2d/patch-sdk.sh`.** The SDK is gitignored, so edits made inside it die
-when the zip is re-unpacked — that already cost a session once. The script is
-idempotent and applies all five edits: vite config, the two scripts, the
-`index.html` tags, the `lappmodel.ts` hook, and Natori first in the model list.
+**Auto-blink and idle motion turned out to be free.** The Cubism SDK already
+runs eye blink, breath, physics, pose and a random idle motion. Measured: two
+blinks in twelve seconds with head angle, body angle and breath all moving. No
+code was needed, so step 5 became the expression layer instead.
 
-**Nothing of Arisu's own voice loop is connected yet.** The prototype is driven
-by a test overlay with three buttons — demo, wav, mic. `attachStream()` is the
-real seam and is written but unused. The portrait renderer (`faces/renderer.js`)
-is untouched and still what ships.
+**The portrait renderer is still what ships.** `faces/renderer.js` is untouched.
+This remains a parallel prototype.
 
-**The full account of step 4, including the measurements, is in `LIVE2D.md`.**
-Read that, not this.
+**The full account, with every measurement, is in `LIVE2D.md`.** Read that, not
+this.
 
-## Decisions & open questions
+## Decisions made without him — overturn any of these cheaply
 
-- **Settled: the mouth is driven by an expander, not a gain.** The portrait's
-  band math was reused verbatim and is proven; reusing its *gain* was wrong.
-  Raw band energy on real speech runs 0.87 quiet against a 1.74 peak, both above
-  where `ParamMouthOpenY` clamps, so a fixed gain leaves the mouth hanging open.
-  Half the running peak is treated as closed. A tracked running minimum was
-  tried first and converges far too slowly to use inside one utterance.
-- **Open, and worth an eye: this was tuned against a sample wav, not her TTS.**
-  The expander is level-independent by design, so it should carry, but
-  `FLOOR_RATIO` in `live2d/glue/arisu-lipsync.js` is the knob — raise it if her
-  mouth looks lazy, lower it if it twitches.
-- **Open, and his: which character to actually buy.** Step 6, deliberately last.
-- Everything from the previous handoff stays open: Chopper's portrait and voice,
-  the browser client joining the room, the deferred six-character iPad split.
+- **The mouth runs off an expander, not a fixed gain.** Real speech measured
+  0.87 at its quietest against a 1.74 peak, both above where `ParamMouthOpenY`
+  clamps, so a gain leaves the mouth hanging open. Half the running peak counts
+  as closed. A tracked running minimum was tried first and converges far too
+  slowly to use inside one utterance. Knob: `FLOOR_RATIO`.
+- **Expressions were picked by reading each `.exp3.json`, not by name.** `Smile`
+  is the obvious pick for listening and is wrong — it closes the eyes. `Sad` and
+  `Angry` reshape `ParamMouthForm` and stay away from speaking.
+- **Asleep forces the eyes shut in the hook** rather than trusting `exp_05`,
+  because the blink updater writes the same parameter on its own schedule.
+- **Host-fed amplitude is NOT expanded.** The browser client injects a synthetic
+  0.10-0.26 envelope when Safari hands back a silent analyser; expanding that
+  would floor it to zero and freeze the mouth in exactly that case.
+- **`nod` is deliberately unmapped.** It is a head movement, not an expression,
+  and faking it from `TapBody` would fight the idle motion queue.
+- **The `__arisuParam` debug probe stays.** Read-only, inside the gitignored SDK
+  tree, and the only way to see what the rig is doing.
+
+## Parked, and why
+
+- **Packaging Live2D as a real lain face.** Blocked on a licence question, not a
+  technical one. The client reaches the face through `contentWindow`, so the
+  page must be same-origin, which means the built bundle — **including
+  licence-gated Cubism Core** — ships inside lain. `ossskkar/lain` is private but
+  `ossskkar/bender` is public, which is why this repo gitignores the SDK and why
+  the answer cannot just be copied across. His call. The adapter is written and
+  proven, so what remains is a build step and an iframe `src`.
+- **Step 6, buying the character.** Costs money.
 
 ## Next steps
 
-1. **Step 5 — auto-blink and idle motion.** Natori declares an `EyeBlink` group
-   (`ParamEyeLOpen`/`ParamEyeROpen`) and ships 11 expressions and 8 motions, so
-   most of this is wiring the SDK's own updaters rather than new code.
-2. **Step 4b — connect `attachStream()` to her real output track** in the
-   browser client, replacing the test overlay. The seam exists; nothing calls it.
-3. Step 6 — only then choose and buy the real character, checking each listing
-   for app use, modification and AI learning.
+1. **Decide whether the built Live2D bundle may live inside lain.** Everything
+   downstream waits on it and nothing else does.
+2. Try the five state buttons on the iPad and say whether the expressions read
+   right. They were chosen from parameter values, never seen in motion.
+3. Step 6 — choose and buy the real character, checking each listing for app
+   use, modification and AI learning.
 
 ## Gotchas
 
 - **`requestAnimationFrame` stops dead when the page is not visible**, and a
   hidden browser pane counts. The symptom is `__arisuMouth` staying `undefined`
-  with a clean console and every asset at 200. Check visibility *first*.
-  `ArisuLipSync.value()` can be pumped by hand to test the audio path without
-  the render loop.
-- **`value()` advances its own smoothing.** Exactly once per frame, or the jaw
-  moves at double speed. The test overlay's meter reads `__arisuMouth` instead.
-- **Re-unpacking the SDK zip silently reverts every edit.** Run
-  `live2d/patch-sdk.sh`. If it reports an anchor it cannot find, the SDK version
-  changed and the patch needs re-deriving by hand.
+  with a clean console and every asset at 200. For headless checks, shim
+  `window.requestAnimationFrame` onto `setTimeout` from the console — never in
+  the page.
+- **`patch-sdk.sh` used to skip silently.** It tested one marker string, so any
+  later addition to a block was dropped without a word, and it looked exactly
+  like new code failing to load. It now uses sentinel comments and replaces
+  blocks wholesale. Running it twice is a no-op. **Run it after unpacking a
+  fresh SDK, or nothing Arisu adds exists.**
+- **`value()` advances its own smoothing.** Exactly once per frame.
+- **Cubism cross-fades expressions over ~880ms each way.** A reaction shorter
+  than about two seconds reverts before it arrives.
 - **Do not use the Vite dev server for anything on the iPad.** Its HMR socket
-  cannot reach back through the tailscale proxy, gives up, and reloads the page
-  every few seconds. It reads as a stuttering avatar. Build and serve `dist`.
+  cannot reach back through the tailscale proxy and reloads the page every few
+  seconds. Build and serve `dist`.
 - **The `CubismWebSamples` GitHub repo is a trap.** Neither Core nor its
   Framework submodule. Only the licence-gated SDK zip builds.
 - Unchanged: arisu has only `origin`; `arisu/deploy.sh` is the dead Mac path;
@@ -75,7 +92,6 @@ Read that, not this.
 
 ## Resume
 
-Step 4 is done and verified; step 5 (auto-blink and idle motion) is the next
-build, and most of it is wiring updaters Natori already declares. The real
-remaining seam is `attachStream()`, which is written and unused — the prototype
-is still driven by a test overlay, not by her voice.
+Lead with what he can overturn, not with what was built — he was away. The one
+thing genuinely waiting on him is whether the built Live2D bundle may live
+inside lain; everything downstream is blocked on that and nothing else is.
