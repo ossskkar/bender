@@ -172,6 +172,16 @@ existing :8443 entry alone. Turn it off with `tailscale serve --https=8444 off`.
 
 - Vite answers a proxied request with a **bare 403** unless the forwarded host is
   allowed. `vite.config.mts` now carries `allowedHosts: ['.ts.net']`.
+- **Do not use the dev server for anything on the iPad.** Its HMR websocket
+  cannot reach back through the tailscale proxy, so it gives up and reloads the
+  whole page every few seconds. That reads as a stuttering avatar and makes any
+  frame-rate judgement worthless. Build once and serve the built output:
+
+      npm run build:prod
+      npx vite preview --port 5001 --strictPort --host
+
+  The `live2d` entry in `launch.json` now does the second line. Confirmed no
+  `vite/client` in the built `index.html`, so there is no socket to drop.
 - **That edit lives inside the gitignored SDK directory**, so it does not survive
   re-unpacking the zip. Re-apply it by hand, or the iPad gets 403 on every file
   with nothing in the log to explain why.
