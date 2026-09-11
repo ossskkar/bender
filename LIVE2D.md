@@ -79,7 +79,8 @@ drives the mouth parameter.
    and is what is now unpacked at `live2d/CubismSdkForWeb`, gitignored.
 3. Get the sample rendering on a desktop browser **and** iPad Safari. Confirm
    both before writing any glue.
-4. Wire Arisu audio to amplitude to `ParamMouthOpenY`. Basic lip-sync loop.
+4. ~~Wire Arisu audio to amplitude to `ParamMouthOpenY`.~~ **Done 2026-09-12**,
+   see *Step 4* below.
 5. Add auto-blink and idle motion for liveliness.
 6. Only once the pipeline runs end to end, choose and buy the real character.
 
@@ -190,3 +191,95 @@ existing :8443 entry alone. Turn it off with `tailscale serve --https=8444 off`.
 
 The Mac's existing serve entry on :8443 still proxies to a dead `127.0.0.1:8887`,
 as the workspace notes say. Untouched here, still rotten.
+
+
+## Step 4 — lip sync, done 2026-09-12
+
+**Her audio drives `ParamMouthOpenY`, verified end to end on Natori.** Real
+audio through the analyser, through the expander, into the model, with the
+mouth visibly opening and closing in the rendered frame.
+
+### Where the code lives, and why
+
+Everything we add to the SDK tree lives in **`live2d/glue/`** and is applied by
+**`live2d/patch-sdk.sh`**. The SDK is gitignored, so every edit inside it dies
+the moment the zip is re-unpacked — which already cost one session when the
+`vite.config.mts` host allowance vanished and the iPad started 403ing. The
+script is idempotent. Run it after unpacking a fresh SDK, or any time the demo
+starts behaving like a stock sample.
+
+It applies four things:
+
+| What | Where | Why |
+|---|---|---|
+| `vite.config.mts` | copied whole | `allowedHosts` for the tailscale proxy, and the preview block |
+| `arisu-lipsync.js`, `arisu-harness.js` | `public/` | so the built `dist` carries them |
+| two `<script>` tags | `index.html` | classic scripts, loaded before the module bundle |
+| the lip-sync hook | `src/lappmodel.ts` | ~8 lines in `update()` |
+| Natori first | `src/lappdefine.ts` | the audited pick, ahead of the stock Haru |
+
+The hook sits **after** `_updateScheduler.onLateUpdate` and before
+`_model.update()`, so it overrides `CubismLipSyncUpdater` — which sits at 0
+anyway, because nothing here plays a wav through the wav handler.
+
+`arisu-lipsync.js` knows nothing about Live2D and Live2D knows nothing about her
+voice. The whole contract is one number per frame. `window.__arisuMouth` mirrors
+it for debugging.
+
+### The API
+
+- `attachStream(stream)` — her WebRTC output track. **This is the real path.**
+  Deliberately not connected to `destination`: the `<audio>` element already
+  plays the remote track and connecting both doubles her volume.
+- `attachAudio(el)` — an `<audio>` element. Same call the portrait renderer uses.
+- `setAmplitude(v)` — for a host that already computed amplitude.
+- `speakDemo()`, `useMic()` — test only.
+
+`value()` advances its own smoothing, so it must be called **exactly once per
+frame**. Calling it twice moves the jaw at double speed.
+
+### A fixed gain is wrong for a jaw, and this is why
+
+The portrait renderer's band math was reused verbatim, because it is already
+proven against her real voice. Reusing its *gain* was the mistake. Measured
+against a real speech clip:
+
+| | value |
+|---|---|
+| raw band energy, quietest point of speech | 0.87 |
+| raw band energy, peak | 1.74 |
+
+Both are above 1.0, which is where `ParamMouthOpenY` clamps. The portrait feeds
+a glow, where clipping is invisible; a jaw just hangs open and wobbles. The
+first version pinned at 1.0 for 11 of 95 frames and averaged 0.82 — a gaping
+mouth, not a talking one.
+
+Two fixes, in order of how much they mattered:
+
+1. **An expander, not a gain.** Normalise against a running peak (instant
+   attack, slow release), and treat **half the peak as closed**. Dividing by the
+   peak alone is not enough, because the quiet level of speech is nowhere near
+   zero. A tracked running minimum was tried first and is worse: it converges far
+   too slowly to be useful inside a single utterance, whereas half the peak
+   converges the instant the peak does and landed within 0.05 of the measured
+   floor.
+2. **Less analyser smoothing**, 0.55 down to 0.2. The portrait wants a glow that
+   looks continuous. A jaw wants the gaps between syllables to survive.
+
+After both: mean 0.49, four frames pinned, 29 frames near-closed, 36 distinct
+values across 1.5 seconds. That is a mouth that talks.
+
+**Caveat, and it is the honest one: this was tuned against a Live2D sample wav,
+not against Arisu's own TTS.** The expander is level-independent by design, so
+it should carry over, but `FLOOR_RATIO` is the first knob to reach for if her
+mouth looks lazy (raise it) or twitchy (lower it). `setAutoGain(false)` falls
+back to the fixed gain for a host that already sends normalised amplitude.
+
+### Gotcha that will waste an hour
+
+**`requestAnimationFrame` stops completely when the page is not visible**, and a
+hidden browser pane counts. The symptom is not a frozen picture — it is
+`__arisuMouth` staying `undefined` while the console is clean and every asset
+loads 200. `value()` can still be pumped by hand to test the audio path, but
+nothing reaches the model. This is the same trap the previous session hit from
+the other side, and it is worth checking *first* every time.
