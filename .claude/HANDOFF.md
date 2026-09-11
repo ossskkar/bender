@@ -8,77 +8,74 @@
 **Everything below is committed and pushed.** arisu on `origin` only — there is
 no `architect` remote here.
 
-**Her next face is decided: Live2D, and the prototype clears its gate.** The
-whole avatar question was reopened this session and closed. 3D is out. Booth's
-VRM catalogue and Meshy are both rejected — Meshy auto-rigs a body and leaves
-the facial blendshapes as a manual Blender step, which is the only part that
-matters for something that is mostly a face and a voice.
+**Step 4 is done: her audio drives `ParamMouthOpenY`.** Verified end to end on
+Natori — real audio through the analyser, through the expander, into the model,
+mouth visibly opening and closing in the rendered frame. Steps 1–3 were already
+done; the avatar direction itself was settled last session and still holds.
 
-**Step 3 passed on real hardware.** The Cubism sample demo renders and animates
-smoothly in Safari on the Mac *and* on the iPad over tailnet, with all eight
-models cycling on tap. That was the gate on the whole direction, and it held.
+**Everything we add to the SDK tree now lives in `live2d/glue/` and is applied
+by `live2d/patch-sdk.sh`.** The SDK is gitignored, so edits made inside it die
+when the zip is re-unpacked — that already cost a session once. The script is
+idempotent and applies all five edits: vite config, the two scripts, the
+`index.html` tags, the `lappmodel.ts` hook, and Natori first in the model list.
 
-**The rig is standing.** `CubismSdkForWeb-5-r.5` unpacked to
-`live2d/CubismSdkForWeb`, gitignored. Built output served by the `live2d` entry
-in `claude-projects/.claude/launch.json` on port 5001, fronted for the iPad by
-`tailscale serve` on `https://oscars-macbook-pro.tailaa64e9.ts.net:8444/`.
+**Nothing of Arisu's own voice loop is connected yet.** The prototype is driven
+by a test overlay with three buttons — demo, wav, mic. `attachStream()` is the
+real seam and is written but unused. The portrait renderer (`faces/renderer.js`)
+is untouched and still what ships.
 
-**Nothing of Arisu's own is wired to it yet.** The existing portrait renderer
-(`faces/renderer.js`) is untouched and still what ships. This is a parallel
-prototype, not a replacement.
-
-**The full plan, model audit and every licence finding live in `LIVE2D.md`.**
-Read that, not this, for detail.
+**The full account of step 4, including the measurements, is in `LIVE2D.md`.**
+Read that, not this.
 
 ## Decisions & open questions
 
-- **Settled: Live2D via Cubism SDK for Web, inside a `WKWebView`** so iPad and
-  web stay one codebase. The seam to the voice loop is deliberately narrow:
-  audio to amplitude to `ParamMouthOpenY`.
-- **Settled: prototype on Natori**, not Hiyori. Hiyori is the obvious default
-  and ships **zero expressions**; Mao has **no `ParamMouthOpenY` at all**.
-  Natori is the only sample clearing the whole checklist. Haru is the fallback
-  and is what the demo loads first.
-- **Checked, and it opens the market back up: the "no AI" clause on BOOTH
-  listings means no AI *learning*.** It is not a ban on an AI character. The
-  listings carrying it permit app and VTuber use outright.
-- **Open, and his: which character to actually buy.** Not urgent — step 6, and
-  deliberately last.
-- Everything from the previous handoff stays open: Chopper's portrait and
-  voice, the browser client joining the room, the deferred six-character iPad
-  split.
+- **Settled: the mouth is driven by an expander, not a gain.** The portrait's
+  band math was reused verbatim and is proven; reusing its *gain* was wrong.
+  Raw band energy on real speech runs 0.87 quiet against a 1.74 peak, both above
+  where `ParamMouthOpenY` clamps, so a fixed gain leaves the mouth hanging open.
+  Half the running peak is treated as closed. A tracked running minimum was
+  tried first and converges far too slowly to use inside one utterance.
+- **Open, and worth an eye: this was tuned against a sample wav, not her TTS.**
+  The expander is level-independent by design, so it should carry, but
+  `FLOOR_RATIO` in `live2d/glue/arisu-lipsync.js` is the knob — raise it if her
+  mouth looks lazy, lower it if it twitches.
+- **Open, and his: which character to actually buy.** Step 6, deliberately last.
+- Everything from the previous handoff stays open: Chopper's portrait and voice,
+  the browser client joining the room, the deferred six-character iPad split.
 
 ## Next steps
 
-1. **Step 4 — wire Arisu's audio to `ParamMouthOpenY`.** The browser client
-   already taps her *output* stream for the existing face; reuse that analyser
-   rather than the microphone. This is the same lesson as the app's lip sync.
-2. Step 5 — auto-blink and idle motion.
+1. **Step 5 — auto-blink and idle motion.** Natori declares an `EyeBlink` group
+   (`ParamEyeLOpen`/`ParamEyeROpen`) and ships 11 expressions and 8 motions, so
+   most of this is wiring the SDK's own updaters rather than new code.
+2. **Step 4b — connect `attachStream()` to her real output track** in the
+   browser client, replacing the test overlay. The seam exists; nothing calls it.
 3. Step 6 — only then choose and buy the real character, checking each listing
    for app use, modification and AI learning.
 
 ## Gotchas
 
+- **`requestAnimationFrame` stops dead when the page is not visible**, and a
+  hidden browser pane counts. The symptom is `__arisuMouth` staying `undefined`
+  with a clean console and every asset at 200. Check visibility *first*.
+  `ArisuLipSync.value()` can be pumped by hand to test the audio path without
+  the render loop.
+- **`value()` advances its own smoothing.** Exactly once per frame, or the jaw
+  moves at double speed. The test overlay's meter reads `__arisuMouth` instead.
+- **Re-unpacking the SDK zip silently reverts every edit.** Run
+  `live2d/patch-sdk.sh`. If it reports an anchor it cannot find, the SDK version
+  changed and the patch needs re-deriving by hand.
 - **Do not use the Vite dev server for anything on the iPad.** Its HMR socket
   cannot reach back through the tailscale proxy, gives up, and reloads the page
-  every few seconds. It looks like a stuttering avatar and it also interrupts
-  model loading, which looks like models failing to load. Build and serve
-  `dist` instead.
-- **The `CubismWebSamples` GitHub repo is a trap.** It ships neither Core nor
-  its Framework submodule and cannot build. The licence-gated SDK zip is
-  self-contained; use only that.
-- **Background but no model, clean console, every asset 200, is not a bug.** A
-  tab that is not frontmost pauses the render loop and looks exactly like that.
-- **`vite.config.mts` carries local edits inside the gitignored SDK tree** —
-  `allowedHosts` and the preview block. Re-unpacking the zip silently loses
-  them, and the iPad then gets a bare 403 on every file. `LIVE2D.md` has them.
+  every few seconds. It reads as a stuttering avatar. Build and serve `dist`.
+- **The `CubismWebSamples` GitHub repo is a trap.** Neither Core nor its
+  Framework submodule. Only the licence-gated SDK zip builds.
 - Unchanged: arisu has only `origin`; `arisu/deploy.sh` is the dead Mac path;
   her voice and her memory fail separately.
 
 ## Resume
 
-Brief as: the avatar question is settled and proven. Live2D on the Cubism Web
-SDK renders smoothly on the iPad, which was the gate, and the eight sample
-models have been audited — use Natori, not Hiyori. Nothing of Arisu's own is
-wired to it yet. The next build is step 4, lip sync, and the fix is already
-known from the browser client: tap her output stream, not the microphone.
+Step 4 is done and verified; step 5 (auto-blink and idle motion) is the next
+build, and most of it is wiring updaters Natori already declares. The real
+remaining seam is `attachStream()`, which is written and unused — the prototype
+is still driven by a test overlay, not by her voice.
