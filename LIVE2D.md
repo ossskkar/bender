@@ -350,3 +350,69 @@ To measure at all, the page must be rendering, and **`requestAnimationFrame`
 stops dead when the page is not visible**. For headless checks, replacing
 `window.requestAnimationFrame` with a `setTimeout` shim keeps the app's own loop
 running while hidden. That belongs in the console, never in the page.
+
+
+## Step 4b — `window.avatar`, done 2026-09-12, and where it stops
+
+**The Live2D page now exposes the interface her clients already drive.** Both
+her browser client (`lain/arisu/index.html`) and her iOS app load a face page in
+a frame and talk to it through `face.contentWindow.avatar` — `setState()` for
+the phase, `setAmplitude()` on a 50 ms tick for the mouth. Neither knows or
+cares what is drawing. `live2d/glue/arisu-avatar.js` matches that surface
+exactly, no-op members included.
+
+**Verified through an actual same-origin iframe**, driven exactly as the client
+drives it: the mouth ran 0 to 0.83 over 29 distinct values, and `asleep` shut
+the eyes to 0.
+
+### Host amplitude is passed through, not expanded
+
+The lip-sync expander applies only to audio this module analyses itself. When
+the host asserts an amplitude, it is used as given. That is not laziness — the
+browser client injects a **synthetic 0.10 to 0.26 envelope** whenever Safari
+hands back a silent analyser for a remote WebRTC stream, which it does often.
+Expanding those against a running peak would floor them to zero and freeze the
+mouth in precisely the case that workaround exists for. Checked both ways: a
+real 0-0.8 meter reaches 0.78 and closes between peaks, and the synthetic band
+still opens the mouth to 0.45.
+
+### Reactions
+
+`react()` maps `surprise`, `amused`, `confused`, `error`, plus `sleep`, `wake`
+and `thinking` onto states. It returns **false** for anything else rather than
+guessing. `nod` is unmapped on purpose: it is a head movement, not an
+expression, and driving it from Natori's `TapBody` motions would fight the idle
+motion queue.
+
+A reaction holds for 2200 ms because **Cubism cross-fades an expression in over
+about 880 ms and out over another 880 ms** (measured on Natori, `ParamMouthForm`
+0 to -3 and back). Anything much shorter starts reverting before it has arrived,
+and reads as a twitch rather than a face.
+
+### Parked: making it an actual lain face
+
+Everything above works. What is **not** done is packaging it as a third face
+beside `arisu.html` and `chopper.html`, and it is parked on a licence question
+rather than a technical one.
+
+- The client reaches the face through `contentWindow`, so the page must be
+  **same-origin**. Pointing the frame at a separate port will not work.
+- Same-origin means the built bundle ships inside lain — **including Cubism
+  Core, which is licence-gated**.
+- **`ossskkar/lain` is private. `ossskkar/bender`, which holds arisu, is
+  public.** That asymmetry is exactly why this repo gitignores the SDK, and it
+  is why the answer cannot simply be copied across.
+
+Vendoring redistributable-restricted files, even into a private repo, is his
+call and not an expensive one to get right later. The adapter is written and
+proven, so whenever that is settled the remaining work is a build step and an
+iframe `src`.
+
+### The debug probe is deliberate
+
+`window.__arisuParam(id)` stays in the patched build on purpose. It is
+read-only, it lives inside the gitignored SDK tree rather than in shipped Arisu
+code, and without it there is no way to see what the rig is doing — the model is
+module-scoped, and reading pixels to decide whether blink is running is
+guessing. The test overlay (`arisu-harness.js`) is the one piece meant to be
+deleted, along with its `<script>` tag, once her own voice drives the face.
