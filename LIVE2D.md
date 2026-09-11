@@ -137,8 +137,18 @@ drives the mouth parameter.
 - Verified in the browser: Core loads, `CubismFramework.startUp()` and
   `initialize()` both complete, model index 0 loads, and a 1024x768 canvas has a
   live WebGL context.
+- **Confirmed rendering and animating in Safari on the Mac, 2026-09-12.** Haru
+  draws, moves and holds frame. The desktop half of step 3 is done.
 - **Not yet verified: iPad Safari, and frame rate on the iPad.** That is the
   half of step 3 that actually gates the decision.
+
+Debugging note, so the next session does not repeat it: a page showing only the
+classroom background with no model is **not** a broken render path. Core, the
+framework, the shaders, the moc3, the textures, the motions and the expressions
+all fetch 200 and the console is clean in that state. Check the window and the
+tab are actually visible and frontmost before investigating anything, because a
+backgrounded tab pauses the requestAnimationFrame loop and leaves exactly that
+picture.
 
 Vite binds all interfaces, so the iPad reaches the Mac over tailnet at
 `http://100.104.94.85:5001/`.
