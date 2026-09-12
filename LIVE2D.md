@@ -418,6 +418,67 @@ code, and without it there is no way to see what the rig is doing — the model 
 module-scoped, and reading pixels to decide whether blink is running is
 guessing.
 
+## Step 7 — her real voice, and the background — 2026-09-12
+
+### The host path had the bug the module path was built to avoid
+
+The face passes host amplitude through unexpanded, on purpose. What that left
+unexamined is the layer feeding it: the browser client computed `rms * 2.2`, a
+**fixed gain** — exactly what the module's own path rejected, for exactly the
+reason it rejected it.
+
+Replayed end to end against sentence-length speech at four stream levels,
+reading `ParamMouthOpenY` itself:
+
+| stream level | jaw p50, before | jaw p50, after |
+|---|---|---|
+| 0.15 | 0.10 | 0.47 |
+| 1.00 | 0.54 | 0.45 |
+
+Before, her mouth followed the connection rather than her voice, and never
+passed 0.79 even at full scale — the top third of her range was unreachable.
+After, a **12x change in stream level produces the same face**: p50 0.46,
+p95 0.90, max 0.97, shut on 9% of frames, mean change 0.034 per frame.
+
+**The expander belongs in the client, not the face.** The face cannot tell a
+measured level from the synthetic envelope Safari forces, which is why it
+passes host amplitude through; expanding that envelope would floor it to zero
+and freeze the mouth in the one case the fallback exists for. The client knows
+which of the two it is holding. So it expands what it measured and leaves the
+fallback on the old fixed gain.
+
+Two constants, both measured rather than inherited:
+
+- **`PEAK_FLOOR` is 0.02.** At 0.05 — tried first — the peak pinned to the
+  floor on a quiet stream, because 0.05 is where a quiet stream's rms peak
+  actually lands, and the quiet case never expanded at all. The `< 0.005`
+  dead-frame test already catches real silence, so the floor does not need to
+  be high.
+- **`FLOOR_RATIO` stays 0.5.** Voiced frames are bimodal on rms: a vowel
+  cluster at 0.67-0.91 of the running peak, a consonant cluster at 0.07-0.32,
+  and little between. Half the peak lands in that gap, so it separates the two
+  rather than cutting through either.
+
+### No classroom behind her
+
+`back_class_normal.png` was the one thing on the page that gave away that she
+came from a sample. Both edits are in `patch-sdk.sh`, so a fresh SDK does not
+bring it back.
+
+The texture is **not loaded at all**, rather than the sprite hidden at render
+time — `render()` already guards on `_back`, so a hidden background would only
+be a PNG fetched and uploaded to the GPU on every load. And the clear goes to
+alpha zero, or removing the classroom only swaps it for a black rectangle.
+Verified by putting a colour behind the frame: it shows everywhere except her,
+with clean edges.
+
+**She takes several seconds to appear, and an empty canvas before then looks
+exactly like a broken build.** Both were briefly blamed on this change, until
+the previous bundle turned out to do the same thing. Wait ten seconds before
+believing a Live2D page is broken.
+
+The gear icon in the corner is still the sample's, and still there.
+
 ### The test overlay hides itself when framed — fixed 2026-09-12
 
 Shipping the face inside lain shipped the debug bar with it. `?face=live2d`

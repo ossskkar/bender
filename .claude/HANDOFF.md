@@ -33,6 +33,18 @@ shows standalone, so the state buttons still work at `/arisu/live2d/`.
 `showPanel()` also works for the first time — it set `.hidden`, which the bar's
 inline `display:flex` silently overrode. Deployed to architect and verified.
 
+**Her mouth no longer follows the connection.** The client fed the face
+`rms * 2.2`, a fixed gain — the thing the face module's own path rejects. The
+jaw read 0.10 on a quiet stream and 0.54 on a hot one and never passed 0.79 at
+full scale. An expander in the *client* (the only layer that can tell a
+measured level from Safari's synthetic envelope) fixes it: a 12x change in
+stream level now gives the same face, p50 0.46, p95 0.90, shut 9% of frames.
+Measured on the rig off `ParamMouthOpenY`, not estimated.
+
+**The classroom is gone.** The sample background is no longer loaded and the
+canvas clears transparent, so she composites over lain's own backdrop. Both
+edits are in `patch-sdk.sh`, so a fresh SDK will not bring it back.
+
 **The portrait renderer is still what ships.** `faces/renderer.js` is untouched.
 This remains a parallel prototype.
 
@@ -71,10 +83,13 @@ this.
    right. They were chosen from parameter values, never seen in motion.
    Open `/arisu/live2d/` directly — the buttons are hidden inside the framed
    `?face=live2d` view on purpose.
-2. Connect it to a real call and watch the mouth against her actual voice. The
-   expander was tuned on a sample wav, not her TTS.
+2. Connect it to a real call and watch the mouth against her actual voice.
+   The level dependence is gone and the numbers are right, but the shaping was
+   measured against speech, not against her own TTS in a live session.
 3. Step 6 — choose and buy the real character, checking each listing for app
    use, modification and AI learning.
+4. The gear icon in the corner is still the sample's. Say if it should go the
+   way the classroom did.
 
 ## Gotchas
 
