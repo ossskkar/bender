@@ -56,8 +56,7 @@ Fixed and verified this session:
 
 ## Next steps
 
-1. Open `/arisu/live2d/` on the iPad — the page directly, not the framed
-   `?face=live2d` view — and say whether the five expressions read right.
+1. ~~Judge the five expressions on the iPad~~ — Oscar approved them 2026-09-12.
 2. Answer the iPad-app question above; it decides whether step 6 matters.
 3. Then a real call, watching her mouth against her own voice.
 
