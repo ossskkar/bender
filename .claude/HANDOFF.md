@@ -41,6 +41,19 @@ measured level from Safari's synthetic envelope) fixes it: a 12x change in
 stream level now gives the same face, p50 0.46, p95 0.90, shut 9% of frames.
 Measured on the rig off `ParamMouthOpenY`, not estimated.
 
+**The gear is gone too, and it was not decoration.** Tapping it called
+`nextScene()`, which swaps the model — a stray tap on her face turned her into
+Haru. Removing it surfaced the real bug: the sample tears down both sprites
+unguarded, so the background commit (already deployed at the time) left a
+`release()` that threw on its first line and never deleted the GL program. On
+the iPad that path runs on an orientation change, not only on page unload.
+Caught in the browser, not by reading. Fixed and deployed.
+
+**The five states are verified distinct**, and blink and idle motion are
+running — two blinks in twelve seconds in `idle`. Not *judged*, which still
+needs eyes, but no longer unverified. Table in `LIVE2D.md`. `thinking` and
+`asleep` share a mouth shape and are told apart only by eyes and brows.
+
 **The classroom is gone.** The sample background is no longer loaded and the
 canvas clears transparent, so she composites over lain's own backdrop. Both
 edits are in `patch-sdk.sh`, so a fresh SDK will not bring it back.
@@ -88,8 +101,7 @@ this.
    measured against speech, not against her own TTS in a live session.
 3. Step 6 — choose and buy the real character, checking each listing for app
    use, modification and AI learning.
-4. The gear icon in the corner is still the sample's. Say if it should go the
-   way the classroom did.
+4. Nothing else here is blocked.
 
 ## Gotchas
 

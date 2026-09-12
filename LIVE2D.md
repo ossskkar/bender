@@ -479,6 +479,34 @@ believing a Live2D page is broken.
 
 The gear icon in the corner is still the sample's, and still there.
 
+### The five states are distinct, and the rig is alive — measured 2026-09-12
+
+The expressions were chosen by reading parameter values and had never been
+watched. They still have not been *judged* — that needs eyes — but they are no
+longer unverified: each state applies a different face, and the SDK's own
+animation is running underneath.
+
+| state | expression | ParamMouthForm | brows | eyes |
+|---|---|---|---|---|
+| idle | Normal | 0 | 0 | open, blinking |
+| listening | exp_02 | +1 | 0.1 | open, blinking |
+| thinking | exp_04 | -3 | 0.2 | open, blinking |
+| speaking | Normal | 0 | 0 | open, blinking |
+| asleep | exp_05 | -3 | 0 | held shut at 0 |
+
+**`thinking` and `asleep` share `ParamMouthForm = -3`.** They are told apart by
+the eyes and the brows, not the mouth, which is fine while asleep holds the
+eyes shut — but it is the pair to look at first if two states ever read alike.
+
+Blink measured in `idle`: **two blinks in twelve seconds**, matching what was
+measured when the rig first ran. In `speaking`, a single blink of about 450 ms
+with the eyes open 92% of the time.
+
+**A short sample will lie to you here.** Sampling a single frame caught `idle`
+mid-blink and read the eyes as shut; a 4.5-second window happened to miss a
+blink entirely and read `idle` as never blinking at all. Both looked like real
+bugs. Sample twelve seconds and print the series before believing either.
+
 ### The test overlay hides itself when framed — fixed 2026-09-12
 
 Shipping the face inside lain shipped the debug bar with it. `?face=live2d`
