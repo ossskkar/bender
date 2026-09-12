@@ -44,6 +44,13 @@ final class Live: ObservableObject {
             watchThinking()
         }
     }
+    /// `think` calls out at the desk and not yet answered, by call id. Not
+    /// `toolsOut`: her own audio zeroes that, and the short line she says
+    /// before thinking is audio that can arrive while the call is still out.
+    private var awaiting = Set<String>()
+    /// Responses this client asked for and has not yet seen created. Any other
+    /// response is the server answering on its own -- see `response.created`.
+    private var ownResponses = 0
     /// A tool that never came back must not leave her thinking forever.
     ///
     /// `runTool` decrements in a `defer`, so the count cannot leak on its own
@@ -223,6 +230,8 @@ final class Live: ObservableObject {
         pending = 0
         speaking = false
         toolsOut = 0
+        awaiting.removeAll()
+        ownResponses = 0
         await connect()
     }
 
@@ -243,6 +252,7 @@ final class Live: ObservableObject {
         // read a line got thought about instead of read; and `tool_choice`
         // none is the only way to say that with any certainty. It also leaves
         // no trace in the conversation, which a sample should not.
+        ownResponses += 1
         send(["type": "response.create",
               "response": ["instructions":
                             "Say exactly this out loud, word for word, and "
@@ -511,11 +521,36 @@ final class Live: ObservableObject {
             let name = ev["name"] as? String ?? ""
             let callID = ev["call_id"] as? String ?? ""
             let args = ev["arguments"] as? String ?? "{}"
+            if name != "set_mood" { awaiting.insert(callID) }
             Task { await self.runTool(name: name, callID: callID, args: args) }
+
+        case "response.created":
+            // Something he said -- more words, an "hm", noise the server took
+            // for speech -- started a reply of its own while `think` was still
+            // out. That reply cannot know the answer, so it made one up, and
+            // then she answered again when `think` came back: two different
+            // answers to one question (face log, 2026-09-12). His words are
+            // already in the conversation, so the reply that follows `think`
+            // covers them; this one is cancelled before it says anything.
+            if ownResponses > 0 {
+                ownResponses -= 1
+            } else if !awaiting.isEmpty {
+                var cancel: [String: Any] = ["type": "response.cancel"]
+                if let id = (ev["response"] as? [String: Any])?["id"] as? String {
+                    cancel["response_id"] = id
+                }
+                send(cancel)
+                brain.debug(["ev": "cancelled-extra"])
+            }
 
         case "error":
             let err = ev["error"] as? [String: Any]
             status = (err?["message"] as? String) ?? "error"
+            // A response.create refused because one is already running never
+            // produces a `response.created`, so it must not stay counted.
+            if status.contains("active response"), ownResponses > 0 {
+                ownResponses -= 1
+            }
 
         default:
             break
@@ -592,6 +627,7 @@ final class Live: ObservableObject {
         hearing = false
         lastVoice = Date()
         send(["type": "input_audio_buffer.commit"])
+        ownResponses += 1
         send(["type": "response.create"])
     }
 
@@ -628,6 +664,7 @@ final class Live: ObservableObject {
             let deadline = Date().addingTimeInterval(25)
             while Date() < deadline {
                 if await self.room?.takeFloor() ?? true {
+                    self.ownResponses += 1
                     self.send(["type": "response.create"])
                     return
                 }
@@ -662,6 +699,7 @@ final class Live: ObservableObject {
                      "call_id": callID,
                      "output": output],
         ]
+        awaiting.remove(callID)
         send(item)
         // `set_mood` is her face, not an answer. Asking for a response after it
         // made her reply twice to one question: once for the mood call and once
