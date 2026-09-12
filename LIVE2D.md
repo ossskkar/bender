@@ -119,6 +119,20 @@ drives the mouth parameter.
 - **BOOTH** (https://booth.pm/) — Pixiv, larger selection, roughly 4,000 to
   7,000 yen ready-made, mostly Japanese. Filter on Live2D.
 
+### Candidates found — 2026-09-12
+
+**Arisu's portrait is Yamato (One Piece), and so is Chopper's source.** No
+Live2D model of either exists on BOOTH (searched `ヤマト live2d`), and a fan rig
+of a copyrighted character would be personal-use only at best. So "buy Arisu"
+really means a look-alike original (white hair, red horns, oni) or a commission.
+nizima's search page did not load outside a real browser; not searched yet.
+
+| BOOTH item | Price | Fit | Licence |
+|---|---|---|---|
+| [Silver-haired girl, やま缶](https://booth.pm/en/items/3978690) | 5,500 JPY | silver hair, horns, fox ears; ships moc3, exp3, motions | apps and games allowed, credit required. **Best so far.** Its expressions are toggles (ears, horns, outfit), not moods, so our five states would need hand-written `.exp3.json` |
+| [Oni VTuber package, streamskins](https://booth.pm/en/items/7426773) | 1,500 JPY | oni theme, horn variants, five mood presets | streaming only named; files not listed; ask the seller |
+| [White-haired demon kitten, 细雨气](https://booth.pm/en/items/6330457) | 4,500 JPY | white hair, horns, dark skin | **ruled out**: "non-official platforms" banned, texture edits banned |
+
 ## Open decisions
 
 - Native iPad app versus webview-wrapped web. **Recommendation: webview**, for
