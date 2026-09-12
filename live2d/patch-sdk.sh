@@ -179,6 +179,47 @@ else:
         raise SystemExit("error: ModelDir not in the expected shape")
     d.write_text(src.replace(old, new, 1))
     print("  src/lappdefine.ts    patched")
+
+# No classroom behind her. The sample draws `back_class_normal.png` across the
+# whole canvas; Arisu is a face on lain's own background, and a stock classroom
+# under her is the single thing that gives away where she came from.
+#
+# The texture load goes entirely, rather than the sprite being hidden at render
+# time -- an unused background is still a PNG fetched and uploaded to the GPU on
+# every page load. `render()` already guards on `this._back`, so dropping the
+# load is all that is needed; `_back` simply stays null.
+d = demo / "src/lappview.ts"
+src = d.read_text()
+if "// >>> arisu: no background" in src:
+    print("  src/lappview.ts      background unchanged")
+else:
+    m = re.search(r"[ \t]*// \u80cc\u666f\u753b\u50cf\u521d\u671f\u5316.*?initBackGroundTexture\n[ \t]*\);\n",
+                  src, re.S)
+    if not m:
+        raise SystemExit("error: the background sprite block is not where it "
+                         "was in lappview.ts -- re-derive this patch by hand")
+    d.write_text(src[:m.start()]
+                 + "    // >>> arisu: no background. She is drawn over lain's\n"
+                   "    // own backdrop, so the sample's classroom is not loaded\n"
+                   "    // at all. render() guards on _back, which stays null.\n"
+                   "    // <<< arisu\n"
+                 + src[m.end():])
+    print("  src/lappview.ts      background patched")
+
+# ...and clear to transparent rather than opaque black, or removing the
+# classroom just swaps it for a black rectangle. webgl2 contexts are alpha:true
+# by default here, so the page behind the canvas shows through once the clear
+# alpha is zero.
+d = demo / "src/lappsubdelegate.ts"
+src = d.read_text()
+if "gl.clearColor(0.0, 0.0, 0.0, 0.0);" in src:
+    print("  src/lappsubdelegate.ts  clear unchanged")
+elif "gl.clearColor(0.0, 0.0, 0.0, 1.0);" in src:
+    d.write_text(src.replace("gl.clearColor(0.0, 0.0, 0.0, 1.0);",
+                             "gl.clearColor(0.0, 0.0, 0.0, 0.0);", 1))
+    print("  src/lappsubdelegate.ts  clear patched")
+else:
+    raise SystemExit("error: clearColor not in the expected shape")
 PY
 
 echo
