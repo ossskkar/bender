@@ -143,6 +143,22 @@ out the silver-haired girl above. Under budget:
 | [White-haired girl, 高木](https://booth.pm/en/items/4862137) | 3,000 JPY | white hair, ponytail variant | personal VTubing; edits banned beyond overlays |
 | [Kurogane, 2dlivemodelStudio](https://booth.pm/en/items/8634062) | 2,500 JPY | male | **ruled out**: "AI-powered applications, chatbot software" banned |
 
+**Taste, set by Oscar 2026-09-12: no little girls, no uniforms.** Adult
+white-collar professionals or funny creatures instead. That retires every pick
+above. Under budget and within that:
+
+| BOOTH item | Price | Look | Licence |
+|---|---|---|---|
+| [ゆるでびる, 萬工房](https://booth.pm/en/items/6703020) | 800 JPY | small loose devil/bat mascot; eye states, laugh, staff poses | **"app works, game works" allowed**, modification allowed within limits, cmo3 sold separately on nizima. **Pick** |
+| [ビジネスパーソン2 眼鏡, 外堀ゆきも](https://booth.pm/en/items/6685030) | 1,500 JPY | adult man, suit no tie, removable glasses | **apps allowed**, credit @sotohori; expressions not listed |
+| [BusinessGuy, 外堀ゆきも](https://booth.pm/en/items/4287506) | 1,500 JPY | adult man, suit; bow, card exchange, phone-call motions | **apps allowed**, credit @sotohori |
+| [Grumpy slime, 汎用モデル屋さん](https://booth.pm/en/items/8058536) | 880 JPY | mean-eyed jiggly slime, no expressions | streaming and video only; ask the creator |
+| [Gem monster, 星河工房](https://booth.pm/en/items/5394000) | 1,500 JPY | relaxed gem creature | **ruled out**: model and texture edits banned |
+| [Tibetan sand fox, だいふく製作所](https://booth.pm/en/items/7676991) | 2,000 JPY | deadpan fox | **ruled out**: edits banned, apps not named |
+
+No adult woman in office wear exists as a rigged model under budget (searched
+`スーツ`, `社会人`, `OL`).
+
 ## Open decisions
 
 - Native iPad app versus webview-wrapped web. **Recommendation: webview**, for
