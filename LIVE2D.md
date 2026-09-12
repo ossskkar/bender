@@ -181,6 +181,20 @@ reopens adult women, robots and other creatures. Checked the same day:
 | [ミミズク / ふくろう, たんよ](https://booth.pm/en/items/6266819) | 1,480 JPY (2,480 with psd+cmo3) | round-eyed owl; heart, star, spiral eyes, tears | "games, SNS, VTuber etc." (apps not named), customisation free |
 | [まるロボ, マルイヌ店](https://booth.pm/en/items/4094876) | 1,000 JPY | round robot, shutter blink | video and VTuber only |
 
+**Final taste rule, Oscar 2026-09-12: grown-up looking only, nothing
+child-looking, no revealing outfits; fantasy is fine.** Judged from each
+listing's cover image, not its text — text never says a model looks childish.
+
+| BOOTH item | Price | Look (from the cover) | Licence |
+|---|---|---|---|
+| [ビジネスパーソン2 眼鏡, 外堀ゆきも](https://booth.pm/en/items/6685030) | 1,500 JPY | grown man, blue flat style, glasses, no tie | **apps allowed**, credit @sotohori. **Pick** |
+| [BusinessGuy, 外堀ゆきも](https://booth.pm/en/items/4287506) | 1,500 JPY | same style, suit and tie | **apps allowed**, credit @sotohori |
+| [異形頭さん, USAGI STORE](https://booth.pm/en/items/7165476) | 3,000 JPY | suit with an object head (clock, sunflower, TV); 8 reactions | **apps and games allowed**, recolour free. **No mouth**, so the jaw pipeline has nothing to drive |
+| [おとなのお姉さん, jenny](https://booth.pm/en/items/3713392) | 3,000 JPY | adult woman, but low-cut dresses | apps allowed; **fails the outfit rule** |
+| Grace the elf 5274884, 優しいお姉さん 5303684, 二形態の魔女 6238039 | — | revealing or young-looking | **ruled out** |
+| 女子大生風エルフ 6051801 | 1,500 JPY | modest, but sold as a student and no expressions | **ruled out** |
+| 黒髪イケメンスーツ 7659956, 狐モチーフ 5174752 | — | adult | **ruled out**: dark / apps not named; fox bans AI use |
+
 ## Open decisions
 
 - Native iPad app versus webview-wrapped web. **Recommendation: webview**, for
