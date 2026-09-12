@@ -389,11 +389,13 @@ about 880 ms and out over another 880 ms** (measured on Natori, `ParamMouthForm`
 0 to -3 and back). Anything much shorter starts reverting before it has arrived,
 and reads as a twitch rather than a face.
 
-### Parked: making it an actual lain face
+### Making it an actual lain face — done 2026-09-12
 
-Everything above works. What is **not** done is packaging it as a third face
-beside `arisu.html` and `chopper.html`, and it is parked on a licence question
-rather than a technical one.
+**It is live.** `https://architect-server.tailaa64e9.ts.net:8443/arisu/?face=live2d`
+
+A face is a renderer, not a character, so it got its own switch: `?face=live2d`
+swaps what draws her without touching who she is. The portrait renderer stays
+the default and is untouched.
 
 - The client reaches the face through `contentWindow`, so the page must be
   **same-origin**. Pointing the frame at a separate port will not work.

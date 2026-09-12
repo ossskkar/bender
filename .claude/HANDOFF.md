@@ -9,8 +9,13 @@ overturn.**
 
 ## State
 
-**Everything below is committed and pushed.** arisu on `origin` only — there is
-no `architect` remote here. Nothing in lain was touched.
+**Everything below is committed and pushed, and lain is deployed.** arisu on
+`origin` only — there is no `architect` remote here.
+
+**It is live:** `https://architect-server.tailaa64e9.ts.net:8443/arisu/?face=live2d`
+The built bundle ships in lain at `arisu/live2d/` (4.5 MB, Natori only). A face
+is a renderer, not a character, so it has its own switch — `?face=live2d` does
+not touch persona, voice or room. The portrait renderer is still the default.
 
 **Steps 4, 4b and 5 are done and verified.** Her audio drives the mouth, her
 five states drive Natori's expressions, and the page exposes the exact
@@ -49,21 +54,16 @@ this.
 
 ## Parked, and why
 
-- **Packaging Live2D as a real lain face.** Blocked on a licence question, not a
-  technical one. The client reaches the face through `contentWindow`, so the
-  page must be same-origin, which means the built bundle — **including
-  licence-gated Cubism Core** — ships inside lain. `ossskkar/lain` is private but
-  `ossskkar/bender` is public, which is why this repo gitignores the SDK and why
-  the answer cannot just be copied across. His call. The adapter is written and
-  proven, so what remains is a build step and an iframe `src`.
 - **Step 6, buying the character.** Costs money.
+
+*(Packaging is no longer parked — it shipped, see State.)*
 
 ## Next steps
 
-1. **Decide whether the built Live2D bundle may live inside lain.** Everything
-   downstream waits on it and nothing else does.
-2. Try the five state buttons on the iPad and say whether the expressions read
+1. Try the five state buttons on the iPad and say whether the expressions read
    right. They were chosen from parameter values, never seen in motion.
+2. Connect it to a real call and watch the mouth against her actual voice. The
+   expander was tuned on a sample wav, not her TTS.
 3. Step 6 — choose and buy the real character, checking each listing for app
    use, modification and AI learning.
 
@@ -74,6 +74,12 @@ this.
   with a clean console and every asset at 200. For headless checks, shim
   `window.requestAnimationFrame` onto `setTimeout` from the console — never in
   the page.
+- **Never make `ossskkar/lain` public.** It now carries Cubism Core, which is
+  proprietary. The whole licence basis is that a private repo distributes to
+  nobody.
+- **Three SDK paths climb with `../../`** and only work at a site root. An SDK
+  upgrade will reintroduce them. The shader one produces hundreds of 404s a
+  second while everything still looks like it works.
 - **`patch-sdk.sh` used to skip silently.** It tested one marker string, so any
   later addition to a block was dropped without a word, and it looked exactly
   like new code failing to load. It now uses sentinel comments and replaces
@@ -92,6 +98,7 @@ this.
 
 ## Resume
 
-Lead with what he can overturn, not with what was built — he was away. The one
-thing genuinely waiting on him is whether the built Live2D bundle may live
-inside lain; everything downstream is blocked on that and nothing else is.
+The Live2D face is live in lain and nothing is blocked. What is untested is how
+it reads to a human: the expressions were chosen from parameter values and never
+watched in motion, and the mouth was tuned against a sample wav rather than her
+own voice.
