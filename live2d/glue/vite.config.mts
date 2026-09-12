@@ -20,7 +20,10 @@ export default defineConfig((env: ConfigEnv): UserConfig => {
       allowedHosts: ['.ts.net'],
     },
     root: './',
-    base: '/',
+    // Relative, not '/'. The built page is served from a subdirectory when it
+    // ships inside lain (/arisu/live2d/), and an absolute base would ask for
+    // /assets/... at lain's own root.
+    base: './',
     publicDir: './public',
     resolve: {
       extensions: ['.ts', '.js'],

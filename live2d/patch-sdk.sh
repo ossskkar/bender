@@ -117,6 +117,50 @@ apply(
     "    this._model.update();",
 )
 
+# Resources are fetched relative to the page. The stock '../../Resources/' only
+# works because a browser clamps a path that climbs above the site root -- serve
+# the page from a subdirectory and it resolves outside the bundle and 404s.
+d = demo / "src/lappdefine.ts"
+src = d.read_text()
+if "export const ResourcesPath = './Resources/';" in src:
+    print("  src/lappdefine.ts    resources unchanged")
+else:
+    old_rp = "export const ResourcesPath = '../../Resources/';"
+    if old_rp not in src:
+        raise SystemExit("error: ResourcesPath not in the expected shape")
+    d.write_text(src.replace(old_rp, "export const ResourcesPath = './Resources/';", 1))
+    print("  src/lappdefine.ts    resources patched")
+
+# The demo declares its OWN shader path and passes it to setShaderPath, which
+# overrides the Framework default -- so patching the Framework alone changes
+# nothing. Both have to be relative.
+src = d.read_text()
+if "export const ShaderPath = './Framework/Shaders/WebGL/';" in src:
+    print("  src/lappdefine.ts    shaders unchanged")
+else:
+    old_sh = "export const ShaderPath = '../../Framework/Shaders/WebGL/';"
+    if old_sh not in src:
+        raise SystemExit("error: ShaderPath not in the expected shape")
+    d.write_text(src.replace(
+        old_sh, "export const ShaderPath = './Framework/Shaders/WebGL/';", 1))
+    print("  src/lappdefine.ts    shaders patched")
+
+# The Framework fetches its WebGL shaders at runtime, from the same kind of
+# climbing path as Resources. Same failure, and a nastier one: the renderer
+# retries in a tight loop, so a subdirectory deploy produces hundreds of 404s
+# per second while the model still appears to load.
+f = demo.parent.parent.parent / "Framework/src/rendering/cubismshader_webgl.ts"
+src = f.read_text()
+if "this._defaultShaderPath = './Framework/Shaders/WebGL/';" in src:
+    print("  Framework shaders    unchanged")
+else:
+    old_sp = "this._defaultShaderPath = '../../Framework/Shaders/WebGL/';"
+    if old_sp not in src:
+        raise SystemExit("error: _defaultShaderPath not in the expected shape")
+    f.write_text(src.replace(
+        old_sp, "this._defaultShaderPath = './Framework/Shaders/WebGL/';", 1))
+    print("  Framework shaders    patched")
+
 # Natori first. It is the only sample clearing the whole checklist:
 # ParamMouthOpenY, ParamMouthForm, eye blink, physics, pose, 11 expressions.
 # Haru -- the stock default -- is the fallback. See LIVE2D.md for the audit.
