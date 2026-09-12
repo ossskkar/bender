@@ -133,6 +133,16 @@ nizima's search page did not load outside a real browser; not searched yet.
 | [Oni VTuber package, streamskins](https://booth.pm/en/items/7426773) | 1,500 JPY | oni theme, horn variants, five mood presets | streaming only named; files not listed; ask the seller |
 | [White-haired demon kitten, 细雨气](https://booth.pm/en/items/6330457) | 4,500 JPY | white hair, horns, dark skin | **ruled out**: "non-official platforms" banned, texture edits banned |
 
+**Budget: 20 EUR max (about 3,200 JPY), set by Oscar 2026-09-12.** That rules
+out the silver-haired girl above. Under budget:
+
+| BOOTH item | Price | Fit | Licence |
+|---|---|---|---|
+| [White-haired young lady, 小喵招财屋](https://booth.pm/en/items/8537341) | 700 JPY | white hair, no horns; 10 keybind faces (blush, heart and sparkle eyes, pale) | **apps and games named as allowed**, colour changes allowed, no AI clause. **Pick so far** |
+| [Noble Devil, enximadesign](https://booth.pm/en/items/7564335) | 1,780 JPY | white hair, horns, tail; may read male | VTuber, video and SNS only; apps not mentioned |
+| [White-haired girl, 高木](https://booth.pm/en/items/4862137) | 3,000 JPY | white hair, ponytail variant | personal VTubing; edits banned beyond overlays |
+| [Kurogane, 2dlivemodelStudio](https://booth.pm/en/items/8634062) | 2,500 JPY | male | **ruled out**: "AI-powered applications, chatbot software" banned |
+
 ## Open decisions
 
 - Native iPad app versus webview-wrapped web. **Recommendation: webview**, for
