@@ -69,8 +69,10 @@
     // The test overlay is the only panel here. Harmless when it is not loaded,
     // which is the point -- the caller should never have to check.
     showPanel: function (v) {
+      // Not .hidden -- the bar carries an inline display:flex, which outranks
+      // the user agent's [hidden]{display:none} and left this a silent no-op.
       var bar = document.getElementById('arisu-harness');
-      if (bar) bar.hidden = !v;
+      if (bar) bar.style.display = v ? 'flex' : 'none';
     }
   };
 })();

@@ -104,6 +104,15 @@
     bar.id = 'arisu-harness';
     document.body.appendChild(bar);
 
+    // Embedded as a face, this bar lands on top of her. It is a test overlay,
+    // not part of Arisu, so inside a frame it starts hidden and stays one
+    // showPanel(true) away. Standalone -- the way the buttons are meant to be
+    // used -- it shows exactly as before.
+    //
+    // display, not the hidden attribute: the inline display:flex above beats
+    // the user agent's [hidden]{display:none}, so setting .hidden does nothing.
+    if (window.self !== window.top) bar.style.display = 'none';
+
     // Read-only mirror. value() advances smoothing, so the meter must NOT call
     // it — it reads what the model last applied instead.
     setInterval(function () {

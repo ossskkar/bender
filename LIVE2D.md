@@ -416,5 +416,25 @@ iframe `src`.
 read-only, it lives inside the gitignored SDK tree rather than in shipped Arisu
 code, and without it there is no way to see what the rig is doing — the model is
 module-scoped, and reading pixels to decide whether blink is running is
-guessing. The test overlay (`arisu-harness.js`) is the one piece meant to be
-deleted, along with its `<script>` tag, once her own voice drives the face.
+guessing.
+
+### The test overlay hides itself when framed — fixed 2026-09-12
+
+Shipping the face inside lain shipped the debug bar with it. `?face=live2d`
+loads the page in an iframe, the overlay built unconditionally, and a row of
+test buttons and an amplitude meter sat on top of her face on the iPad.
+
+**Two things were wrong, and the second hid the first.** `showPanel(false)` set
+`bar.hidden`, and the bar carries an inline `display:flex` — an inline style
+outranks the user agent's `[hidden]{display:none}`, so the only means of hiding
+it had always been a silent no-op. Nobody noticed because nothing called it.
+Both now go through `style.display`.
+
+The overlay is hidden when `window.self !== window.top` and shown otherwise, so
+the five state buttons still work the way they are meant to be used, by opening
+`/arisu/live2d/` directly. `avatar.showPanel(true)` brings it back inside the
+frame. Verified all three ways: standalone `flex`, framed `none`, and
+`showPanel` toggling `flex`/`none` across the iframe boundary.
+
+This is why the overlay is no longer "the one piece meant to be deleted". It
+costs nothing when framed and it is the only hand test of the rig.
