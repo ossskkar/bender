@@ -9,28 +9,69 @@
 // Blink, breath, idle motion and physics need nothing from us — the Cubism SDK
 // already runs all four. Measured on Natori: two blinks in twelve seconds, with
 // head angle, body angle and breath all moving continuously.
+//
+// Seven samples ship, one table each. The model comes from the page URL
+// (`?model=Haru`), set by the client from the character: Arisu wears the female
+// samples, Chopper the male ones. It must match what lapplive2dmanager loads,
+// which reads the same parameter and falls back to Natori the same way.
 
 (function () {
   'use strict';
 
-  // Natori's expressions, chosen by reading each .exp3.json rather than by name.
-  // Every one of them writes ParamEyeLOpen and ParamMouthOpenY as Add 0, so an
-  // expression can never fight the blink or the lip sync. That is what makes
-  // this layer safe to stack on top of the other two.
+  // Expressions chosen by reading each .exp3.json rather than by name. null
+  // means "no expression": Hiyori, Rice and Mark ship none, so on them only the
+  // asleep eye override below changes anything.
   //
-  // The traps in that file, and why the obvious picks are not used:
+  // Natori. Every expression writes ParamEyeLOpen and ParamMouthOpenY as Add 0,
+  // so an expression can never fight the blink or the lip sync. The traps:
   //   Smile   closes the eyes (ParamEyeLOpen Add -1) into happy crescents. It is
   //           the classic look, but a listening face with its eyes shut is wrong.
   //   Sad     and Angry both pull ParamMouthForm hard negative, which reshapes a
   //           mouth that lip sync is simultaneously opening. Kept out of the
   //           speaking path for that reason.
-  var EXPRESSION = {
-    idle:      'Normal',   // literally no parameter changes at all
-    listening: 'exp_02',   // brows up, faint smile, eyes open and attentive
-    thinking:  'exp_04',   // brows raised and drawn in, mouth small
-    speaking:  'Normal',   // the mouth is carrying it; nothing should touch MouthForm
-    asleep:    'exp_05'    // relaxed brows, soft mouth; the eyes are forced below
+  // Haru. No neutral file: F01 is the mildest (ParamMouthForm +0.27 and nothing
+  //   else), so it stands in for idle, listening and speaking. F02 and F03 add
+  //   ParamMouthOpenY +1, which would hold her mouth open over the lip sync.
+  // Mao. Lip sync is ParamA, which every file writes as Add 0. exp_03 is eyes
+  //   shut and nothing else; exp_04 is bright eyes with a sparkle effect.
+  // Ren. exp_01 is all zeros; exp_03 shuts the eyes; exp_05 is raised, drawn
+  //   brows with a flat mouth.
+  var TABLES = {
+    Natori: {
+      states:    { idle: 'Normal', listening: 'exp_02', thinking: 'exp_04',
+                   speaking: 'Normal', asleep: 'exp_05' },
+      reactions: { surprise: 'Surprised', amused: 'Smile', confused: 'exp_01',
+                   error: 'Sad' }
+    },
+    Haru: {
+      states:    { idle: 'F01', listening: 'F01', thinking: 'F08',
+                   speaking: 'F01', asleep: 'F05' },
+      reactions: { surprise: 'F06', amused: 'F05', confused: 'F08', error: 'F04' }
+    },
+    Mao: {
+      states:    { idle: 'exp_01', listening: 'exp_04', thinking: 'exp_05',
+                   speaking: 'exp_01', asleep: 'exp_03' },
+      reactions: { surprise: 'exp_07', amused: 'exp_02', confused: 'exp_05',
+                   error: 'exp_08' }
+    },
+    Ren: {
+      states:    { idle: 'exp_01', listening: 'exp_01', thinking: 'exp_05',
+                   speaking: 'exp_01', asleep: 'exp_03' },
+      reactions: { amused: 'exp_02', confused: 'exp_05', error: 'exp_04' }
+    },
+    Hiyori: { states: {}, reactions: {} },
+    Rice:   { states: {}, reactions: {} },
+    Mark:   { states: {}, reactions: {} },
+    Wanko:  { states: {}, reactions: {} }
   };
+
+  var STATES = ['idle', 'listening', 'thinking', 'speaking', 'asleep'];
+
+  var wanted = new URLSearchParams(window.location.search).get('model');
+  var MODEL = TABLES[wanted] ? wanted : 'Natori';
+  var TABLE = TABLES[MODEL];
+
+  function expressionFor(s) { return TABLE.states[s] || null; }
 
   // Asleep holds the eyes shut outright rather than trusting the expression.
   // exp_05 does close them, but so does the blink updater on its own schedule,
@@ -39,16 +80,17 @@
   var EYES_SHUT = { asleep: 0 };
 
   var state = 'idle';
-  var pending = EXPRESSION.idle;   // applied on the next frame, once
+  var pending = expressionFor('idle');   // applied on the next frame, once
 
   window.ArisuFace = {
-    states: Object.keys(EXPRESSION),
+    model: MODEL,
+    states: STATES,
 
     setState: function (name) {
-      if (!EXPRESSION[name]) return false;
+      if (STATES.indexOf(name) < 0) return false;
       if (name === state) return true;
       state = name;
-      pending = EXPRESSION[name];
+      pending = expressionFor(name);
       return true;
     },
 
@@ -65,12 +107,16 @@
       return EYES_SHUT[state] === undefined ? null : EYES_SHUT[state];
     },
 
-    // Escape hatch: any expression by name, including the eight the state map
+    // This model's expression for a transient reaction, or null when the rig
+    // has nothing that reads as it.
+    reaction: function (name) { return TABLE.reactions[name] || null; },
+
+    // Escape hatch: any expression by name, including the ones the state map
     // does not use. Transient reactions go through here and then refresh().
     setExpression: function (name) { pending = name; },
 
     // Re-apply the current state's expression. setState() returns early when the
     // state has not changed, so a transient reaction needs this to get back.
-    refresh: function () { pending = EXPRESSION[state]; }
+    refresh: function () { pending = expressionFor(state); }
   };
 })();

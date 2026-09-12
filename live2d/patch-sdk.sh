@@ -82,11 +82,20 @@ apply(
     "    // declares. value() advances its own smoothing, so it must be called\n"
     "    // exactly once per frame -- here, and nowhere else.\n"
     "    const arisuLipSync = (window as any).ArisuLipSync;\n"
-    "    if (arisuLipSync && this._lipSyncIds.length > 0) {\n"
+    "    if (arisuLipSync) {\n"
     "      const mouth: number = arisuLipSync.value();\n"
     "      (window as any).__arisuMouth = mouth;\n"
-    "      for (let i = 0; i < this._lipSyncIds.length; ++i) {\n"
-    "        this._model.setParameterValueById(this._lipSyncIds[i], mouth, 1.0);\n"
+    "      if (this._lipSyncIds.length > 0) {\n"
+    "        for (let i = 0; i < this._lipSyncIds.length; ++i) {\n"
+    "          this._model.setParameterValueById(this._lipSyncIds[i], mouth, 1.0);\n"
+    "        }\n"
+    "      } else {\n"
+    "        // Mark declares an empty LipSync group but has ParamMouthOpenY.\n"
+    "        // Setting a parameter a model lacks is a no-op, so Rice -- which\n"
+    "        // has no mouth at all -- is safe too.\n"
+    "        this._model.setParameterValueById(\n"
+    "          CubismFramework.getIdManager().getId('ParamMouthOpenY'), mouth, 1.0\n"
+    "        );\n"
     "      }\n"
     "    }\n"
     "\n"
@@ -160,6 +169,24 @@ else:
     f.write_text(src.replace(
         old_sp, "this._defaultShaderPath = './Framework/Shaders/WebGL/';", 1))
     print("  Framework shaders    patched")
+
+# Which sample loads comes from the page URL, `?model=Haru`. The client picks
+# it from the character -- Arisu wears the female samples, Chopper the male
+# ones -- so the face page never needs a switcher of its own. An unknown or
+# missing name keeps index 0, Natori, which is also arisu-face.js's fallback.
+apply(
+    "src/lapplive2dmanager.ts",
+    "    // >>> arisu: model",
+    "    // <<< arisu: model",
+    "    {\n"
+    "      const wanted = new URLSearchParams(window.location.search).get('model');\n"
+    "      const index = LAppDefine.ModelDir.indexOf(wanted);\n"
+    "      if (index >= 0) {\n"
+    "        this._sceneIndex = index;\n"
+    "      }\n"
+    "    }\n",
+    "  }\n\n  /**\n   * \u89e3\u653e\u3059\u308b\u3002",
+)
 
 # Natori first. It is the only sample clearing the whole checklist:
 # ParamMouthOpenY, ParamMouthForm, eye blink, physics, pose, 11 expressions.

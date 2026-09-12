@@ -209,8 +209,39 @@ Covers looked at for every row:
 でで*'s shop page (dedekome.booth.pm) answers 403 to fetches; browse it in a real browser.
 
 **Buying dropped, Oscar 2026-09-13: "just use the models we already have."**
-The candidate tables above are kept as record only. Which of the eight bundled
-samples ship is being settled next.
+The candidate tables above are kept as record only.
+
+### Seven samples, two characters — shipped 2026-09-13
+
+Oscar: "use arisu for all female models and chopper for all male models."
+
+| Character | Models (first is the default) |
+|---|---|
+| Arisu | Haru, Hiyori, Mao, Rice |
+| Chopper | Natori, Ren, Mark |
+
+- **`?model=Haru` picks a sample and brings its character**, voice and persona
+  included; `?c=chopper&face=live2d` gets Chopper's first. The table is
+  `LIVE2D_MODELS` in lain's `arisu/index.html`. Wanko is left out: no mouth, no eyes.
+- The face page reads the same `?model=`: `lapplive2dmanager.ts` (patched)
+  picks the scene, `arisu-face.js` picks the expression table. Both fall back
+  to Natori on an unknown name, so they cannot disagree.
+- **Expressions per model** are in `arisu-face.js`, read from each `.exp3.json`.
+  Hiyori, Rice and Mark ship none: on them only asleep (eyes held shut) shows.
+- **Lip sync**: Mao's LipSync group is `ParamA`, which works unchanged. Mark
+  declares an empty group, so the hook falls back to `ParamMouthOpenY`. Rice
+  has no mouth at all and stays still.
+- Verified in headless Chrome, every model: loads with no errors, mouth opens
+  at amplitude 0.8, asleep reads `ParamEyeLOpen` 0, reactions return true only
+  where the table has one. Screenshots confirm Ren's thinking and asleep faces.
+
+**Gotcha:** `__arisuParam` read Ren's brows as 0 under `thinking` while the
+screenshot plainly showed the expression. Do not trust the probe alone for
+expressions; look at the face.
+
+**Gotcha:** the Browser pane was hidden, so `requestAnimationFrame` never ran and
+`__arisuParam` never appeared. Headless Chrome over CDP (`--headless=new
+--use-angle=swiftshader`) renders without a visible window.
 
 ## Open decisions
 

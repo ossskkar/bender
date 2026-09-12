@@ -56,9 +56,12 @@ Fixed and verified this session:
 
 ## Next steps
 
-1. ~~Judge the five expressions on the iPad~~ — Oscar approved them 2026-09-12.
-2. Answer the iPad-app question above; it decides whether step 6 matters.
+1. ~~Judge the five expressions on the iPad~~ — approved 2026-09-12.
+2. **Buying dropped 2026-09-13.** Arisu wears Haru, Hiyori, Mao, Rice; Chopper
+   wears Natori, Ren, Mark. Live: `/arisu/?model=Haru` etc. Have Oscar look at
+   each in Safari and say which default he wants per character.
 3. Then a real call, watching her mouth against her own voice.
+4. Still open: does Live2D go into the iPad app (see above)?
 
 ## Gotchas
 

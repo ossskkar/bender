@@ -24,16 +24,11 @@
   var REACTION_MS = 2200;
   var revertTimer = null;
 
-  // Reactions the rig can actually express. Anything not here is deliberately
-  // left out rather than approximated -- a wrong face is worse than no change.
+  // Reactions come from the model's own table in arisu-face.js. Anything a rig
+  // cannot express is left out rather than approximated -- a wrong face is
+  // worse than no change.
   //   nod is missing on purpose: it is a head movement, not an expression, and
-  //   faking it with Natori's TapBody motions would fight the idle motion queue.
-  var REACTION = {
-    surprise:  'Surprised',
-    amused:    'Smile',      // closes the eyes into crescents -- right, here
-    confused:  'exp_01',
-    error:     'Sad'
-  };
+  //   faking it with TapBody motions would fight the idle motion queue.
 
   function transient(expression) {
     F.setExpression(expression);
@@ -58,7 +53,8 @@
         if (F.state() === 'asleep') F.setState('idle');
         return true;
       }
-      if (REACTION[name]) { transient(REACTION[name]); return true; }
+      var expression = F.reaction(name);
+      if (expression) { transient(expression); return true; }
       return false;
     },
 
