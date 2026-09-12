@@ -41,6 +41,21 @@ Working and verified this session:
   `.exp3.json`, not by name; asleep forces the eyes shut in the hook; `nod` is
   deliberately unmapped; the `__arisuParam` probe stays.
 
+## Open question — his, asked 2026-09-12 and unanswered
+
+**Does Live2D go to the iPad app, or does it stay browser-only?** Web is *not*
+meant to replace the app: Safari suspends on lock, so the app is still the
+always-on seat. Live2D simply has not been taken there, and nothing is planned.
+
+The interface is already right — the app drives a face through the same
+`window.avatar` calls the Live2D page exposes, so no wiring changes. The
+obstacle is shape: `FaceView` uses `loadFileURL` from the app bundle with read
+access scoped to the face's own directory, which is why today's faces are one
+self-contained file each with the portrait inlined. Live2D is a 4.2 MB tree.
+Two ways out, neither chosen: copy the tree into the bundle and widen the
+read-access scope, or point the webview at lain over the tailnet and trade
+offline working for simplicity.
+
 ## Parked
 
 - **Buying the character (step 6)** and **a live call to watch her mouth** —
