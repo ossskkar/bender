@@ -208,6 +208,10 @@ Covers looked at for every row:
 
 でで*'s shop page (dedekome.booth.pm) answers 403 to fetches; browse it in a real browser.
 
+**Buying dropped, Oscar 2026-09-13: "just use the models we already have."**
+The candidate tables above are kept as record only. Which of the eight bundled
+samples ship is being settled next.
+
 ## Open decisions
 
 - Native iPad app versus webview-wrapped web. **Recommendation: webview**, for
