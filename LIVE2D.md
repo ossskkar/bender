@@ -171,6 +171,16 @@ and dark. Bright creatures, checked the same day:
 | [おほしさま, amase-oruko](https://booth.pm/en/items/5376734) | 1,500 JPY | star mascot, happy/sad/angry | apps not mentioned, data edits banned |
 | くまもどき, もちもちクリーチャー, パフェちゃん, おきつねらて | 600–1,500 JPY | bright | **ruled out**: edits banned or VTS-only data |
 
+**Any look is fine except the female-student kind — Oscar, 2026-09-12.** That
+reopens adult women, robots and other creatures. Checked the same day:
+
+| BOOTH item | Price | Look | Licence |
+|---|---|---|---|
+| [解説できるロボット, ゆるぼっくす](https://booth.pm/en/items/8052027) | 2,000 JPY | light, loose cute robot; six faces (angry, sad, pale), pointer stick, wave | **"apps, games, business" named**, recolour free, no credit needed. **Pick** |
+| [おとなのお姉さん, jenny](https://booth.pm/en/items/3713392) | 3,000 JPY | adult woman; 6 hair, 5 clothes, 5 skin colours | **apps and games named**, texture edits allowed; vowel mouth shapes, brows, blush. No cmo3 |
+| [ミミズク / ふくろう, たんよ](https://booth.pm/en/items/6266819) | 1,480 JPY (2,480 with psd+cmo3) | round-eyed owl; heart, star, spiral eyes, tears | "games, SNS, VTuber etc." (apps not named), customisation free |
+| [まるロボ, マルイヌ店](https://booth.pm/en/items/4094876) | 1,000 JPY | round robot, shutter blink | video and VTuber only |
+
 ## Open decisions
 
 - Native iPad app versus webview-wrapped web. **Recommendation: webview**, for
