@@ -206,6 +206,65 @@ else:
                  + src[m.end():])
     print("  src/lappview.ts      background patched")
 
+# No gear either, and this one is not cosmetic. The sample's gear sprite is a
+# tap target: `isHit` -> `nextScene()`, which swaps the model. Left in place, a
+# stray tap in the corner of Arisu's face turns her into Haru or Mao. It is a
+# sample's model switcher sitting on a character, not a control she has.
+#
+# The hit test goes with the sprite, and it has to: the stock line calls
+# `this._gear.isHit(...)` with no null guard, so dropping the sprite alone
+# throws on every touch instead.
+d = demo / "src/lappview.ts"
+src = d.read_text()
+if "// >>> arisu: no gear" in src:
+    print("  src/lappview.ts      gear unchanged")
+else:
+    m = re.search(r"[ \t]*// \u6b6f\u8eca\u753b\u50cf\u521d\u671f\u5316.*?initGearTexture\n[ \t]*\);\n",
+                  src, re.S)
+    if not m:
+        raise SystemExit("error: the gear sprite block moved in lappview.ts -- "
+                         "re-derive this patch by hand")
+    src = (src[:m.start()]
+           + "    // >>> arisu: no gear. The sample's gear is a model switcher,\n"
+             "    // and a stray tap on her face should not turn her into Haru.\n"
+             "    // <<< arisu\n"
+           + src[m.end():])
+    g = re.search(r"[ \t]*// \u6b6f\u8eca\u306b\u30bf\u30c3\u30d7\u3057\u305f\u304b\n[ \t]*if \(this\._gear\.isHit\(posX, posY\)\) \{\n.*?\n[ \t]*\}\n",
+                  src, re.S)
+    if not g:
+        raise SystemExit("error: the gear hit test moved in lappview.ts -- "
+                         "re-derive this patch by hand")
+    src = src[:g.start()] + src[g.end():]
+    d.write_text(src)
+    print("  src/lappview.ts      gear patched")
+
+# Guard the sprite teardown. `release()` calls `this._gear.release()` and
+# `this._back.release()` with no null check, which is safe only while the
+# sample always builds both. Arisu builds neither, so the stock lines throw on
+# the first one and abandon the rest of the teardown -- the GL program is never
+# deleted, and on the iPad this runs on an orientation change, not just on page
+# unload. Belongs with the two removals above, not in a later debugging round.
+d = demo / "src/lappview.ts"
+src = d.read_text()
+if "this._gear?.release();" in src:
+    print("  src/lappview.ts      release unchanged")
+else:
+    old = ("    this._gear.release();\n"
+           "    this._gear = null;\n"
+           "\n"
+           "    this._back.release();\n"
+           "    this._back = null;\n")
+    if old not in src:
+        raise SystemExit("error: the sprite release block moved in lappview.ts "
+                         "-- re-derive this patch by hand")
+    new = ("    this._gear?.release();\n"
+           "    this._gear = null;\n"
+           "\n"
+           "    this._back?.release();\n"
+           "    this._back = null;\n")
+    d.write_text(src.replace(old, new, 1))
+    print("  src/lappview.ts      release patched")
+
 # ...and clear to transparent rather than opaque black, or removing the
 # classroom just swaps it for a black rectangle. webgl2 contexts are alpha:true
 # by default here, so the page behind the canvas shows through once the clear
