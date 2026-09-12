@@ -195,6 +195,19 @@ listing's cover image, not its text — text never says a model looks childish.
 | 女子大生風エルフ 6051801 | 1,500 JPY | modest, but sold as a student and no expressions | **ruled out** |
 | 黒髪イケメンスーツ 7659956, 狐モチーフ 5174752 | — | adult | **ruled out**: dark / apps not named; fox bans AI use |
 
+**Colourful and strange, Oscar 2026-09-12** — the business men were too normal.
+Covers looked at for every row:
+
+| BOOTH item | Price | Look (from the cover) | Licence |
+|---|---|---|---|
+| [いきてるきのこ, でで*](https://booth.pm/en/items/3660501) | 1,000 JPY | living mushroom, red / green / purple / blue / brown caps with spots | **apps and games allowed**, colour and part changes allowed, Cubism 4. **Pick** |
+| [ギンガフグ, でで*](https://booth.pm/en/items/5055695) | 1,000 JPY | galaxy pufferfish, navy with stars | same terms. Cute, but dark |
+| [マオリュ, hondel](https://booth.pm/en/items/2266499) | 1,500 JPY | white hair, black horns, red eyes: the closest to Arisu yet | commercial use allowed, apps not named; moc3, 8 expressions. Dark palette |
+| プラズマボール 3072749, エビフライ 4697640 (Wisteria Way) | — | strange | **ruled out**: game-asset and commercial use banned |
+| 羊っぽい男性 4781056, free 異形頭 7412425, なぞのもふもふ 3818640 | — | strange | **ruled out**: edits banned, AI training banned, or apps not named |
+
+でで*'s shop page (dedekome.booth.pm) answers 403 to fetches; browse it in a real browser.
+
 ## Open decisions
 
 - Native iPad app versus webview-wrapped web. **Recommendation: webview**, for
