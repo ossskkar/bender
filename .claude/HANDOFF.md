@@ -26,6 +26,13 @@ runs eye blink, breath, physics, pose and a random idle motion. Measured: two
 blinks in twelve seconds with head angle, body angle and breath all moving. No
 code was needed, so step 5 became the expression layer instead.
 
+**The debug bar no longer sits on her face.** Shipping the face inside lain
+shipped the test overlay with it, and `?face=live2d` frames the page, so the
+buttons and meter landed on top of her. It now hides itself when framed and
+shows standalone, so the state buttons still work at `/arisu/live2d/`.
+`showPanel()` also works for the first time — it set `.hidden`, which the bar's
+inline `display:flex` silently overrode. Deployed to architect and verified.
+
 **The portrait renderer is still what ships.** `faces/renderer.js` is untouched.
 This remains a parallel prototype.
 
@@ -62,6 +69,8 @@ this.
 
 1. Try the five state buttons on the iPad and say whether the expressions read
    right. They were chosen from parameter values, never seen in motion.
+   Open `/arisu/live2d/` directly — the buttons are hidden inside the framed
+   `?face=live2d` view on purpose.
 2. Connect it to a real call and watch the mouth against her actual voice. The
    expander was tuned on a sample wav, not her TTS.
 3. Step 6 — choose and buy the real character, checking each listing for app
