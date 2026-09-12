@@ -159,6 +159,18 @@ above. Under budget and within that:
 No adult woman in office wear exists as a rigged model under budget (searched
 `スーツ`, `社会人`, `OL`).
 
+**Also bright and cheerful, set by Oscar 2026-09-12** — ゆるでびる read too sad
+and dark. Bright creatures, checked the same day:
+
+| BOOTH item | Price | Look | Licence |
+|---|---|---|---|
+| [とらねこのペパー, 栗城はる](https://booth.pm/en/items/3877967) | 1,000 JPY | chocolate-mint tiger cat | **"apps, games, chat avatars" named**, credit 栗城はる on web. **Pick** |
+| [辰マスコット, めれー](https://booth.pm/en/items/5416633) | 1,000 JPY (2,000 with cmo3) | cheerful dragon mascot | **apps and games allowed**, customisation free; expressions not listed |
+| [ぽよぽよひよこ, chido-mona](https://booth.pm/en/items/4082766) | 1,000 JPY | yellow chick, 10 faces | apps not mentioned; ask the creator. Best expressions |
+| [ペンギン, chido-mona](https://booth.pm/en/items/3758586) | 1,800 JPY | bouncy penguin, 11 faces | apps not mentioned; ask the creator |
+| [おほしさま, amase-oruko](https://booth.pm/en/items/5376734) | 1,500 JPY | star mascot, happy/sad/angry | apps not mentioned, data edits banned |
+| くまもどき, もちもちクリーチャー, パフェちゃん, おきつねらて | 600–1,500 JPY | bright | **ruled out**: edits banned or VTS-only data |
+
 ## Open decisions
 
 - Native iPad app versus webview-wrapped web. **Recommendation: webview**, for
