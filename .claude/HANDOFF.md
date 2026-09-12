@@ -58,6 +58,14 @@ needs eyes, but no longer unverified. Table in `LIVE2D.md`. `thinking` and
 canvas clears transparent, so she composites over lain's own backdrop. Both
 edits are in `patch-sdk.sh`, so a fresh SDK will not bring it back.
 
+**The app's jaw follows her own voice now, not the microphone.** This was a
+named bug in the `arisu-in-safari` skill, on the iPad, which is the always-on
+seat. `Live.swift` drove `level` from the input tap, so her mouth moved while
+*he* talked and sat still while she spoke. It now taps the player node — where
+her audio is played, not where it is scheduled, since scheduling runs seconds
+ahead of the speaker. The microphone rms is untouched and still decides whether
+somebody spoke. The skill's gotcha has been rewritten to match.
+
 **The portrait renderer is still what ships.** `faces/renderer.js` is untouched.
 This remains a parallel prototype.
 
@@ -97,8 +105,11 @@ this.
    Open `/arisu/live2d/` directly — the buttons are hidden inside the framed
    `?face=live2d` view on purpose.
 2. Connect it to a real call and watch the mouth against her actual voice.
-   The level dependence is gone and the numbers are right, but the shaping was
-   measured against speech, not against her own TTS in a live session.
+   The level dependence is gone on both paths and the numbers are right, but
+   the shaping was measured against speech, not her own TTS in a live session.
+   **The app's fix is unrun**: it builds clean and the arithmetic is exactly
+   level independent, but no live session has driven it. A session costs API
+   credit, which is why it was not run unsupervised.
 3. Step 6 — choose and buy the real character, checking each listing for app
    use, modification and AI learning.
 4. Nothing else here is blocked.
