@@ -146,6 +146,23 @@ final class Live: ObservableObject {
 
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
+
+    // Her jaw follows HER voice, measured off the player, not off the
+    // microphone. Driving it from the input tap is what made her mouth move
+    // while *he* talked and sit still while she spoke.
+    //
+    // An expander rather than a fixed gain, ported from the browser client:
+    // her level is whatever the realtime API and the speaker give it, and a
+    // gain turns that straight into how far her mouth opens. Measured there
+    // end to end, a fixed gain put the jaw at 0.10 on a quiet stream and 0.54
+    // on a loud one; against a running peak a 12x change in level gives the
+    // same face.
+    private static let voicePeakFloor: Float = 0.02   // below this it is silence
+    private static let voiceFloorRatio: Float = 0.5   // shut at half the peak
+    /// Peak decay per second, not per callback: the tap fires on the audio
+    /// buffer size, which is the hardware's business and not a constant.
+    private static let voicePeakDecay: Float = 0.953
+    private var voicePeak: Float = Live.voicePeakFloor
     private let rate: Double = 24_000          // the only rate `audio/pcm` takes
     /// What OpenAI sends: 24k mono. Her audio is decoded into this.
     private var playFormat: AVAudioFormat!
@@ -302,6 +319,8 @@ final class Live: ObservableObject {
         toolsOut = 0
         player.stop()
         pending = 0
+        voicePeak = Live.voicePeakFloor
+        level = 0
         status = "idle"
     }
 
@@ -324,7 +343,9 @@ final class Live: ObservableObject {
         socket?.cancel(with: .goingAway, reason: nil)
         socket = nil
         connected = false
+        voicePeak = Live.voicePeakFloor
         engine.inputNode.removeTap(onBus: 0)
+        player.removeTap(onBus: 0)
         engine.stop()
         // `startAudio()` returns early while `playFormat` is set, so clearing
         // it is what makes the next `begin()` actually rebuild the graph.
@@ -708,6 +729,16 @@ final class Live: ObservableObject {
         if player.engine == nil { engine.attach(player) }
         engine.connect(player, to: engine.mainMixerNode, format: mixFormat)
 
+        // Her own voice, tapped where it is played rather than where it is
+        // scheduled -- scheduling runs seconds ahead of the speaker, and a
+        // mouth that leads the audio reads worse than one that does nothing.
+        player.removeTap(onBus: 0)
+        player.installTap(onBus: 0, bufferSize: 1024,
+                          format: player.outputFormat(forBus: 0)) {
+            [weak self] buf, _ in
+            self?.heardSelf(buf)
+        }
+
         input.removeTap(onBus: 0)
         input.installTap(onBus: 0, bufferSize: 2048, format: inFormat) {
             [weak self] buf, _ in
@@ -762,7 +793,9 @@ final class Live: ObservableObject {
         let b64 = bytes.base64EncodedString()
 
         Task { @MainActor in
-            self.level = min(1, rms * 12)
+            // Deliberately NOT `self.level` -- that is her jaw, and it is
+            // driven by `heardSelf` off her own playback. This rms is only
+            // ever used to decide whether somebody said something.
             self.meter(rms)
 
             if self.dormant {
@@ -871,6 +904,35 @@ final class Live: ObservableObject {
         }
     }
 
+    /// One buffer of her own voice, as the speaker plays it. Runs on the
+    /// audio thread, so it does the arithmetic here and hands the main actor
+    /// one number.
+    private nonisolated func heardSelf(_ buf: AVAudioPCMBuffer) {
+        guard let ch = buf.floatChannelData, buf.frameLength > 0 else { return }
+        let n = Int(buf.frameLength)
+        var sum: Float = 0
+        for i in 0..<n { let x = ch[0][i]; sum += x * x }
+        let rms = (sum / Float(n)).squareRoot()
+        let dt = Float(Double(n) / max(buf.format.sampleRate, 1))
+        Task { @MainActor in self.applyVoiceLevel(rms, dt) }
+    }
+
+    /// The expander. Instant attack on the running peak, slow release, and a
+    /// floor at half of it -- speech bottoms out around there, so below it the
+    /// mouth is shut rather than trembling on room tone.
+    @MainActor
+    private func applyVoiceLevel(_ rms: Float, _ dt: Float) {
+        if rms > voicePeak {
+            voicePeak = rms
+        } else {
+            voicePeak = max(Live.voicePeakFloor,
+                            voicePeak * pow(Live.voicePeakDecay, dt))
+        }
+        let floor = voicePeak * Live.voiceFloorRatio
+        let span = voicePeak - floor
+        level = span > 0 ? max(0, min(1, (rms - floor) / span)) : 0
+    }
+
     /// One buffer has actually left the speaker.
     private func drained() {
         pending = max(0, pending - 1)
@@ -887,6 +949,8 @@ final class Live: ObservableObject {
     private func flush() {
         player.stop()
         pending = 0
+        voicePeak = Live.voicePeakFloor
+        level = 0
         player.play()
         speaking = false
         room?.giveFloor()
