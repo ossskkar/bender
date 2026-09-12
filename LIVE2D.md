@@ -418,6 +418,12 @@ code, and without it there is no way to see what the rig is doing — the model 
 module-scoped, and reading pixels to decide whether blink is running is
 guessing.
 
+### Do not use the Vite dev server for anything on the iPad
+
+Its hot-reload socket cannot reach back through the tailscale proxy, so the
+page reloads every few seconds and every test is worthless. Build and serve
+`dist` instead. `npm run build:prod && npx vite preview --port 5001 --host`.
+
 ## Step 7 — her real voice, and the background — 2026-09-12
 
 ### The host path had the bug the module path was built to avoid
