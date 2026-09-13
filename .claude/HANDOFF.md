@@ -56,12 +56,17 @@ Fixed and verified this session:
 
 ## Next steps
 
-1. Oscar unmutes the Mac and wakes Haru in Safari: does he hear her?
-2. Install the new build on the iPad from Xcode, turn on Settings > Face >
-   Live2D face, and see Haru. Blank or portrait: `curl .../arisu/diag`.
-3. Which default per character (Arisu: Haru; Chopper: Natori) — his call.
-4. A real call, watching her mouth against her own voice (costs money).
-5. Ask her to add and remove a habit, to prove write tools (costs money).
+The web page (lain `arisu/index.html`) is now the main surface: the iPad's
+buttons, a settings panel, all eight Live2D models, and character tools.
+
+1. Oscar calls her in Safari. Did her mouth move? Then
+   `curl -s https://architect-server.tailaa64e9.ts.net:8443/arisu/diag` -- the
+   `call` report lists which events arrived. Expect `output_audio_buffer.started`.
+2. Same call: does she still open with fillers? Rules changed in lain
+   `realtime.py` (commit "no filler before think").
+3. Install the new build on the iPad, turn on Settings > Face > Live2D face.
+4. Parked: room buttons on the web (page is not a room member), Play sample.
+5. Costs money: habit add/remove test.
 
 ## Gotchas
 
