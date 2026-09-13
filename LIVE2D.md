@@ -665,3 +665,24 @@ frame. Verified all three ways: standalone `flex`, framed `none`, and
 
 This is why the overlay is no longer "the one piece meant to be deleted". It
 costs nothing when framed and it is the only hand test of the rig.
+
+### When her face is blank — /arisu/diag, 2026-09-13
+
+- **`arisu-diag.js` loads first**, above Cubism Core. Twelve seconds after the
+  page is visible it POSTs one report to `/arisu/diag` (UA, model, whether a
+  frame drew, WebGL1/2, renderer, max texture, captured errors), plus any error
+  after. If nothing drew it writes a line on the face. Read them with
+  `curl -s https://architect-server.tailaa64e9.ts.net:8443/arisu/diag`.
+  The server keeps the last fifty **in memory only**; a restart empties it.
+- **The stock sample `alert()`s when WebGL is missing**, which froze the page:
+  a dialog over her client, and a headless Chrome that never returns. After
+  dismissal `update()` threw on `getGl()` null every frame. `patch-sdk.sh` now
+  logs instead and guards both calls. Verified with `--disable-3d-apis`.
+- **Oscar's Mac Chrome has graphics acceleration off** (`Local State`
+  `hardware_acceleration_mode.enabled: false`). That is why Chrome showed
+  nothing. He chose Safari over changing it; do not keep suggesting it.
+- **Safari on the Mac shows Haru** in the client (Oscar, 2026-09-13).
+- **"Text but no voice" was the Mac muted** — `osascript -e 'get volume
+  settings'` said `output muted:true`. Check that before touching the audio path.
+- The text under her face before waking is `/arisu/state`'s last line, not a
+  live reply. Sound needs WAKE HER.
