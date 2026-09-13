@@ -24,11 +24,12 @@ This repo is the Backlog project **Arisu** (her brain is in lain,
   send `confirmed_by:"oscar"` only when he has actually said so in that
   conversation. A journey nobody has placed reads off its own steps, so ticking
   steps carries it as far as review and no further.
-- **Work that lands in `review` explains itself.** Before a journey goes there,
-  its notes say in two short lines what it does and how to try it:
-  `What it does: …` and `Try it: …`, plain words, no jargon. Review is his
-  decision queue — he is being asked to approve the thing, and a bare title is
-  not something anyone can approve.
+- **Every journey explains itself in its notes.** Two short lines, plain words,
+  and which two depends on the column: in `doing`, `review` and `done`,
+  `What it does:` (true today — partial is fine if it says so) then `Try it:`;
+  in `backlog`, `What it will do:` then `First step:`. Write them as part of
+  moving a journey and keep them true — this is what he reads when he decides,
+  and a bare title is not something anyone can approve.
 - Tick only what is verified. Built but unproven stays open.
 
 Session detail: `.claude/HANDOFF.md`. Measurements and reasons: `LIVE2D.md`.
