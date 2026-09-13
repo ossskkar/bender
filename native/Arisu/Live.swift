@@ -51,6 +51,11 @@ final class Live: ObservableObject {
     /// Responses this client asked for and has not yet seen created. Any other
     /// response is the server answering on its own -- see `response.created`.
     private var ownResponses = 0
+    /// A continuation waiting for her current line to finish playing,
+    /// resolved by `response.done` / `response.output_audio.done` (speaker
+    /// dry) or by an error. The command inbox uses it to say queued lines in
+    /// order, without piling a second `response.create` onto a live one.
+    private var lineFinished: CheckedContinuation<Void, Never>?
     /// A tool that never came back must not leave her thinking forever.
     ///
     /// `runTool` decrements in a `defer`, so the count cannot leak on its own
@@ -186,6 +191,13 @@ final class Live: ObservableObject {
 
     private var lastVoice = Date()
     private var idleTimer: Task<Void, Never>?
+    /// The command inbox's poll. Watches the desk's speak-first queue on a
+    /// slow beat and plays what it finds through her own voice; see the
+    /// MARK section below.
+    private var commandWatch: Task<Void, Never>?
+    /// A batch of queued commands is playing right now, so a poll does not
+    /// start a second stack on top of it.
+    private var speakingCommand = false
     /// Set while the socket is deliberately shut for idleness, so the tap
     /// knows to listen for a reason to open it again.
     private var dormant = false
@@ -214,6 +226,7 @@ final class Live: ObservableObject {
         paused = false
         halted.withLock { $0 = false }
         guard socket == nil else { return }
+        startCommandWatch()
         Task { await connect() }
     }
 
@@ -259,6 +272,80 @@ final class Live: ObservableObject {
                             + "nothing else: \"" + line + "\"",
                            "output_modalities": ["audio"],
                            "tool_choice": "none"]])
+    }
+
+    // MARK: - the command inbox
+
+    /// The desk's speak-first queue, the iPad's half of the web page's
+    /// inbox. A morning brief, a reminder, the ring at the door: the desk
+    /// queues them as commands and a live screen is the only thing that can
+    /// say them, so this screen polls on a slow beat and plays what it finds
+    /// through her own session -- the same "say exactly this, word for word"
+    /// instructions a sample uses -- under the same pop-on-read contract, so
+    /// exactly one screen collects each batch.
+    ///
+    /// Keeps running while the socket is dormant: a reminder is for the
+    /// screen he is near, and waking the session to say it is the point.
+    /// Only `end()` stops it.
+    private func startCommandWatch() {
+        commandWatch?.cancel()
+        commandWatch = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self, !self.speakingCommand else {
+                    try? await Task.sleep(nanoseconds: 5_000_000_000)
+                    continue
+                }
+                let cmds = await self.brain.commands(character: self.character)
+                if !cmds.isEmpty {
+                    self.speakingCommand = true
+                    await self.sayCommands(cmds)
+                    self.speakingCommand = false
+                }
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+            }
+        }
+    }
+
+    private func sayCommands(_ cmds: [QueuedCommand]) async {
+        for cmd in cmds {
+            guard !stopped, !Task.isCancelled else { return }
+            await sayCommand(cmd.text)
+        }
+    }
+
+    /// Play one queued command through her own voice and wait until it has
+    /// fully played.
+    ///
+    /// Unlike `preview`, this does not reconnect when the socket is already
+    /// live: a command belongs to the conversation she is in, and dropping
+    /// it would cost her context. A dormant session is woken for a command,
+    /// because a reminder is for the screen he is near.
+    private func sayCommand(_ line: String) async {
+        guard !stopped, !line.isEmpty else { return }
+        if !connected || dormant { await reconnect() }
+        guard connected else { return }
+        ownResponses += 1
+        send(["type": "response.create",
+              "response": ["instructions":
+                            "Say exactly this out loud, word for word, and "
+                            + "nothing else: \"" + line + "\"",
+                           "output_modalities": ["audio"],
+                           "tool_choice": "none"]])
+        // Hold until `response.done` (speaker dry) or an error -- see
+        // `handle`. A second response.create while one is running is
+        // refused, so queued commands must be said in order and never on top
+        // of each other. A socket that dies mid-line must not leave the
+        // queue stuck on a line that will never arrive, hence the failsafe
+        // resume after a minute.
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            lineFinished = cont
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 60_000_000_000)
+                guard !Task.isCancelled, let self else { return }
+                self.lineFinished?.resume()
+                self.lineFinished = nil
+            }
+        }
     }
 
     /// Swap models mid-conversation. The session carries her whole context,
@@ -350,6 +437,11 @@ final class Live: ObservableObject {
         player.stop()
         pending = 0
         idleTimer?.cancel()
+        commandWatch?.cancel()
+        commandWatch = nil
+        speakingCommand = false
+        lineFinished?.resume()
+        lineFinished = nil
         socket?.cancel(with: .goingAway, reason: nil)
         socket = nil
         connected = false
@@ -482,7 +574,13 @@ final class Live: ObservableObject {
             // Only if the speaker is already dry. Otherwise she is still
             // talking and `speaking` has to stay true, or the idle watch and
             // the interrupt path both believe a silent socket means silence.
-            if pending == 0 { speaking = false }
+            if pending == 0 {
+                speaking = false
+                // The command inbox waits on this: its current line has
+                // fully played, so the next queued line may be said.
+                lineFinished?.resume()
+                lineFinished = nil
+            }
 
         case "response.output_audio_transcript.done":
             if let t = ev["transcript"] as? String {
@@ -551,6 +649,10 @@ final class Live: ObservableObject {
             if status.contains("active response"), ownResponses > 0 {
                 ownResponses -= 1
             }
+            // A line the inbox was playing was refused or the socket erred
+            // out: unblock the queue so the next command gets a turn.
+            lineFinished?.resume()
+            lineFinished = nil
 
         default:
             break
@@ -980,6 +1082,11 @@ final class Live: ObservableObject {
             // still queued here, and handing the floor back then lets the next
             // device start talking over the end of her own sentence.
             room?.giveFloor()
+            // The command inbox waits for this, not `response.done`: a
+            // queued line is only fully said once the speaker is dry, which
+            // is the same truth `speaking` carries here.
+            lineFinished?.resume()
+            lineFinished = nil
         }
     }
 

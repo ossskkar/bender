@@ -71,6 +71,18 @@ struct Cast: Codable {
     }
 }
 
+/// One thing the desk queued for this screen to say of its own accord: the
+/// morning brief, a reminder, the ring at the door. Pop-on-read, so exactly
+/// one screen collects each batch.
+struct QueuedCommand: Decodable, Sendable {
+    let id: String
+    let text: String
+}
+
+struct CommandInbox: Decodable {
+    let commands: [QueuedCommand]
+}
+
 /// architect, over Tailscale. The brain is unchanged from the web version --
 /// same `/arisu/listen`, same JSON -- so everything Arisu knows how to do
 /// (planner, board, habits, diary, the lot) works here on day one.
@@ -227,5 +239,23 @@ final class Brain {
                         URLQueryItem(name: "since", value: String(since))]
         let (data, _) = try await session.data(from: c.url!)
         return try JSONDecoder().decode(Snap.self, from: data)
+    }
+
+    /// What the desk has queued for this screen to say of its own accord.
+    ///
+    /// Consumed, not inspected: the desk pops what it returns, so the caller
+    /// owns this batch and the next poll sees only what came after. Empty on
+    /// any failure -- a desk that is asleep has nothing to say either.
+    func commands(character: String = "") async -> [QueuedCommand] {
+        var c = URLComponents(url: Brain.base.appendingPathComponent("commands"),
+                              resolvingAgainstBaseURL: false)!
+        if !character.isEmpty {
+            c.queryItems = [URLQueryItem(name: "character", value: character)]
+        }
+        guard let (data, resp) = try? await session.data(from: c.url!),
+              let http = resp as? HTTPURLResponse, http.statusCode == 200,
+              let inbox = try? JSONDecoder().decode(CommandInbox.self, from: data)
+        else { return [] }
+        return inbox.commands
     }
 }
