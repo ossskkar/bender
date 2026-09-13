@@ -1,88 +1,59 @@
-# HANDOFF — Arisu (2026-09-12)
+# HANDOFF — Arisu (2026-09-13)
 
-*lain's state is `lain/.claude/HANDOFF.md`; the homelab handoff owns Hermes.
-**Every measurement and reason is in `LIVE2D.md`** — this is only the snapshot.*
+*Progress lives in the lain Backlog (Arisu). Measurements and reasons: `LIVE2D.md`.*
 
 ## State
 
-**Clean tree, everything pushed and deployed.** arisu has only `origin`; the
-lain half is deployed to architect. Head `3c9aee7`, the session's work in
-`a229281`, `b82c796`, `7246df7`.
+Clean trees, all pushed. arisu head is this handoff commit (work in `0d40968`,
+`52dc1e9`, `84559eb`, `0c74410`, `2678d96`). lain deployed to architect at
+`414749a` (web UI `a3b8540`, filler fix `4a6c297`, diag `2448f0f`).
 
-Live at `.../arisu/?face=live2d`; bundle in lain at `arisu/live2d/` (4.2 MB,
-Natori only). The portrait renderer is still the default.
+Built and verified in headless Chrome / simulator build:
+- **Web client is the main surface** (`lain/arisu/index.html`): the iPad's
+  buttons, a settings panel for `?c=` (manner, voice, notes, name, who they
+  are, new/delete; Arisu undeletable), face picker as a thumbnail grid.
+- **Eight Live2D samples ship**; any character wears any (`?model=`, or the
+  saved `persona.model`). Arisu defaults Haru, Chopper Natori.
+- **`/arisu/diag`**: face page reports if it failed to draw; each web call
+  reports its events and peak amplitude on hangup.
+- **iPad app**: Settings > Face > Live2D face (off by default), loads from the
+  desk, uses the saved model, falls back to the portrait. Builds; never launched.
 
-Fixed and verified this session:
-
-- **Her jaw follows her own level, not the connection**, on both paths. The
-  browser client and `Live.swift` both ran a fixed gain — 0.10 on a quiet
-  stream, 0.54 on a loud one. Both now expand against a running peak; a 12x
-  change in level gives the same face.
-- **The app taps her playback, not the microphone.** Her mouth used to move
-  while *he* talked. Untested live — see Parked.
-- **No classroom, no sample gear, no debug bar.** The canvas clears
-  transparent, so lain's backdrop and mood tint show through.
-- **An unguarded SDK teardown**, exposed by removing both sprites, which threw
-  on an orientation change.
-- **The five states are distinct**; blink and idle motion run.
+Built, unproven (needs a paid call): mouth moving in Safari (now keyed on
+`output_audio_buffer.started/stopped`), and fewer filler openers (THINK
+description no longer says "say a short line first").
 
 ## Decisions & open questions
 
-- **The expander lives in the client and `Live.swift`, never in the face.** The
-  face cannot tell a measured level from Safari's synthetic envelope, so it
-  passes host amplitude through on purpose. Expanding that envelope would
-  freeze her mouth in the one case it exists for.
-- **`PEAK_FLOOR` 0.02** (0.05 pinned where a quiet stream's peak sits);
-  **`FLOOR_RATIO` 0.5**, now measured on rms rather than inherited.
-- **The gear went with the classroom** — it called `nextScene()` on a tap, so
-  it swapped her character. The overlay is hidden-when-framed, not deleted.
-- Standing: expressions picked by reading each `.exp3.json`, not by name;
-  asleep forces the eyes shut in the hook; `nod` deliberately unmapped; the
-  `__arisuParam` probe stays.
-- **Open, his, asked 2026-09-12 and unanswered: does Live2D go to the iPad
-  app?** Web is *not* replacing the app — Safari suspends on lock, so the app
-  is still the always-on seat. The interface already matches; the obstacle is
-  shape. `FaceView` uses `loadFileURL` from the bundle with read access scoped
-  to the face's own directory, which is why today's faces are one
-  self-contained file each. Live2D is a 4.2 MB tree. Either copy it into the
-  bundle and widen that scope, or point the webview at lain over the tailnet
-  and lose offline working. Neither chosen.
-
-## Parked
-
-- **Buying the character (step 6)**, and **a live call to watch her mouth**.
-  Both cost money. The app's fix therefore builds clean and is exactly level
-  independent on paper, but no real session has driven it.
+- Buying a character dropped; the eight bundled samples are the cast.
+- iPad Live2D loads over the tailnet: Cubism Core cannot live in public arisu.
+- Web page has no room buttons: it is not a room member, would break one-ear/one-mouth.
+- Open: Oscar has not yet picked each character's face; "Play sample" not on web.
 
 ## Next steps
 
-The web page (lain `arisu/index.html`) is now the main surface: the iPad's
-buttons, a settings panel, all eight Live2D models, and character tools.
-
-1. Oscar calls her in Safari. Did her mouth move? Then
-   `curl -s https://architect-server.tailaa64e9.ts.net:8443/arisu/diag` -- the
-   `call` report lists which events arrived. Expect `output_audio_buffer.started`.
-2. Same call: does she still open with fillers? Rules changed in lain
-   `realtime.py` (commit "no filler before think").
-3. Install the new build on the iPad, turn on Settings > Face > Live2D face.
-   It draws the model picked for that character in the web settings panel.
-   Settings > Face is a grid of thumbnails (lain `arisu/live2d/thumbs/`); a
-   new model needs a still there too.
-4. Parked: room buttons on the web (page is not a room member), Play sample.
-5. Costs money: habit add/remove test.
+1. Oscar calls her in Safari at https://architect-server.tailaa64e9.ts.net:8443/arisu/
+   (waveform button), asks two questions, hangs up.
+2. Read the call report: `curl -s https://architect-server.tailaa64e9.ts.net:8443/arisu/diag`
+   — expect `output_audio_buffer.started` and `maxAmplitude` > 0. Mouth still
+   shut: compare with `analyserHeard`. Fillers still there: check
+   `ssh architect 'grep said /tmp/arisu-face.log | tail'`.
+3. Tick "Her mouth moves in Safari" / "no stock openers" in the Backlog if proven.
+4. iPad: install from Xcode, turn on Settings > Face > Live2D face.
+5. Money: habit add/remove test; room buttons and Play sample stay parked.
 
 ## Gotchas
 
-Full list with reasoning in `LIVE2D.md`. The four that cost the most time:
+- Never make `ossskkar/lain` public (Cubism Core). Run `patch-sdk.sh` after a fresh SDK.
+- Re-vendor after a face change: build in `arisu/live2d/CubismSdkForWeb/Samples/TypeScript/Demo`
+  (`npm run build:prod`), copy `dist/index.html`, `dist/assets/*`, `dist/arisu-*.js`
+  into `lain/arisu/live2d/`; a new model also needs a still in `thumbs/`.
+- Launching the iPad app mints a paid realtime session at once (`Pet.running` starts true).
+- rAF stops in a hidden pane; test in headless Chrome over CDP (`--headless=new
+  --use-angle=swiftshader`). The stock SDK `alert()` froze pages; patched out.
+- Oscar's Chrome has acceleration off; use Safari. Mac muted = silent Arisu.
+- `/arisu/diag` is in memory: a lain restart empties it.
 
-- **Never make `ossskkar/lain` public.** It carries Cubism Core, which is
-  proprietary. The licence basis is that a private repo distributes to nobody.
-- **Run `patch-sdk.sh` after unpacking a fresh SDK**, or nothing Arisu adds
-  exists. It is idempotent.
-- **She takes several seconds to appear**, and an empty canvas before then
-  looks exactly like a broken build.
-- **`requestAnimationFrame` stops when the page is not visible**, and a hidden
-  browser pane counts.
+## Resume
 
-Unchanged: `arisu/deploy.sh` is the dead Mac path; her voice and her memory
-fail separately.
+"Read arisu/.claude/HANDOFF.md and the Arisu Backlog entry, then check /arisu/diag for his last call."
