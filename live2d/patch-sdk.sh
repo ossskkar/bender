@@ -58,6 +58,17 @@ def apply(relpath, open_s, close_s, body, anchor):
     print(f"  {relpath:<20} {verb}")
 
 
+# The error reporter goes first of all -- above Cubism Core -- so it hears
+# Core's and the bundle's failures too. Its own block because the one below is
+# anchored after Core.
+apply(
+    "index.html",
+    "  <!-- >>> arisu: diag -->",
+    "  <!-- <<< arisu: diag -->",
+    '  <script src = "./arisu-diag.js"></script>\n',
+    "  <!-- Live2DCubismCore script -->",
+)
+
 # Load Arisu's scripts before the module bundle. Classic scripts, so they are
 # ready before any module code runs.
 apply(
