@@ -700,3 +700,6 @@ costs nothing when framed and it is the only hand test of the rig.
   true and mode `.mini`, so launch mints a paid realtime session at once. The
   JavaScript the app sends was checked against the live page in headless
   Chrome instead: panel hidden, state set, mouth moving.
+- **The iPad follows the character's saved model** (2026-09-13): `Persona.model`
+  from `/arisu/characters`, picked in the web settings panel. Empty or unknown
+  falls back to Haru for Arisu, Natori for Chopper, the portrait for anyone else.

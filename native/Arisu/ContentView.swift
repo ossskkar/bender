@@ -270,7 +270,7 @@ struct ContentView: View {
         // soft bottom edge are all things the renderer does itself now, and
         // stacking SwiftUI's versions on top only muddied them.
         FaceView(face: pet.face, state: faceState, amplitude: Double(pet.level),
-                 live2d: live2dFace)
+                 live2d: live2dFace, model: pet.model)
             .allowsHitTesting(false)
     }
 

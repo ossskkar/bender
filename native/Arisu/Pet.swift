@@ -96,6 +96,9 @@ final class Pet: ObservableObject {
     /// character is this device's, held in `Room`, and the desk's active one
     /// is only what a fresh install starts from.
     @Published private(set) var face = "arisu"
+    /// The Live2D sample this character has chosen on the desk, or empty.
+    /// Only drawn when the device's Live2D switch is on.
+    @Published private(set) var model = ""
 
     /// The room and the session, kept in step.
     ///
@@ -114,6 +117,7 @@ final class Pet: ObservableObject {
             guard let self else { return }
             self.face = cid
             self.live.character = cid
+            Task { await self.refreshCast() }
             guard self.running, self.mode != .whisper else { return }
             self.live.end()
             self.beginLive()
@@ -167,6 +171,10 @@ final class Pet: ObservableObject {
     }
 
     private func adopt(_ cast: Cast) {
+        // The model follows whoever this screen shows, which is the room's
+        // character once it has one and the desk's active one before that.
+        let mine = room.character.isEmpty ? cast.active : room.character
+        model = cast.characters[mine]?.model ?? ""
         // Only as a default. Once this device has picked a character of its
         // own -- which the room does on the first join -- the desk's active
         // one is somebody else's screen and must not repaint this one.

@@ -32,11 +32,17 @@ struct FaceView: UIViewRepresentable {
     let amplitude: Double
     /// Draw the Live2D model from the desk instead of the bundled portrait.
     var live2d = false
+    /// The character's saved Live2D sample, from the desk. Empty, or a name
+    /// this build does not know, falls back to the character's default.
+    var model = ""
 
     /// Which Live2D sample each character wears by default. Mirrors the first
     /// entry of `LIVE2D_MODELS` in lain's `arisu/index.html`; a character with
     /// no model keeps its portrait.
     private static let live2dModel = ["arisu": "Haru", "chopper": "Natori"]
+    /// Every sample lain ships, mirroring `ALL_MODELS` in `arisu/index.html`.
+    private static let allModels: Set<String> =
+        ["Haru", "Hiyori", "Mao", "Rice", "Natori", "Ren", "Mark", "Wanko"]
 
     /// The page for a character, or the fallback. `arisu` is the fallback
     /// because hers is the portrait the renderer was authored against, so it
@@ -46,8 +52,9 @@ struct FaceView: UIViewRepresentable {
             ?? Bundle.main.url(forResource: "arisu", withExtension: "html", subdirectory: "Face")
     }
 
-    private static func url(for face: String, live2d: Bool) -> URL? {
-        guard live2d, let model = live2dModel[face] else { return portrait(for: face) }
+    private static func url(for face: String, live2d: Bool, model saved: String) -> URL? {
+        let chosen = allModels.contains(saved) ? saved : live2dModel[face]
+        guard live2d, let model = chosen else { return portrait(for: face) }
         var parts = URLComponents(url: Brain.base.appendingPathComponent("live2d/index.html"),
                                   resolvingAgainstBaseURL: false)
         parts?.queryItems = [URLQueryItem(name: "model", value: model)]
@@ -141,7 +148,7 @@ struct FaceView: UIViewRepresentable {
 
     /// Which page this view wants, as a key: a mode switch has to reload even
     /// though the character did not change.
-    private var key: String { live2d ? "live2d:" + face : face }
+    private var key: String { live2d ? "live2d:\(face):\(model)" : face }
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -161,12 +168,14 @@ struct FaceView: UIViewRepresentable {
         web.navigationDelegate = context.coordinator
         context.coordinator.web = web
 
-        context.coordinator.show(face, key: key, url: FaceView.url(for: face, live2d: live2d))
+        context.coordinator.show(face, key: key,
+                                 url: FaceView.url(for: face, live2d: live2d, model: model))
         return web
     }
 
     func updateUIView(_ web: WKWebView, context: Context) {
-        context.coordinator.show(face, key: key, url: FaceView.url(for: face, live2d: live2d))
+        context.coordinator.show(face, key: key,
+                                 url: FaceView.url(for: face, live2d: live2d, model: model))
         context.coordinator.apply(state: state)
         context.coordinator.apply(amplitude: amplitude)
     }

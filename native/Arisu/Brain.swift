@@ -44,6 +44,10 @@ struct Persona: Codable {
     /// Which face page to draw. Resolved against the app bundle, so a
     /// character can exist on the desk before its portrait has been built.
     var face: String?
+    /// Which Live2D sample this character wears, or empty for the portrait.
+    /// Set from the web settings panel; the iPad draws it when its own Live2D
+    /// switch is on.
+    var model: String?
     var voices: [String]?
     /// A sentence in her current manner, chosen by the desk. The phone does
     /// not compose it: what counts as warm at 0.9 is a decision that belongs

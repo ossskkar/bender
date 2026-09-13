@@ -65,6 +65,7 @@ buttons, a settings panel, all eight Live2D models, and character tools.
 2. Same call: does she still open with fillers? Rules changed in lain
    `realtime.py` (commit "no filler before think").
 3. Install the new build on the iPad, turn on Settings > Face > Live2D face.
+   It draws the model picked for that character in the web settings panel.
 4. Parked: room buttons on the web (page is not a room member), Play sample.
 5. Costs money: habit add/remove test.
 
