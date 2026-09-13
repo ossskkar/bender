@@ -14,6 +14,13 @@ import WebKit
 /// It buys the renderer exactly as authored, with no port to keep in sync. If
 /// the battery says otherwise later, the algorithm is a dithered palette over a
 /// contour pass and would go into a Metal shader without much argument.
+///
+/// The Live2D face is the same contract from a different page, and it is
+/// loaded from the desk rather than the bundle. Decided 2026-09-13 while Oscar
+/// was away: the Live2D page carries Cubism Core, whose licence does not allow
+/// it in this public repo, and the app already cannot talk without the desk,
+/// so loading the face from there adds no dependency it did not have. If the
+/// desk cannot be reached the portrait comes back instead of a blank screen.
 struct FaceView: UIViewRepresentable {
     /// Which face page to draw, from the active character. A character can
     /// exist on the desk before its portrait has been built, so an id with no
@@ -23,13 +30,28 @@ struct FaceView: UIViewRepresentable {
     let state: String
     /// Her voice, 0...1. Drives the jaw and the glow at her mouth.
     let amplitude: Double
+    /// Draw the Live2D model from the desk instead of the bundled portrait.
+    var live2d = false
+
+    /// Which Live2D sample each character wears by default. Mirrors the first
+    /// entry of `LIVE2D_MODELS` in lain's `arisu/index.html`; a character with
+    /// no model keeps its portrait.
+    private static let live2dModel = ["arisu": "Haru", "chopper": "Natori"]
 
     /// The page for a character, or the fallback. `arisu` is the fallback
     /// because hers is the portrait the renderer was authored against, so it
     /// is the one face guaranteed to be in the bundle.
-    private static func url(for face: String) -> URL? {
+    fileprivate static func portrait(for face: String) -> URL? {
         Bundle.main.url(forResource: face, withExtension: "html", subdirectory: "Face")
             ?? Bundle.main.url(forResource: "arisu", withExtension: "html", subdirectory: "Face")
+    }
+
+    private static func url(for face: String, live2d: Bool) -> URL? {
+        guard live2d, let model = live2dModel[face] else { return portrait(for: face) }
+        var parts = URLComponents(url: Brain.base.appendingPathComponent("live2d/index.html"),
+                                  resolvingAgainstBaseURL: false)
+        parts?.queryItems = [URLQueryItem(name: "model", value: model)]
+        return parts?.url ?? portrait(for: face)
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -40,6 +62,8 @@ struct FaceView: UIViewRepresentable {
         /// state has to be re-sent afterwards -- the new page starts idle and
         /// knows nothing of the conversation it is joining.
         var shown: String?
+        /// The character behind the page, for falling back to its portrait.
+        private var shownFace = "arisu"
         private var sentState: String?
         fileprivate var sentAmplitude = -1.0
         private var lastAmplitudeAt = Date.distantPast
@@ -47,21 +71,48 @@ struct FaceView: UIViewRepresentable {
 
         func webView(_ web: WKWebView, didFinish _: WKNavigation!) {
             loaded = true
+            // The Live2D page shows its test buttons when it is not framed, and
+            // here it is the top page. The portrait has no such member.
+            web.evaluateJavaScript(
+                "window.avatar && window.avatar.showPanel && window.avatar.showPanel(false)")
             // Whatever arrived while the page was still parsing.
             if let s = sentState { sentState = nil; apply(state: s) }
+        }
+
+        func webView(_ web: WKWebView, didFail _: WKNavigation!, withError _: Error) {
+            fallBack()
+        }
+
+        func webView(_ web: WKWebView, didFailProvisionalNavigation _: WKNavigation!,
+                     withError _: Error) {
+            fallBack()
+        }
+
+        /// The desk did not serve the Live2D page. Her portrait is always in the
+        /// bundle, and a face beats an empty hologram.
+        private func fallBack() {
+            guard let key = shown, key.hasPrefix("live2d:"),
+                  let url = FaceView.portrait(for: shownFace) else { return }
+            show(shownFace, key: shownFace, url: url)
         }
 
         /// Put a different character on screen. Everything the old page knew
         /// goes with it, so the sent values reset or the first update after a
         /// switch would be skipped as unchanged and the new face would sit
         /// there idle through a conversation.
-        func show(_ face: String, url: URL?) {
-            guard face != shown, let url, let web else { return }
-            shown = face
+        func show(_ face: String, key: String, url: URL?) {
+            guard key != shown, let url, let web else { return }
+            shown = key
+            shownFace = face
             loaded = false
             sentState = nil
             sentAmplitude = -1
-            web.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+            if url.isFileURL {
+                web.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+            } else {
+                web.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData,
+                                    timeoutInterval: 15))
+            }
         }
 
         func apply(state: String) {
@@ -88,6 +139,10 @@ struct FaceView: UIViewRepresentable {
         }
     }
 
+    /// Which page this view wants, as a key: a mode switch has to reload even
+    /// though the character did not change.
+    private var key: String { live2d ? "live2d:" + face : face }
+
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.allowsInlineMediaPlayback = true
@@ -106,12 +161,12 @@ struct FaceView: UIViewRepresentable {
         web.navigationDelegate = context.coordinator
         context.coordinator.web = web
 
-        context.coordinator.show(face, url: FaceView.url(for: face))
+        context.coordinator.show(face, key: key, url: FaceView.url(for: face, live2d: live2d))
         return web
     }
 
     func updateUIView(_ web: WKWebView, context: Context) {
-        context.coordinator.show(face, url: FaceView.url(for: face))
+        context.coordinator.show(face, key: key, url: FaceView.url(for: face, live2d: live2d))
         context.coordinator.apply(state: state)
         context.coordinator.apply(amplitude: amplitude)
     }

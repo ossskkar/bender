@@ -18,6 +18,9 @@ struct ContentView: View {
     /// her from across the desk and watching her from the sofa want different
     /// answers, and neither should reset every morning.
     @AppStorage("arisu.transcript") private var showTranscript = true
+    /// The Live2D face instead of the portrait. Off by default: it loads from
+    /// the desk, and the portrait is the face that works with no network.
+    @AppStorage("arisu.live2d") private var live2dFace = false
     @State private var showSettings = false
 
     /// The colour of work being done. Deliberately not one of the moods --
@@ -266,7 +269,8 @@ struct ContentView: View {
         // No shadow, no mask, no drift. The colour-split, the bloom and the
         // soft bottom edge are all things the renderer does itself now, and
         // stacking SwiftUI's versions on top only muddied them.
-        FaceView(face: pet.face, state: faceState, amplitude: Double(pet.level))
+        FaceView(face: pet.face, state: faceState, amplitude: Double(pet.level),
+                 live2d: live2dFace)
             .allowsHitTesting(false)
     }
 

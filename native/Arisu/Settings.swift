@@ -32,6 +32,9 @@ struct SettingsSheet: View {
     @State private var failed = false
     @State private var notesPush: Task<Void, Never>?
     @State private var previewing = false
+    /// Shared with `ContentView`, which hands it to the face. A preference of
+    /// this screen, not of the character, so it lives on the device.
+    @AppStorage("arisu.live2d") private var live2dFace = false
 
     private let brain = Brain()
     private let accent = Color(red: 0.27, green: 0.90, blue: 0.97)
@@ -83,6 +86,17 @@ struct SettingsSheet: View {
     private var form: some View {
         Form {
             if let cast, cast.characters.count > 1 { castSection(cast) }
+
+            Section {
+                Toggle("Live2D face", isOn: $live2dFace)
+                    .font(.system(size: 19))
+            } header: {
+                header("Face")
+            } footer: {
+                footer("Draws her as a moving Live2D model, loaded from the desk. "
+                       + "Arisu wears Haru, Chopper wears Natori. If the desk "
+                       + "cannot be reached, the portrait comes back.")
+            }
 
             Section {
                 dial("Warmth", "Friendly distance", "Openly fond",
