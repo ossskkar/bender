@@ -57,10 +57,11 @@ Fixed and verified this session:
 ## Next steps
 
 1. Oscar unmutes the Mac and wakes Haru in Safari: does he hear her?
-2. Which default per character (Arisu: Haru; Chopper: Natori) — his call.
-3. Then a real call, watching her mouth against her own voice.
-4. Still open: does Live2D go into the iPad app?
-5. A blank face: read `/arisu/diag` first (LIVE2D.md, last section).
+2. Install the new build on the iPad from Xcode, turn on Settings > Face >
+   Live2D face, and see Haru. Blank or portrait: `curl .../arisu/diag`.
+3. Which default per character (Arisu: Haru; Chopper: Natori) — his call.
+4. A real call, watching her mouth against her own voice (costs money).
+5. Ask her to add and remove a habit, to prove write tools (costs money).
 
 ## Gotchas
 

@@ -686,3 +686,17 @@ costs nothing when framed and it is the only hand test of the rig.
   settings'` said `output muted:true`. Check that before touching the audio path.
 - The text under her face before waking is `/arisu/state`'s last line, not a
   live reply. Sound needs WAKE HER.
+
+### Live2D in the iPad app — decided 2026-09-13, while Oscar was away
+
+- **Loaded from the desk, not bundled.** Bundling would put Cubism Core in this
+  public repo, which its licence rules out; the app already needs the desk to
+  talk, so this adds no dependency. Reverse by reverting `52dc1e9`.
+- **Settings > Face > Live2D face**, `@AppStorage("arisu.live2d")`, **off by
+  default**. On: `FaceView` loads `/arisu/live2d/index.html?model=` (Arisu Haru,
+  Chopper Natori, mirroring `LIVE2D_MODELS`), hides the test overlay with
+  `showPanel(false)`, and falls back to the bundled portrait if the page fails.
+- **Compiles for the iPad simulator; never launched.** `Pet.running` starts
+  true and mode `.mini`, so launch mints a paid realtime session at once. The
+  JavaScript the app sends was checked against the live page in headless
+  Chrome instead: panel hidden, state set, mouth moving.
