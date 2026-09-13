@@ -317,6 +317,45 @@ elif "gl.clearColor(0.0, 0.0, 0.0, 1.0);" in src:
     print("  src/lappsubdelegate.ts  clear patched")
 else:
     raise SystemExit("error: clearColor not in the expected shape")
+
+# No WebGL: log it, do not alert() and do not crash. The stock sample calls
+# alert(), which freezes the page until someone dismisses it -- inside her
+# client's iframe that is a dialog over the whole app, and in headless Chrome it
+# never returns, so arisu-diag.js never gets to report. Then update() and
+# isContextLost() call getGl().isContextLost() on null, a TypeError every frame.
+# That was Oscar's Chrome with graphics acceleration off, 2026-09-13: a blank
+# face and nothing said. console.error is what arisu-diag.js hears.
+d = demo / "src/lappglmanager.ts"
+src = d.read_text()
+old_alert = "      alert('Cannot initialize WebGL. This browser does not support.');"
+new_alert = "      console.error('Cannot initialize WebGL. This browser does not support.');"
+if new_alert in src:
+    print("  src/lappglmanager.ts    no-alert unchanged")
+elif old_alert in src:
+    d.write_text(src.replace(old_alert, new_alert, 1))
+    print("  src/lappglmanager.ts    no-alert patched")
+else:
+    raise SystemExit("error: the WebGL alert moved in lappglmanager.ts")
+
+d = demo / "src/lappsubdelegate.ts"
+src = d.read_text()
+pairs = [
+    ("    if (this._glManager.getGl().isContextLost()) {\n      return;\n    }",
+     "    const arisuGl = this._glManager.getGl();\n"
+     "    if (!arisuGl || arisuGl.isContextLost()) {\n      return;\n    }"),
+    ("    return this._glManager.getGl().isContextLost();",
+     "    const arisuGl = this._glManager.getGl();\n"
+     "    return !arisuGl || arisuGl.isContextLost();"),
+]
+for old, new in pairs:
+    if new in src:
+        print("  src/lappsubdelegate.ts  null-gl unchanged")
+    elif old in src:
+        src = src.replace(old, new, 1)
+        print("  src/lappsubdelegate.ts  null-gl patched")
+    else:
+        raise SystemExit("error: isContextLost call moved in lappsubdelegate.ts")
+d.write_text(src)
 PY
 
 echo
