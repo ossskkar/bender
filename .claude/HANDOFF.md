@@ -66,6 +66,8 @@ buttons, a settings panel, all eight Live2D models, and character tools.
    `realtime.py` (commit "no filler before think").
 3. Install the new build on the iPad, turn on Settings > Face > Live2D face.
    It draws the model picked for that character in the web settings panel.
+   Settings > Face is a grid of thumbnails (lain `arisu/live2d/thumbs/`); a
+   new model needs a still there too.
 4. Parked: room buttons on the web (page is not a room member), Play sample.
 5. Costs money: habit add/remove test.
 
