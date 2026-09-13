@@ -24,6 +24,11 @@ This repo is the Backlog project **Arisu** (her brain is in lain,
   send `confirmed_by:"oscar"` only when he has actually said so in that
   conversation. A journey nobody has placed reads off its own steps, so ticking
   steps carries it as far as review and no further.
+- **Work that lands in `review` explains itself.** Before a journey goes there,
+  its notes say in two short lines what it does and how to try it:
+  `What it does: …` and `Try it: …`, plain words, no jargon. Review is his
+  decision queue — he is being asked to approve the thing, and a bare title is
+  not something anyone can approve.
 - Tick only what is verified. Built but unproven stays open.
 
 Session detail: `.claude/HANDOFF.md`. Measurements and reasons: `LIVE2D.md`.
