@@ -617,6 +617,89 @@ believing a Live2D page is broken.
 
 The gear icon in the corner is still the sample's, and still there.
 
+## Step 8 — the scene: background, room colour, size, position — 2026-09-13
+
+Oscar, asked what he wanted changed about the 2D models: a background, the room
+colour, the expressions, and the size and position. All four.
+
+### What is ours and what is not
+
+The models are the eight Cubism samples. **Their artwork is not ours** — body,
+clothes and face are baked into each `moc3` and its texture atlases, under the
+Free Material License, and redrawing them is not on the table. Everything
+*around* the artwork is ours, and that turned out to be all four requests:
+
+| Request | Answer |
+|---|---|
+| A background | the canvas is transparent today; we paint one under the model |
+| Room colour | ours to paint, both on the canvas and on lain's own ground |
+| Expressions | each rig's expressions are already chosen in data (`arisu-face.js`) |
+| Size and position | `projection.scale` / `translate`, which the SDK composes itself |
+
+### Where it lives
+
+`glue/arisu-scene.js` — one classic script, loaded before the module bundle, that
+parses a URL and answers three consumers: `lappdelegate.ts` (background and room
+colour), `lapplive2dmanager.ts` (scale, x, y), and `arisu-face.js` (expressions).
+The same keys are stored per character on the persona (`scene`), so a room
+survives a reload.
+
+The background is a **second, 2D canvas** injected under the model canvas rather
+than more GL: it is a linear gradient and occasionally one image, and GL would
+mean a second program, a quad and a texture per scene for no gain. The model
+canvas clears to alpha zero, so what shows around her is that canvas and lain's
+own `#ground`.
+
+`?bg=classroom` puts the sample's own `back_class_normal.png` back, which the
+step above had deleted. It is a **gradient first, image on top**, not either/or:
+an image is a network fetch, and a scene that is empty until it lands reads as a
+broken face. An image that 404s leaves the gradient underneath, so there is
+never an empty frame.
+
+### Verified, and how
+
+A configured scene and a drawn scene are different claims, so the check reads the
+pixels back. `tools/live2d-probe.mjs` drives a real Chrome over the DevTools
+protocol; `tools/live2d-verify.sh` runs 19 cases through one browser and exits
+with the number of failures.
+
+- Background: gradient spread 122 in a room of `4a2f6b`, 14 in the near-black
+  default, 0 at `depth=0` and in `flat` mode; the classroom paints at 84 with
+  `paint.hasImage` true and `naturalWidth` 512, and a missing image falls back to
+  the gradient.
+- Display: `scale=1` is byte-for-byte the stock framing; 1.5 takes lit pixels
+  from 85k to 161k; 0.6 to 32k and the bounding box shrinks to width 0.189.
+- Expressions: the stock table resolves per model, and a host override changes
+  one state while leaving the others alone.
+- The parent page: the scene reaches the face iframe, and the page's own ground
+  takes the room colour.
+
+### Four things the measuring taught, the hard way
+
+- **Headless Chrome has no GPU, and this Mac's Chrome has acceleration off.**
+  Without `--use-angle=swiftshader` the model canvas gets *no context*, so every
+  check about the model is vacuously true. With it, rAF runs at about one frame a
+  second, so a measurement has to wait for a real frame.
+- **The first frames can run before the manager has drawn anything.** Reading
+  `readPixels` then reports a working model as a blank one. It did exactly that
+  and sent me hunting a bug that was not there; the probe now waits for
+  `__arisuParam` *and* lit pixels.
+- **One browser per case poisons a run.** Each case needs software WebGL, and a
+  fresh Chrome per case piled up SwiftShader contexts until some pages never drew
+  a frame — reported, correctly and uselessly, as an empty canvas. Hence
+  `--batch`.
+- **`python3 -m http.server` is single-threaded**, so a background image queues
+  behind the model's own texture sets and takes seconds to load. The desk serves
+  threaded; the wait is an artefact of the rig, not the code. The same server has
+  no index, so serving `lain/arisu` instead of `lain` 404s `/arisu/` — which
+  looks exactly like a bug in the scene.
+
+### Scale is measured by area, not by width
+
+At `scale=1.5` the model is taller than the canvas and is cropped top and bottom,
+so its **bounding-box width stops growing** while its area nearly doubles. The
+first assertion used width and called a working 1.5 "not enlarged".
+
 ### The five states are distinct, and the rig is alive — measured 2026-09-12
 
 The expressions were chosen by reading parameter values and had never been

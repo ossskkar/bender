@@ -75,11 +75,233 @@ apply(
     "index.html",
     "  <!-- >>> arisu -->",
     "  <!-- <<< arisu -->",
+    '  <script src = "./arisu-scene.js"></script>\n'
     '  <script src = "./arisu-lipsync.js"></script>\n'
     '  <script src = "./arisu-face.js"></script>\n'
     '  <script src = "./arisu-avatar.js"></script>\n'
     '  <script src = "./arisu-harness.js"></script>\n',
     "  <!-- Build script -->",
+)
+
+# --- the scene: background, room colour, display ---------------------------------
+#
+# The model canvas clears to transparent, so everything behind the model is drawn
+# by us on a second, 2D canvas underneath it. A 2D context rather than more GL on
+# purpose: the background is a flat gradient and occasionally one image, and
+# doing it in GL would mean a second program, a quad and a texture per scene for
+# no gain.
+#
+# The 2D canvas is appended to document.body, which the demo's own stylesheet
+# already makes `display:flex; flex-wrap:wrap`. An absolutely positioned child is
+# out of that flow, so the model canvas still measures the full viewport and this
+# one does not push it anywhere.
+apply(
+    "src/lappdelegate.ts",
+    "    // >>> arisu: scene",
+    "    // <<< arisu: scene",
+    "    this.initializeScene();\n"
+    "\n",
+    "    this.initializeCubism();\n",
+)
+
+apply(
+    "src/lappdelegate.ts",
+    "  // >>> arisu: scene methods",
+    "  // <<< arisu: scene methods",
+    "  /**\n"
+    "   * The scene behind the model: one 2D canvas, the room colour, and an\n"
+    "   * optional background image. Everything comes from window.ArisuScene,\n"
+    "   * which parses the URL -- see glue/arisu-scene.js.\n"
+    "   */\n"
+    "  private initializeScene(): void {\n"
+    "    const scene = (window as any).ArisuScene;\n"
+    "    if (!scene) return;\n"
+    "\n"
+    "    const canvas = document.createElement('canvas');\n"
+    "    canvas.id = 'arisu-scene';\n"
+    "    canvas.style.position = 'fixed';\n"
+    "    canvas.style.inset = '0';\n"
+    "    canvas.style.width = '100vw';\n"
+    "    canvas.style.height = '100vh';\n"
+    "    canvas.style.zIndex = '-1';\n"
+    "    canvas.style.pointerEvents = 'none';\n"
+    "    this._sceneCanvas = canvas;\n"
+    "    this._scene2d = canvas.getContext('2d');\n"
+    "\n"
+    "    // Behind the model canvases: inserted first, and the model canvases\n"
+    "    // carry z-index 0, so the order holds whichever way they are appended.\n"
+    "    document.body.insertBefore(canvas, document.body.firstChild);\n"
+    "\n"
+    "    window.addEventListener('resize', () => this.drawScene());\n"
+    "    // The scene's own repaint, so a change made on a live page -- the\n"
+    "    // settings panel moving a slider -- lands on the next tick instead of\n"
+    "    // waiting for a resize that may never come.\n"
+    "    if (scene.onRedraw) scene.onRedraw(() => this.drawScene());\n"
+    "    // Reachable for the headless probe: proving that a settings change\n"
+    "    // repaints needs to call the same repaint the settings change calls.\n"
+    "    (window as any).__arisuDrawScene = () => this.drawScene();\n"
+    "    this.drawScene();\n"
+    "  }\n"
+    "\n"
+    "  /**\n"
+    "   * Repaint the scene at the canvas's own resolution.\n"
+    "   */\n"
+    "  private drawScene(): void {\n"
+    "    const canvas = this._sceneCanvas;\n"
+    "    const c = this._scene2d;\n"
+    "    if (!canvas || !c) return;\n"
+    "\n"
+    "    const scene = (window as any).ArisuScene;\n"
+    "    if (!scene) return;\n"
+    "\n"
+    "    const dpr = window.devicePixelRatio || 1;\n"
+    "    const w = Math.max(1, Math.round(canvas.clientWidth * dpr));\n"
+    "    const h = Math.max(1, Math.round(canvas.clientHeight * dpr));\n"
+    "    if (canvas.width !== w || canvas.height !== h) {\n"
+    "      canvas.width = w;\n"
+    "      canvas.height = h;\n"
+    "    }\n"
+    "\n"
+    "    c.setTransform(1, 0, 0, 1, 0, 0);\n"
+    "    c.clearRect(0, 0, w, h);\n"
+    "\n"
+    "    const bg = scene.background;\n"
+    "    if (bg.mode === 'none') {\n"
+    "      this.paintWash(c, w, h, scene);\n"
+    "      return;\n"
+    "    }\n"
+    "\n"
+    "    if (bg.mode === 'image') {\n"
+    "      const img = scene.backgroundImage();\n"
+    "      // Paint the gradient first and let the image land on top of it. A\n"
+    "      // background image is a network fetch, and without this the frame is\n"
+    "      // simply empty until it arrives -- an unlit room reads as a broken\n"
+    "      // face, and the slower the connection the longer it reads that way.\n"
+    "      this.paintGradient(c, w, h, scene);\n"
+    "      if (img) {\n"
+    "        // Cover fit: fill the frame, crop the overflow, never letterbox.\n"
+    "        const s = Math.max(w / img.naturalWidth, h / img.naturalHeight);\n"
+    "        const dw = img.naturalWidth * s;\n"
+    "        const dh = img.naturalHeight * s;\n"
+    "        c.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);\n"
+    "        // The room colour washes the image rather than replacing it, so a\n"
+    "        // scene can be tinted without losing it.\n"
+    "        const room = scene.room;\n"
+    "        c.globalCompositeOperation = 'multiply';\n"
+    "        c.fillStyle = `rgb(${room[0]}, ${room[1]}, ${room[2]})`;\n"
+    "        c.fillRect(0, 0, w, h);\n"
+    "        c.globalCompositeOperation = 'source-over';\n"
+    "      }\n"
+    "      // An image that 404s leaves the gradient underneath it, which is the\n"
+    "      // floor of this whole branch: there is never an empty frame.\n"
+    "      this.paintWash(c, w, h, scene);\n"
+    "      return;\n"
+    "    }\n"
+    "\n"
+    "    this.paintGradient(c, w, h, scene);\n"
+    "    this.paintWash(c, w, h, scene);\n"
+    "  }\n"
+    "\n"
+    "  /**\n"
+    "   * The room: the room colour at the top falling to its floor at the bottom.\n"
+    "   */\n"
+    "  private paintGradient(\n"
+    "    c: CanvasRenderingContext2D,\n"
+    "    w: number,\n"
+    "    h: number,\n"
+    "    scene: any\n"
+    "  ): void {\n"
+    "    const room = scene.room;\n"
+    "    if (scene.background.mode === 'flat') {\n"
+    "      c.fillStyle = `rgb(${room[0]}, ${room[1]}, ${room[2]})`;\n"
+    "      c.fillRect(0, 0, w, h);\n"
+    "      return;\n"
+    "    }\n"
+    "    const floor = scene.floor();\n"
+    "    const g = c.createLinearGradient(0, 0, 0, h);\n"
+    "    g.addColorStop(0, `rgb(${room[0]}, ${room[1]}, ${room[2]})`);\n"
+    "    g.addColorStop(1, `rgb(${floor[0]}, ${floor[1]}, ${floor[2]})`);\n"
+    "    c.fillStyle = g;\n"
+    "    c.fillRect(0, 0, w, h);\n"
+    "  }\n"
+    "\n"
+    "  /**\n"
+    "   * The optional wash over the whole scene. Painted under the model, so it\n"
+    "   * can tint the room without tinting her.\n"
+    "   */\n"
+    "  private paintWash(\n"
+    "    c: CanvasRenderingContext2D,\n"
+    "    w: number,\n"
+    "    h: number,\n"
+    "    scene: any\n"
+    "  ): void {\n"
+    "    const o = scene.overlay;\n"
+    "    if (!o.tint || !(o.alpha > 0)) return;\n"
+    "    c.fillStyle = `rgba(${o.tint[0]}, ${o.tint[1]}, ${o.tint[2]}, ${o.alpha})`;\n"
+    "    c.fillRect(0, 0, w, h);\n"
+    "  }\n",
+    "  /**\n"
+    "   * Canvasを生成配置、Subdelegateを初期化する\n"
+    "   */",
+)
+
+# The fields the scene canvas and its context live in, and the teardown that
+# removes the element as well -- release() can run while the page outlives the
+# delegate, and a canvas left in the DOM would stack up behind the next one.
+apply(
+    "src/lappdelegate.ts",
+    "  // >>> arisu: scene fields",
+    "  // <<< arisu: scene fields",
+    "  /**\n"
+    "   * The scene behind the model -- see initializeScene().\n"
+    "   */\n"
+    "  private _sceneCanvas: HTMLCanvasElement;\n"
+    "  private _scene2d: CanvasRenderingContext2D;\n"
+    "\n",
+    "  /**\n"
+    "   * 操作対象のcanvas要素\n"
+    "   */\n"
+    "  private _canvases: Array<HTMLCanvasElement>;",
+)
+
+apply(
+    "src/lappdelegate.ts",
+    "    // >>> arisu: scene teardown",
+    "    // <<< arisu: scene teardown",
+    "    if (this._sceneCanvas) {\n"
+    "      this._sceneCanvas.remove();\n"
+    "      this._sceneCanvas = null;\n"
+    "      this._scene2d = null;\n"
+    "    }\n"
+    "\n",
+    "    this.releaseSubdelegates();\n",
+)
+
+# --- display: how big the model is and where it sits -----------------------------
+#
+# The stock code shows the model at a fixed fit and lets the canvas aspect decide
+# the crop, which is right for a demo and wrong for a desk pet: on a wide screen
+# she ends up small and centred with a lot of room around her. scene.display
+# multiplies that fit -- 1 is exactly what shipped -- and shifts her, both as
+# fractions of the canvas.
+apply(
+    "src/lapplive2dmanager.ts",
+    "      // >>> arisu: display",
+    "      // <<< arisu: display",
+    "      // The scene's own say over size and position. Applied after the SDK\n"
+    "      // has chosen its fit, so 1/0/0 leaves the stock framing untouched.\n"
+    "      const arisuScene = (window as any).ArisuScene;\n"
+    "      if (arisuScene && arisuScene.display) {\n"
+    "        const d = arisuScene.display;\n"
+    "        if (d.scale !== 1) {\n"
+    "          projection.scale(d.scale, d.scale);\n"
+    "        }\n"
+    "        if (d.x !== 0 || d.y !== 0) {\n"
+    "          projection.translate(d.x, d.y);\n"
+    "        }\n"
+    "      }\n"
+    "\n",
+    "      // 必要があればここで乗算\n",
 )
 
 # The per-frame hook. It runs after the SDK's own updaters, so it overrides

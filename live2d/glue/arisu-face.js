@@ -69,9 +69,29 @@
 
   var wanted = new URLSearchParams(window.location.search).get('model');
   var MODEL = TABLES[wanted] ? wanted : 'Natori';
-  var TABLE = TABLES[MODEL];
 
-  function expressionFor(s) { return TABLE.states[s] || null; }
+  // The scene may override the table for any model -- which expression a rig
+  // uses for which state is a taste question, and some rigs have expressions
+  // the audit kept out of the stock path for a good reason that a particular
+  // scene may still want. Overrides merge over the defaults rather than
+  // replacing them, so a scene can name one state and leave the rest alone.
+  //
+  // Resolved on every question rather than cached at load: the settings panel
+  // changes expressions on a live page, and a table captured here would ignore
+  // it until a reload. ArisuScene is a separate classic script and loads first;
+  // with it absent the stock table stands, which is what the harness wants.
+  // Declared before table(), which may return it on the very first call.
+  var EMPTY = { states: {}, reactions: {} };
+
+  function table() {
+    if (window.ArisuScene && window.ArisuScene.expressions) {
+      return window.ArisuScene.expressions(TABLES)[MODEL] || EMPTY;
+    }
+    return TABLES[MODEL] || EMPTY;
+  }
+
+  function expressionFor(s) { return table().states[s] || null; }
+  function reactionFor(s) { return table().reactions[s] || null; }
 
   // Asleep holds the eyes shut outright rather than trusting the expression.
   // exp_05 does close them, but so does the blink updater on its own schedule,
@@ -109,7 +129,7 @@
 
     // This model's expression for a transient reaction, or null when the rig
     // has nothing that reads as it.
-    reaction: function (name) { return TABLE.reactions[name] || null; },
+    reaction: function (name) { return reactionFor(name); },
 
     // Escape hatch: any expression by name, including the ones the state map
     // does not use. Transient reactions go through here and then refresh().
