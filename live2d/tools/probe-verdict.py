@@ -82,17 +82,28 @@ def main():
         frames = d.get('frames') or []
         paint = d.get('paint') or {}
 
-        ns = {
+        # The page's own probe payload goes in KEY BY KEY, on top of the
+        # aliases below. That is what `probe["gesture"]` and `probe["expressions"]`
+        # are: fields the page reports, which a check can also reach bare.
+        #
+        # Listed one at a time first, this file had to be edited whenever the
+        # probe learned a new field, and the failure mode was a check throwing
+        # KeyError for a field that was right there in the JSON -- 25 scene cases
+        # failed that way, looking like a broken page rather than a stale
+        # namespace. Spreading the payload means a new field works immediately.
+        probe = (d.get('probe') or {}) if isinstance(d.get('probe'), dict) else {}
+        ns = dict(probe)
+        ns.update({
             'scene': scene,
             'model': model,
-            'probe': d.get('probe') or {},
+            'probe': probe,
             'dom': d.get('dom') or {},
             'frames': frames,
             'paint': paint,
             'ground': d.get('ground') or {},
             'readiness': d.get('readiness') or {},
             'ok': d.get('ok'),
-        }
+        })
         try:
             # No builtins: the expressions are data and call nothing. eval over a
             # short local string from the cases file, not from user input.

@@ -20,15 +20,36 @@
     var root = getComputedStyle(document.documentElement);
     var el = document.getElementById('state');
     var g = document.getElementById('glow');
+    var cs = g ? getComputedStyle(g) : null;
     snaps.push({
       label: label,
       state: root.getPropertyValue('--state').trim(),
       glow: root.getPropertyValue('--glow').trim(),
       readout: el ? el.textContent.trim() : null,
       cls: el ? el.className : null,
-      animated: g ? getComputedStyle(g).animationName : null,
-      glowClass: g ? g.className : null
+      animated: cs ? cs.animationName : null,
+      glowClass: g ? g.className : null,
+      // The layer's own geometry: a rule missing its inset leaves nothing to
+      // see, and "the variable is set" would not catch that.
+      layer: g ? {
+        w: g.offsetWidth,
+        h: g.offsetHeight,
+        position: cs.position,
+        background: cs.backgroundImage.slice(0, 60),
+        // Her voice, read from the root where it is declared. Resolving a
+        // custom property through a pseudo-element is platform-dependent, and
+        // a missing resolution is indistinguishable from a zero -- which is how
+        // a real bug here hid once already.
+        loud: parseFloat(root.getPropertyValue('--loud'))
+      } : null
     });
+  }
+
+  // A promise, so the voice snapshot can wait for the 90ms transition on the
+  // light. Taken synchronously it read the previous opacity and reported that
+  // amplitude had no effect.
+  function after(ms) {
+    return new Promise(function (r) { setTimeout(r, ms); });
   }
 
   // Report into the DOM: the probe polls for #arisu-probe and takes its text as
@@ -61,9 +82,11 @@
     // Her voice on the light, without changing which state it is.
     window.__setState('speaking');
     window.__setAmplitude(0.9);
-    snap('speaking-loud');
-    window.__setState('idle');
-    snap('after-idle');
-    report('ok');
+    after(250).then(function () {
+      snap('speaking-loud');
+      window.__setState('idle');
+      snap('after-idle');
+      report('ok');
+    });
   })();
 })();
