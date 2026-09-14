@@ -45,10 +45,18 @@ trap 'rm -f "$CASES" "$RESULTS"' EXIT
 #
 # The name, the url and the check go in one line, tab separated. The check is
 # last because it is the only field that contains tabs never and quotes often.
+# The check file stays line-based (name, url, check -- no newlines in any of
+# them). The probe's case file is JSON, because `inject` is a script and a script
+# has newlines: see the note in live2d-probe.mjs about a harness silently cut in
+# half at its first newline.
 add() {
   local name="$1" url="$2" preset="${3:-}" check="${4:?a case needs a check}"
   printf '%s\t%s\t%s\n' "$name" "$url" "$check" >> "$CASES"
-  printf '%s\t%s\n' "$url" "$preset" >> "$RESULTS.cases"
+  NAME="$name" URL="$url" INJECT="$preset" python3 -c '
+import json, os, sys
+print(json.dumps({"name": os.environ["NAME"], "url": os.environ["URL"],
+                  "inject": os.environ["INJECT"] or None}))
+' >> "$RESULTS.cases"
 }
 : > "$CASES"
 : > "$RESULTS.cases"
