@@ -32,8 +32,8 @@ echo "  vite.config.mts   <- glue"
 cp "$GLUE"/arisu-*.js "$DEMO/public/"
 echo "  public/arisu-*.js <- glue"
 
-python3 - "$DEMO" <<'PY'
-import sys, pathlib, re
+python3 - "$DEMO" "$GLUE" <<'PY'
+import sys, pathlib, re, json, shutil
 
 demo = pathlib.Path(sys.argv[1])
 
@@ -42,9 +42,16 @@ def apply(relpath, open_s, close_s, body, anchor):
     p = demo / relpath
     src = p.read_text()
     block = f"{open_s}\n{body}{close_s}\n"
-    if open_s in src and close_s in src:
-        new = re.sub(re.escape(open_s) + r".*?" + re.escape(close_s) + r"\n?",
-                     block, src, count=1, flags=re.S)
+    # The closing sentinel must sit at the end of a line. Without that, the
+    # pattern for `// >>> arisu: scene` also matches `// >>> arisu: scene-canvas
+    # teardown`, so applying one patch DELETED the other's block. The two then
+    # fought: each run re-added what the other had removed, in the wrong method,
+    # and the generated file drifted into a shape neither patch describes. That
+    # is what put `this.initializeScene()` inside release() and left a bare
+    # `teardown` on its own line in the bundle Safari refused to run.
+    pattern = re.escape(open_s) + r".*?" + re.escape(close_s) + r"[ \t]*\n"
+    if re.search(pattern, src, flags=re.S):
+        new = re.sub(pattern, block, src, count=1, flags=re.S)
         verb = "updated"
     else:
         if anchor not in src:
@@ -95,19 +102,42 @@ apply(
 # already makes `display:flex; flex-wrap:wrap`. An absolutely positioned child is
 # out of that flow, so the model canvas still measures the full viewport and this
 # one does not push it anywhere.
-apply(
-    "src/lappdelegate.ts",
-    "    // >>> arisu: scene",
-    "    // <<< arisu: scene",
-    "    this.initializeScene();\n"
-    "\n",
-    "    this.initializeCubism();\n",
-)
+# The scene canvas, created at the top of initialize().
+#
+# Not an apply(): apply() inserts a block ABOVE an anchor line, so the call it
+# inserted landed before the method's signature -- outside the body, where a bare
+# statement is a syntax error. And the sentinels for this one kept colliding with
+# the teardown's ("scene" is a prefix of "scene teardown"), so the two patches
+# deleted and re-added each other until the generated file was a shape neither of
+# them describes. That is what put this call in release() and left a bare
+# `teardown` identifier in the bundle -- which Safari refused to run, with no
+# face at all and therefore nothing for a glow to sit behind.
+#
+# So: strip every scene block this file may hold, then insert the call
+# immediately after the method's opening brace, keyed on that brace. Idempotent
+# by construction, and it repairs whatever a previous run left behind.
+scene = demo / "src/lappdelegate.ts"
+src = scene.read_text()
+src = re.sub(r"[ \t]*// >>> arisu: scene-canvas[ \t]*\n.*?// <<< arisu: scene-canvas[ \t]*\n",
+             "", src, flags=re.S)
+src = re.sub(r"[ \t]*// >>> arisu: scene[ \t]*\n.*?// <<< arisu: scene[ \t]*\n",
+             "", src, flags=re.S)
+src = re.sub(r"^[ \t]*teardown[ \t]*\n", "", src, flags=re.M)
+
+key = "public initialize(): boolean {\n"
+if src.count(key) != 1:
+    raise SystemExit("error: initialize() is not where this patch expects it")
+src = src.replace(key, key
+                  + "    // >>> arisu: scene-canvas\n"
+                    "    this.initializeScene();\n"
+                    "    // <<< arisu: scene-canvas\n", 1)
+scene.write_text(src)
+print("  src/lappdelegate.ts  scene canvas placed at the top of initialize()")
 
 apply(
     "src/lappdelegate.ts",
-    "  // >>> arisu: scene methods",
-    "  // <<< arisu: scene methods",
+    "  // >>> arisu: scene-methods",
+    "  // <<< arisu: scene-methods",
     "  /**\n"
     "   * The scene behind the model: one 2D canvas, the room colour, and an\n"
     "   * optional background image. Everything comes from window.ArisuScene,\n"
@@ -250,8 +280,8 @@ apply(
 # delegate, and a canvas left in the DOM would stack up behind the next one.
 apply(
     "src/lappdelegate.ts",
-    "  // >>> arisu: scene fields",
-    "  // <<< arisu: scene fields",
+    "  // >>> arisu: scene-fields",
+    "  // <<< arisu: scene-fields",
     "  /**\n"
     "   * The scene behind the model -- see initializeScene().\n"
     "   */\n"
@@ -266,8 +296,8 @@ apply(
 
 apply(
     "src/lappdelegate.ts",
-    "    // >>> arisu: scene teardown",
-    "    // <<< arisu: scene teardown",
+    "    // >>> arisu: scene-teardown",
+    "    // <<< arisu: scene-teardown",
     "    if (this._sceneCanvas) {\n"
     "      this._sceneCanvas.remove();\n"
     "      this._sceneCanvas = null;\n"
@@ -349,13 +379,79 @@ apply(
     "      }\n"
     "    }\n"
     "\n"
+    "    // Body gestures. Asked for at occasions by the avatar, parked on\n"
+    "    // ArisuFace, started here, and at PriorityNormal on purpose: a gesture\n"
+    "    // interrupts the idle loop, and this same update() restarts idle when\n"
+    "    // the motion manager reports finished -- so nothing here needs a timer\n"
+    "    // or a per-frame driver. A rig with no TapBody group (Mark) is not a\n"
+    "    // special case: startRandomMotion answers -1 for a group the model\n"
+    "    // setting does not have.\n"
+    "    if (arisuFace && arisuFace.takePendingMotion) {\n"
+    "      const arisuMotion: any = arisuFace.takePendingMotion();\n"
+    "      if (arisuMotion) {\n"
+    "        const w = window as any;\n"
+    "        // Seen, started and refused are three different things, and the queue\n"
+    "        // reports none of them: a group the model setting does not have comes\n"
+    "        // back as -1 rather than as an error. Counted separately here because\n"
+    "        // 'no gesture played' has to be distinguishable from 'no gesture was\n"
+    "        // ever asked for', and the probe is the only witness.\n"
+    "        w.__arisuMotionSeen = (w.__arisuMotionSeen || 0) + 1;\n"
+    "        const arisuStarted: number = this.startRandomMotion(\n"
+    "          arisuMotion.group,\n"
+    "          arisuMotion.priority\n"
+    "        );\n"
+    "        if (arisuStarted >= 0) {\n"
+    "          w.__arisuMotionCount = (w.__arisuMotionCount || 0) + 1;\n"
+    "        } else {\n"
+    "          // -1 here means \"not now\", not \"never\": the sample's startMotion\n"
+    "          // returns it for a motion whose file is still being preloaded,\n"
+    "          // having already kicked the fetch off. So the request goes back to\n"
+    "          // ArisuFace and is asked for again on the next frame, until its\n"
+    "          // small budget runs out -- which is what makes the first gesture of\n"
+    "          // a page's life play at all. Measured: the first ask of a page is\n"
+    "          // routinely refused and the second accepted.\n"
+    "          w.__arisuMotionRefused = (w.__arisuMotionRefused || 0) + 1;\n"
+    "          w.__arisuMotionWhy = {\n"
+    "            group: arisuMotion.group,\n"
+    "            priority: arisuMotion.priority,\n"
+    "            count: this._modelSetting.getMotionCount(arisuMotion.group),\n"
+    "            tries: arisuMotion.tries,\n"
+    "            finished: this._motionManager.isFinished()\n"
+    "          };\n"
+    "          // The raw return, recorded because \"startRandomMotion answered no\"\n"
+    "          // has to be distinguishable from \"it answered nothing at all\":\n"
+    "          // `undefined >= 0` is false, so a void return would read as a\n"
+    "          // refusal in the counters while the motion played perfectly well --\n"
+    "          // and that is the wrong conclusion to draw quietly.\n"
+    "          w.__arisuMotionReturn = String(arisuStarted) +\n"
+    "            ' (' + typeof arisuStarted + ')';\n"
+    "          if (arisuFace.retryMotion) arisuFace.retryMotion(arisuMotion);\n"
+    "        }\n"
+    "      }\n"
+    "    }\n"
+    "\n"
     "    // Read-only probe. There is no other way to see what the rig is doing:\n"
     "    // the model lives in module scope, and pixel-watching the eyes to find\n"
     "    // out whether blink is running is guesswork.\n"
     "    (window as any).__arisuParam = (id: string): number =>\n"
     "      this._model.getParameterValueById(\n"
     "        CubismFramework.getIdManager().getId(id)\n"
-    "      );\n",
+    "      );\n"
+    "    // The expressions this rig actually loaded, by the name the tables in\n"
+    "    // arisu-face.js call them. setUp() reads them out of the .model3.json\n"
+    "    // into a map keyed by name, and setExpression() silently does nothing\n"
+    "    // for a name that is not in it -- so a table naming a file that was never\n"
+    "    // registered fails quietly, and this is the only place that shows it.\n"
+    "    (window as any).__arisuExpressionNames = (): string[] =>\n"
+    "      Array.from(this._expressions.keys());\n"
+    "    // The motions this rig has actually loaded, keyed `Group_index`. Unlike\n"
+    "    // expressions these are not all read at setUp: startMotion() fetches a\n"
+    "    // motion the first time it is asked for and returns -1 while it does, so\n"
+    "    // a refused gesture is not the same thing as a gesture that did not\n"
+    "    // happen -- the file lands a moment later and starts itself. Which names\n"
+    "    // are in here is the only honest answer to 'did a gesture play'.\n"
+    "    (window as any).__arisuMotionNames = (): string[] =>\n"
+    "      Array.from(this._motions.keys());\n",
     "    this._model.update();",
 )
 
@@ -578,6 +674,44 @@ for old, new in pairs:
     else:
         raise SystemExit("error: isContextLost call moved in lappsubdelegate.ts")
 d.write_text(src)
+
+# --- hand-written expressions for the four samples that ship none ----------------
+#
+# Hiyori, Rice, Mark and Wanko ship no .exp3.json between them, so the five
+# states and four reactions in arisu-face.js had nothing to say on those rigs.
+# The files live in glue/expressions/ -- generated by tools/make-expressions.py,
+# which is where a value gets changed -- and are copied in here for the same
+# reason as everything else in this script: nothing inside the SDK tree survives
+# re-unpacking the zip.
+#
+# The model3.json edit is a merge, not a write: a rig that later ships its own
+# expressions keeps them, and ours are replaced rather than appended again on a
+# re-run. Ours are the ones whose Name starts with exp_.
+glue_expr = pathlib.Path(sys.argv[2]) / "expressions"
+resources = demo.parent.parent / "Resources"
+
+for model in ("Hiyori", "Rice", "Mark", "Wanko"):
+    src_dir = glue_expr / model
+    if not src_dir.is_dir():
+        raise SystemExit(f"error: no expressions for {model} in {src_dir} -- "
+                         f"run tools/make-expressions.py first")
+    files = sorted(src_dir.glob("*.exp3.json"))
+
+    dst_dir = resources / model / "exp"
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    for f in files:
+        shutil.copyfile(f, dst_dir / f.name)
+
+    manifest = resources / model / f"{model}.model3.json"
+    doc = json.loads(manifest.read_text())
+    refs = doc.setdefault("FileReferences", {})
+    theirs = [e for e in refs.get("Expressions", [])
+              if not str(e.get("Name", "")).startswith("exp_")]
+    ours = [{"Name": f.stem, "File": f"exp/{f.name}"} for f in files]
+    refs["Expressions"] = theirs + ours
+    manifest.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
+    print(f"  Resources/{model:<8} {len(ours)} expressions "
+          f"({len(theirs)} of its own kept)")
 PY
 
 echo
