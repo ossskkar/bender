@@ -70,6 +70,58 @@ def apply(relpath, open_s, close_s, body, anchor):
 # anchored after Core.
 apply(
     "index.html",
+    "  <!-- >>> arisu: glow-css -->",
+    "  <!-- <<< arisu: glow-css -->",
+    "  <style>\n"
+    "    /* The state glow, on its own layer between the room and the model.\n"
+    "       Mirrors the host page's #glow -- the same gradients, the same\n"
+    "       variables -- but in this document, because the room canvas here would\n"
+    "       otherwise cover the host's glow. */\n"
+    "    #glow {\n"
+    "      position: fixed; inset: 0; pointer-events: none; z-index: 1;\n"
+    "      mix-blend-mode: screen;\n"
+    "      background:\n"
+    "        radial-gradient(circle at var(--glow-x, 54%) var(--glow-y, 42%),\n"
+    "                  rgba(var(--state), var(--glow)) 0%,\n"
+    "                  rgba(var(--state), calc(var(--glow) * 0.92))\n"
+    "                    calc(26% * var(--glow-size, 1)),\n"
+    "                  rgba(var(--state), calc(var(--glow) * 0.62))\n"
+    "                    calc(52% * var(--glow-size, 1)),\n"
+    "                  rgba(var(--state), calc(var(--glow) * 0.28))\n"
+    "                    calc(78% * var(--glow-size, 1)),\n"
+    "                  rgba(var(--state), 0) calc(110% * var(--glow-size, 1))),\n"
+    "        radial-gradient(circle at var(--glow-x, 54%) var(--glow-y, 42%),\n"
+    "                  rgba(var(--state), var(--glow)) 0%,\n"
+    "                  rgba(var(--state), calc(var(--glow) * 0.95))\n"
+    "                    calc(13% * var(--glow-size, 1)),\n"
+    "                  rgba(var(--state), 0) calc(46% * var(--glow-size, 1))),\n"
+    "        radial-gradient(ellipse at 50% 104%,\n"
+    "                  rgba(var(--state), calc(var(--glow) * 0.7)) 0%,\n"
+    "                  rgba(var(--state), calc(var(--glow) * 0.3))\n"
+    "                    calc(34% * var(--glow-size, 1)),\n"
+    "                  rgba(var(--state), 0) calc(84% * var(--glow-size, 1)));\n"
+    "      transition: background 600ms ease;\n"
+    "    }\n"
+    "    #glow::after {\n"
+    "      content: ''; position: absolute; inset: 0;\n"
+    "      background: radial-gradient(circle at 50% 46%,\n"
+    "                  rgba(var(--state), 0.30) 0%,\n"
+    "                  rgba(var(--state), 0.10) 40%,\n"
+    "                  rgba(var(--state), 0) 70%);\n"
+    "      opacity: var(--loud, 0);\n"
+    "      transition: opacity 90ms linear;\n"
+    "    }\n"
+    "    @keyframes arisu-think { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }\n"
+    "    @keyframes arisu-speak { 0%, 100% { opacity: 1; } 50% { opacity: 0.78; } }\n"
+    "    #glow.thinking { animation: arisu-think 2.6s ease-in-out infinite; }\n"
+    "    #glow.speaking { animation: arisu-speak 1.1s ease-in-out infinite; }\n"
+    "    @media (prefers-reduced-motion: reduce) { #glow, #glow.thinking, #glow.speaking { animation: none; } }\n"
+    "  </style>\n",
+    "  <!-- Live2DCubismCore script -->",
+)
+
+apply(
+    "index.html",
     "  <!-- >>> arisu: diag -->",
     "  <!-- <<< arisu: diag -->",
     '  <script src = "./arisu-diag.js"></script>\n',
@@ -87,6 +139,14 @@ apply(
     '  <script src = "./arisu-face.js"></script>\n'
     '  <script src = "./arisu-avatar.js"></script>\n'
     '  <script src = "./arisu-harness.js"></script>\n',
+    "  <!-- Build script -->",
+)
+
+apply(
+    "index.html",
+    "  <!-- >>> arisu: glow-element -->",
+    "  <!-- <<< arisu: glow-element -->",
+    '  <div id="glow"></div>\n',
     "  <!-- Build script -->",
 )
 

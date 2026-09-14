@@ -188,6 +188,35 @@
     // The delegate's repaint, once it exists.
     onRedraw: function (fn) { redraw = fn; if (fn) fn(); },
 
+    // The state glow, in this page's own document. It has to be here, not in
+    // the host page: the room is drawn on a canvas in THIS document, and that
+    // canvas sits above whatever the host paints -- so a glow in the host is
+    // hidden behind an opaque room and only shows through when the room is
+    // `none`. Here, it sits between the room and the model. The host forwards
+    // the state with setGlow().
+    //
+    // setGlow writes the CSS custom properties on <html> (where the stylesheet
+    // reads them) and leaves the class alone -- the page already swaps that.
+    setGlow: function (g) {
+      if (!g || !document.documentElement || !document.documentElement.style) {
+        return;
+      }
+      var st = document.documentElement.style;
+      st.setProperty('--state', String(g.colour == null ? '' : g.colour).trim());
+      st.setProperty('--glow', String(g.glow == null ? 0 : g.glow));
+      st.setProperty('--glow-size', String(g.size == null ? 1 : g.size));
+      st.setProperty('--glow-x', (g.x == null ? 54 : g.x) + '%');
+      st.setProperty('--glow-y', (g.y == null ? 42 : g.y) + '%');
+      st.setProperty('--loud', String(g.loud == null ? 0 : g.loud));
+      // The class drives the two breathing animations, exactly as the host
+      // page's own glow does. The host forwards the state name for it.
+      var el = document.getElementById('glow');
+      if (el) {
+        el.className = (g.state === 'thinking' || g.state === 'speaking')
+          ? g.state : '';
+      }
+    },
+
     // Change the scene on a live page. The URL is where a scene comes from, but
     // the settings panel changes one field at a time long after load, and
     // re-navigating the iframe to apply a slider would restart her model on
@@ -316,12 +345,88 @@
   // the URL parameter with it; nothing else reads it.
   // ---------------------------------------------------------------------------
   if (params.get('probe')) {
-    setTimeout(function () {
+    // Wait for the model, do not guess at it. The report is read once, by a
+    // browser that takes the first thing it finds, so a fixed four seconds is a
+    // race: on a software-GL browser the delegate has sometimes not run a single
+    // frame by then, and every parameter read comes back as a rig that has not
+    // started rather than one that is wrong. `__arisuParam` exists exactly when
+    // the delegate's per-frame hook has run, so that is the readiness signal.
+    //
+    // The floor of 3s is for the scene, which settles earlier but is the slower
+    // of the two to be *sure* of (a background image is a fetch). The ceiling of
+    // 12s writes the report anyway, so a page that never gets a frame still says
+    // so instead of leaving the probe waiting for an element that never comes.
+    var probedAt = Date.now();
+    function writeReport() {
       var report = { scene: window.ArisuScene.probe() };
+      // Whatever an inject left behind. The state cue is injected before the
+      // page starts, so this is the only channel by which a harness can put a
+      // fact into the report -- a rAF tick count, whether a hook ever appeared,
+      // which throw killed the loop. Read-only and absent unless asked for.
+      if (window.__arisuProbeExtra) report.extra = window.__arisuProbeExtra;
       var face = window.ArisuFace;
       if (face) {
         report.model = face.model;
         report.expression = face.takePendingExpression();
+
+        // Whether the delegate's per-frame hook ran, and what threw on the way.
+        // Diagnostics rather than assertions: a model can be drawn while
+        // update() never reaches the end of its own hook -- the render pass is
+        // separate -- and from every other angle that page looks fine.
+        // `mouth` is set early in that hook and `param` at its end, so the pair
+        // says whether it finished at all; `errors` is arisu-diag.js's own list,
+        // which is the only record of a throw that killed the animation loop.
+        report.hooks = {
+          ready: typeof window.__arisuParam === 'function',
+          mouth: typeof window.__arisuMouth,
+          param: typeof window.__arisuParam,
+          expressions: typeof window.__arisuExpressionNames,
+          errors: (window.ArisuDiag && window.ArisuDiag.errors
+                   ? window.ArisuDiag.errors
+                   : []).slice(0, 4)
+        };
+
+        // Parameters first, before anything below touches the face. The state
+        // sampling underneath *sets* every state in turn to read the table, so a
+        // read taken after it describes the last state sampled rather than what
+        // the page was actually doing. These two are the ones a hand-written
+        // expression moves: an expression that loaded and applied shows up here
+        // as a value that is no longer the rig's rest pose.
+        var read = window.__arisuParam;
+        if (typeof read === 'function') {
+          report.params = {
+            mouthForm: read('ParamMouthForm'),
+            eyeLOpen: read('ParamEyeLOpen'),
+            mouthFormLegacy: read('PARAM_MOUTH_FORM'),
+            eyeLOpenLegacy: read('PARAM_EYE_L_OPEN')
+          };
+        }
+
+        // Whether this rig has a gesture to spend, and what the delegate did with
+        // one. Three counters, because the queue reports nothing: a group the
+        // model setting lacks comes back as -1 rather than as an error, and from
+        // outside, "no gesture played" is indistinguishable from "no gesture was
+        // asked for". seen/started/refused separates all three.
+        report.gesture = {
+          group: face.gestureGroup(),
+          can: face.canGesture(),
+          seen: window.__arisuMotionSeen || 0,
+          started: window.__arisuMotionCount || 0,
+          refused: window.__arisuMotionRefused || 0,
+          why: window.__arisuMotionWhy || null
+        };
+        report.motionCount = window.__arisuMotionCount || 0;
+
+        // What the rig actually loaded, by name. The table above says what the
+        // page *wants* for each state; this says what the model has, and a table
+        // naming an expression nobody registered looks identical to a working
+        // one from every other angle. Read before the sampling loop below, for
+        // the same reason the parameters are.
+        var names = window.__arisuExpressionNames;
+        if (typeof names === 'function') { report.expressions = names(); }
+        var motionNames = window.__arisuMotionNames;
+        if (typeof motionNames === 'function') { report.motions = motionNames(); }
+
         report.states = {};
         // The table itself is private, so ask it the same question the delegate
         // asks -- what expression does this state resolve to.
@@ -338,6 +443,21 @@
       el.textContent = JSON.stringify(report);
       document.body.appendChild(el);
       document.title = 'PROBE-DONE';
-    }, 4000);
+    }
+
+    (function waitForModel() {
+      var ready = typeof window.__arisuParam === 'function';
+      var elapsed = Date.now() - probedAt;
+      // 20s, not 12: under software GL the model's own setUp takes surprising
+      // time -- measured ~13s in headless Chrome on this Mac -- and a report
+      // written before that says "no parameters" about a page that is fine. The
+      // ceiling still exists so a page that never gets there reports anyway,
+      // with `ready:false` saying which of the two happened.
+      if ((ready && elapsed >= 3000) || elapsed >= 20000) {
+        writeReport();
+        return;
+      }
+      setTimeout(waitForModel, 250);
+    })();
   }
 })();
