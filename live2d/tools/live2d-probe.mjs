@@ -141,7 +141,17 @@ async function launch() {
   ], { stdio: 'ignore' });
 
   let page = null;
+  let died = null;
+  chrome.on('exit', (code, signal) => {
+    died = 'chrome exited early (code ' + code +
+           (signal ? ', signal ' + signal : '') + ')';
+  });
+
+  // Twelve seconds, not two minutes of quiet polling. A Chrome that aborts on
+  // launch never answers, and waiting politely turns an obvious environment
+  // failure into a mystery -- which is exactly what happened on 2026-09-14.
   for (let i = 0; i < 120 && !page; i++) {
+    if (died) break;
     try {
       const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
       page = list.find((t) => t.type === 'page');
@@ -150,7 +160,12 @@ async function launch() {
   }
   if (!page) {
     chrome.kill('SIGKILL');
-    throw new Error('Chrome never came up');
+    throw new Error(
+      'Chrome never came up: ' + (died || 'it answered nothing on its port') +
+      '\n      Headless Chrome on macOS registers as a GUI application, so this\n' +
+      '      aborts inside HIServices _RegisterApplication when the desktop\n' +
+      '      session is unavailable -- a locked screen is enough. Check that\n' +
+      '      Chrome opens normally, then retry.');
   }
 
   const cdp = await connect(page.webSocketDebuggerUrl);
@@ -328,14 +343,19 @@ async function readPaint(cdp) {
 }
 
 // One case. `cdp` is already connected and has the prelude registered.
-async function measure(cdp, pageUrl, presetJs) {
+//
+// `injectJs` is a script run at document-start, before any page script. It began
+// as the scene preset (window.ArisuScenePreset) and is general now, because the
+// state cue has to be driven the same way: from before the page starts, so the
+// harness is in place by the time the page looks for it.
+async function measure(cdp, pageUrl, injectJs) {
   const out = { url: pageUrl, ok: false };
   let injection = null;
 
   try {
-    if (presetJs) {
+    if (injectJs) {
       injection = await cdp.send('Page.addScriptToEvaluateOnNewDocument', {
-        source: `window.ArisuScenePreset = ${presetJs};`,
+        source: injectJs,
       });
     }
 
@@ -503,6 +523,36 @@ async function measure(cdp, pageUrl, presetJs) {
       });
     `)).catch((e) => ({ drew: false, lit: 0, why: String(e) }));
 
+    // The state cue: colour, readout and the light layer itself.
+    out.cue = await evaluate(cdp, `(function(){
+      var root = getComputedStyle(document.documentElement);
+      var el = document.getElementById('state');
+      var g = document.getElementById('glow');
+      var out = {
+        state: root.getPropertyValue('--state').trim(),
+        glow: root.getPropertyValue('--glow').trim(),
+        loud: root.getPropertyValue('--loud').trim(),
+        tint: root.getPropertyValue('--tint').trim(),
+        readout: el ? el.textContent.trim() : null,
+        cls: el ? el.className : null,
+        animated: g ? getComputedStyle(g).animationName : null,
+      };
+      if (g) {
+        var cs = getComputedStyle(g);
+        var cs2 = getComputedStyle(g, '::after');
+        out.layer = {
+          position: cs.position,
+          // A light layer with no size paints nothing, however right its colour
+          // is: position/top/right/bottom/left are what make it cover the page.
+          w: g.offsetWidth, h: g.offsetHeight,
+          background: cs.backgroundImage.slice(0, 60),
+          opacity: cs2.opacity,
+          transition: cs.transitionProperty,
+        };
+      }
+      return out;
+    })()`).catch((e) => ({ evalError: String(e) }));
+
     // Any child frames, and what the scene resolved to inside them. The parent
     // page carries scene parameters into the face iframe, and this is where that
     // either worked or did not.
@@ -550,21 +600,34 @@ async function measure(cdp, pageUrl, presetJs) {
 
 // ---------------------------------------------------------------- main
 
+// The cases file is JSON: a list of {name?, url, inject?}. JSON rather than one
+// case per line because `inject` is a script, and a script has newlines in it --
+// a line-based format silently truncated every harness at its first newline,
+// which produced a probe that ran forever on a page whose harness had been cut
+// in half. A tab-separated first attempt had the same flaw for the same reason.
+function loadCases(path) {
+  const raw = readFileSync(path, 'utf8').trim();
+  if (!raw) return [];
+  const parsed = JSON.parse(raw);
+  if (!Array.isArray(parsed)) throw new Error('cases file must be a JSON array');
+  return parsed.map((c) => {
+    if (!c || typeof c.url !== 'string') {
+      throw new Error('every case needs a url: ' + JSON.stringify(c).slice(0, 80));
+    }
+    return { url: c.url, inject: c.inject || null, name: c.name || '' };
+  });
+}
+
 const cases = batchFile
-  ? readFileSync(batchFile, 'utf8').split('\n')
-      .filter((l) => l.trim() && !l.startsWith('#'))
-      .map((l) => {
-        const [u, p] = l.split('\t');
-        return { url: u.trim(), preset: (p || '').trim() || null };
-      })
-  : [{ url: target, preset: preset || null }];
+  ? loadCases(batchFile)
+  : [{ url: target, inject: preset || null, name: '' }];
 
 let browser = null;
 let exitCode = 0;
 try {
   browser = await launch();
   for (const c of cases) {
-    const result = await measure(browser.cdp, c.url, c.preset);
+    const result = await measure(browser.cdp, c.url, c.inject);
     console.log(JSON.stringify(result));
     if (!result.ok) exitCode = 1;
   }

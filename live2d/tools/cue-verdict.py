@@ -1,0 +1,120 @@
+#!/usr/bin/env python3
+"""Score the state-cue DOM check and say what reached the screen.
+
+    cue-verdict.py <probe-results.json>
+
+Reads the one result line live2d-probe.mjs printed and checks every snapshot
+against the table below. Exits with the number of failures.
+
+Its own file rather than a heredoc inside cue-verify.sh: that script already
+carries a JavaScript harness, and nesting a third language inside the second is
+how a check ends up failing for reasons unrelated to what it checks.
+live2d-verify.sh learned that the hard way, twice.
+"""
+
+import json
+import sys
+
+# The module owns these. Repeated here on purpose: a silent change to a colour
+# should fail this check rather than be blessed by it.
+#   label: (colour, glow, animation)
+EXPECTED = {
+    'asleep':    ('104, 118, 150', '0.10', None),
+    'idle':      ('69, 230, 247',  '0.16', None),
+    'listening': ('74, 222, 128',  '0.22', None),
+    'thinking':  ('255, 176, 59',  '0.36', 'arisu-think'),
+    'speaking':  ('255, 99, 132',  '0.34', 'arisu-speak'),
+    'you':       ('178, 132, 255', '0.24', None),
+}
+
+
+def main():
+    if len(sys.argv) != 2:
+        print('usage: cue-verdict.py <results.json>', file=sys.stderr)
+        return 2
+
+    with open(sys.argv[1]) as fh:
+        lines = [l for l in fh.read().splitlines() if l.strip()]
+    if not lines:
+        print('  the probe printed nothing')
+        return 1
+
+    d = json.loads(lines[0])
+    cue = d.get('cue') or {}
+    layer = cue.get('layer') or {}
+    fails = []
+
+    print('probe ok:', d.get('ok'), '| note:', d.get('error') or 'none')
+    if cue.get('error'):
+        print('harness error:', cue['error'])
+    print()
+
+    snaps = cue.get('snaps') or []
+    if not snaps:
+        print('  no snapshots at all -- the page never reached the harness')
+        return 1
+
+    for s in snaps:
+        label = s.get('label')
+        want = EXPECTED.get(label)
+
+        if not want:
+            # The two extra snapshots are about the assertions below.
+            if label == 'speaking-loud':
+                print('  %-14s state %s  ::after opacity %s'
+                      % (label, s.get('state'), layer.get('opacity')))
+                if s.get('state') != '255, 99, 132':
+                    fails.append('her voice changed which state the light is')
+            elif label == 'after-idle':
+                print('  %-14s animated=%s' % (label, s.get('animated')))
+                if s.get('animated') not in (None, 'none'):
+                    fails.append('the light is still breathing after speaking')
+            continue
+
+        before = len(fails)
+        if s.get('state') != want[0]:
+            fails.append('%s colour is %s, expected %s'
+                         % (label, s.get('state'), want[0]))
+        if s.get('glow') != want[1]:
+            fails.append('%s glow is %s, expected %s'
+                         % (label, s.get('glow'), want[1]))
+        if (s.get('animated') or None) != want[2]:
+            fails.append('%s pulse is %s, expected %s'
+                         % (label, s.get('animated'), want[2]))
+        if s.get('readout') != label:
+            fails.append('%s readout is %r, expected %r'
+                         % (label, s.get('readout'), label))
+        expect_cls = label if want[2] else ''
+        if (s.get('glowClass') or '') != expect_cls:
+            fails.append('%s glow class is %r, expected %r'
+                         % (label, s.get('glowClass'), expect_cls))
+
+        print('  %s %-13s %-16s glow %-5s %s'
+              % ('ok  ' if len(fails) == before else 'FAIL', label,
+                 s.get('state'), s.get('glow'),
+                 'pulse ' + s['animated']
+                 if s.get('animated') not in (None, 'none') else 'still'))
+
+    print()
+    print('  light layer: %sx%s, %s' % (layer.get('w'), layer.get('h'),
+                                        layer.get('position')))
+    print('  background:  %s' % (layer.get('background') or '(none)'))
+    print('  voice alpha: %s' % layer.get('opacity'))
+    if not layer.get('w') or not layer.get('h'):
+        fails.append('the light layer has no size, so nothing is painted')
+    if 'gradient' not in (layer.get('background') or ''):
+        fails.append('the light layer has no gradient')
+
+    print()
+    if fails:
+        print('  %d failed:' % len(fails))
+        for f in fails:
+            print('    - ' + f)
+    else:
+        print('  every cue reached the screen')
+    print('-' * 47)
+    return len(fails)
+
+
+if __name__ == '__main__':
+    sys.exit(main())
