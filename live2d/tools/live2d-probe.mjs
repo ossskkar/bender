@@ -311,11 +311,18 @@ async function waitForDraw(cdp, readiness) {
           pending = !(im && im.complete && im.naturalWidth > 0);
         }
       } catch (e) { /* no scene on this page */ }
+      // Nothing to wait for when the page has no model canvas at all. The client
+      // page puts the face in an iframe and measures the cue, not the model, so
+      // the full draw deadline is two minutes of sleeping through nothing per
+      // case -- which is how a two-case run came to take longer than the tool's
+      // own timeout.
+      var hasCanvas = !!D.querySelector('canvas');
       return { frames: W.__frames || 0,
                rendered: typeof W.__arisuParam === 'function',
-               imagePending: pending, lit: lit };
+               imagePending: pending, lit: lit, noModel: !hasCanvas };
     `)).catch(() => ({})));
 
+    if (readiness.noModel) return;
     if (readiness.rendered && readiness.lit > 0 && !readiness.imagePending) {
       // The image is loaded, and a load that has just finished still has to be
       // painted. One beat, then the deliberate repaint below does the rest.

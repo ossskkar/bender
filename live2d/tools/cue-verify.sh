@@ -56,15 +56,32 @@ trap 'rm -f "$RESULT" "$RESULT.cases"' EXIT
 echo "Arisu state-cue DOM verification against $CLIENT"
 echo
 
-# JSON cases, built by python from the harness file: a case is {url, inject} and
+# Two cases. The first walks the states and measures the halo; the second drives
+# the Glow sliders in the settings sheet. Both on the client page, which owns the
+# sheet and puts the face in an iframe.
+#
+# JSON cases, built by python from the harness files: a case is {url, inject} and
 # inject is a script, so the file cannot be one case per line.
-CLIENT="$CLIENT" HARNESS_JS="$HERE/harness.js" python3 -c 'import json, os, io
-print(json.dumps([{
-    "name": "state cues",
-    "url": os.environ["CLIENT"],
-    "inject": io.open(os.environ["HARNESS_JS"]).read(),
-}]))' > "$RESULT.cases"
+CLIENT="$CLIENT" HARNESS_DIR="$HERE" python3 -c 'import json, os, io
+d = os.environ["HARNESS_DIR"]
+print(json.dumps([
+    {"name": "state cues", "url": os.environ["CLIENT"],
+     "inject": io.open(os.path.join(d, "harness.js")).read()},
+    {"name": "glow controls", "url": os.environ["CLIENT"],
+     "inject": io.open(os.path.join(d, "harness-glow.js")).read()},
+]))' > "$RESULT.cases"
 
-node "$HERE/live2d-probe.mjs" --batch "$RESULT.cases" 8000 > "$RESULT.json" 2>/dev/null
+# 25s per case, not 8: openSettings() fetches the character before the panel
+# draws, and on this rig that fetch is a 404 with a retry behind it. At 8s the
+# probe gave up before the controls existed and reported no snapshots for a
+# harness that was about to produce six.
+node "$HERE/live2d-probe.mjs" --batch "$RESULT.cases" 25000 > "$RESULT.json" 2>/dev/null
 
+# Two verdicts over the two result lines, and the exit status is the sum: a
+# failure in either has to fail the run, or the half nobody looks at is the half
+# that rots.
 python3 "$HERE/cue-verdict.py" "$RESULT.json"
+cues=$?
+python3 "$HERE/glow-controls-verdict.py" "$RESULT.json"
+glow=$?
+exit $((cues + glow))

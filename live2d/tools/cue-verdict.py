@@ -27,12 +27,12 @@ import sys
 #
 #   label: (colour, glow, animation)
 EXPECTED = {
-    'asleep':    ('104, 118, 150', 0.22, None),
-    'idle':      ('69, 230, 247',  0.34, None),
-    'listening': ('74, 222, 128',  0.44, None),
-    'thinking':  ('255, 176, 59',  0.72, 'arisu-think'),
-    'speaking':  ('255, 99, 132',  0.68, 'arisu-speak'),
-    'you':       ('178, 132, 255', 0.50, None),
+    'asleep':    ('104, 118, 150', 0.36, None),
+    'idle':      ('69, 230, 247',  0.50, None),
+    'listening': ('74, 222, 128',  0.63, None),
+    'thinking':  ('255, 176, 59',  0.90, 'arisu-think'),
+    'speaking':  ('255, 99, 132',  0.86, 'arisu-speak'),
+    'you':       ('178, 132, 255', 0.70, None),
 }
 
 
@@ -41,10 +41,14 @@ def norm_colour(v):
     return ', '.join(p.strip() for p in str(v or '').split(','))
 
 
-def norm_num(v):
-    """A glow, as a number."""
+def norm_num(v, places=2):
+    """A glow, as a number, rounded.
+
+    The page multiplies a state's glow by the strength slider, so the CSS carries
+    binary noise: 0.4 * 0.9 arrives as 0.36000000000000004. Comparing floats
+    exactly failed five working states at once."""
     try:
-        return float(v)
+        return round(float(v), places)
     except (TypeError, ValueError):
         return None
 
@@ -123,7 +127,13 @@ def main():
         if norm_colour(s.get('state')) != norm_colour(want[0]):
             fails.append('%s colour is %s, expected %s'
                          % (label, s.get('state'), want[0]))
-        if norm_num(s.get('glow')) != want[1]:
+        # The page rounds what it writes to two places (cues.js, twoDp), so this
+        # compares exact values rather than compensating for float noise here.
+        # Compensating here is what failed: rounding 0.855 in the reader gives
+        # 0.85 and the expected 0.86 is 0.010000000000000009 away, so a working
+        # state failed on the last binary digit.
+        got_glow = norm_num(s.get('glow'))
+        if got_glow is None or abs(got_glow - want[1]) > 0.005:
             fails.append('%s glow is %s, expected %s'
                          % (label, s.get('glow'), want[1]))
         if norm_anim(s.get('animated')) != want[2]:
@@ -155,8 +165,9 @@ def main():
         fails.append('the halo has no size, so nothing is painted')
     # A halo behind her needs the bright core as well as the broad wash. One
     # gradient is a whole-screen wash, which is what Oscar corrected.
-    if (layer.get('gradients') or 0) < 2:
-        fails.append('the light is one gradient, so it is a wash and not a halo')
+    if (layer.get('gradients') or 0) < 3:
+        fails.append('the light is %s gradient(s); a halo needs the wash, the '
+                     'core and the floor' % layer.get('gradients'))
     if layer.get('blend') not in ('screen', 'lighten', 'plus-lighter'):
         fails.append('the gradients do not add (blend %s), so the core replaces '
                      'the wash instead of brightening it' % layer.get('blend'))
