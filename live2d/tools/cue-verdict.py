@@ -27,12 +27,12 @@ import sys
 #
 #   label: (colour, glow, animation)
 EXPECTED = {
-    'asleep':    ('104, 118, 150', 0.10, None),
-    'idle':      ('69, 230, 247',  0.16, None),
-    'listening': ('74, 222, 128',  0.22, None),
-    'thinking':  ('255, 176, 59',  0.36, 'arisu-think'),
-    'speaking':  ('255, 99, 132',  0.34, 'arisu-speak'),
-    'you':       ('178, 132, 255', 0.24, None),
+    'asleep':    ('104, 118, 150', 0.22, None),
+    'idle':      ('69, 230, 247',  0.34, None),
+    'listening': ('74, 222, 128',  0.44, None),
+    'thinking':  ('255, 176, 59',  0.72, 'arisu-think'),
+    'speaking':  ('255, 99, 132',  0.68, 'arisu-speak'),
+    'you':       ('178, 132, 255', 0.50, None),
 }
 
 
@@ -129,9 +129,12 @@ def main():
         if norm_anim(s.get('animated')) != want[2]:
             fails.append('%s pulse is %s, expected %s'
                          % (label, s.get('animated'), want[2]))
-        if s.get('readout') != label:
-            fails.append('%s readout is %r, expected %r'
-                         % (label, s.get('readout'), label))
+        # The cue is the glow, not a word. Checked on every snapshot rather
+        # than once, because the element reappearing would mean the text cue had
+        # been reintroduced rather than never removed.
+        if s.get('hasTextElement'):
+            fails.append('%s: a text readout is on the page; the cue is the glow'
+                         % label)
         expect_cls = label if want[2] else ''
         if (s.get('glowClass') or '') != expect_cls:
             fails.append('%s glow class is %r, expected %r'
@@ -144,14 +147,19 @@ def main():
                  if norm_anim(s.get('animated')) else 'still'))
 
     print()
-    print('  light layer: %sx%s, %s' % (layer.get('w'), layer.get('h'),
-                                        layer.get('position')))
-    print('  background:  %s' % (layer.get('background') or '(none)'))
-    print('  voice alpha: %s' % loud)
+    print('  halo: %sx%s %s, blend %s, %s gradient(s)'
+          % (layer.get('w'), layer.get('h'), layer.get('position'),
+             layer.get('blend'), layer.get('gradients')))
+    print('  voice: --loud %s' % loud)
     if not layer.get('w') or not layer.get('h'):
-        fails.append('the light layer has no size, so nothing is painted')
-    if 'gradient' not in (layer.get('background') or ''):
-        fails.append('the light layer has no gradient')
+        fails.append('the halo has no size, so nothing is painted')
+    # A halo behind her needs the bright core as well as the broad wash. One
+    # gradient is a whole-screen wash, which is what Oscar corrected.
+    if (layer.get('gradients') or 0) < 2:
+        fails.append('the light is one gradient, so it is a wash and not a halo')
+    if layer.get('blend') not in ('screen', 'lighten', 'plus-lighter'):
+        fails.append('the gradients do not add (blend %s), so the core replaces '
+                     'the wash instead of brightening it' % layer.get('blend'))
 
     print()
     if fails:
