@@ -1,0 +1,22 @@
+{
+  "Type": "Live2D Expression",
+  "FadeInTime": 0.5,
+  "FadeOutTime": 0.5,
+  "Parameters": [
+    {
+      "Id": "PARAM_EYE_L_OPEN",
+      "Value": 0.0,
+      "Blend": "Overwrite"
+    },
+    {
+      "Id": "PARAM_EYE_R_OPEN",
+      "Value": 0.0,
+      "Blend": "Overwrite"
+    },
+    {
+      "Id": "PARAM_MOUTH_FORM",
+      "Value": -0.1,
+      "Blend": "Add"
+    }
+  ]
+}

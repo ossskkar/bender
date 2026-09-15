@@ -39,7 +39,8 @@ PARENT="$BASE_DIR/"
 
 CASES="$(mktemp -t arisu-cases)"
 RESULTS="$(mktemp -t arisu-results)"
-trap 'rm -f "$CASES" "$RESULTS"' EXIT
+CASEJSON="$RESULTS.array"
+trap 'rm -f "$CASES" "$RESULTS" "$CASEJSON" "$RESULTS.err"' EXIT
 
 # add <name> <url> [preset-js] [check]
 #
@@ -101,16 +102,22 @@ add "scale 1.5 enlarges the model" "$PAGE?model=Natori&scale=1.5&probe=1" "" \
   'scene["display"]["scale"]==1.5 and model["lit"]>120000'
 add "scale 0.6 shrinks the model" "$PAGE?model=Natori&scale=0.6&probe=1" "" \
   'scene["display"]["scale"]==0.6 and model["width"]<0.25'
+# Not > 0.56: moved down, her feet reach the frame bottom (box bottom 0.999),
+# which caps how far the measured centre can travel. Measured 2026-09-15: 0.507
+# at rest, 0.560 at y -0.12 -- a move that failed a threshold set on its edge.
 add "y -0.12 moves the model down" "$PAGE?model=Natori&y=-0.12&probe=1" "" \
-  'scene["display"]["y"]==-0.12 and model["centre"]["y"]>0.56'
+  'scene["display"]["y"]==-0.12 and model["centre"]["y"]>0.53'
 add "stock Natori table" "$PAGE?model=Natori&probe=1" "" \
   'probe["states"]=={"idle":None,"listening":"exp_02","thinking":"exp_04","speaking":"Normal","asleep":"exp_05"}'
 add "default model is Natori" "$PAGE?probe=1" "" \
   'probe["model"]=="Natori"'
 add "another rig loads with its own table" "$PAGE?model=Mao&probe=1" "" \
   'probe["model"]=="Mao" and probe["states"]["thinking"]=="exp_05"'
+# The preset is a script run at document-start, not a bare object: a bare
+# `{"expressions": ...}` is a SyntaxError as a script, so it set nothing and this
+# case failed for weeks against a face that was fine.
 add "a host override replaces one state" "$PAGE?model=Natori&probe=1" \
-  '{"expressions":{"Natori":{"states":{"listening":"exp_01"}}}}' \
+  'window.ArisuScenePreset = {"expressions":{"Natori":{"states":{"listening":"exp_01"}}}};' \
   'probe["states"]["listening"]=="exp_01" and probe["states"]["thinking"]=="exp_04"'
 add "the parent page relays the scene to the face iframe" \
   "$PARENT?face=live2d&model=Haru&bg=classroom&room=4a2f6b&scale=1.3" "" \
@@ -123,13 +130,70 @@ add "the parent page's own ground takes the room colour" \
   "$PARENT?face=live2d&model=Haru&bg=classroom&room=4a2f6b&scale=1.3" "" \
   'ground["ground"] and ground["hasRoomClass"]==True and ground["roomVar"]=="74, 47, 107"'
 
+# --- expressions and gestures, 2026-09-14 -------------------------------------
+#
+# Four of the eight samples -- Hiyori, Rice, Mark, Wanko -- ship no expressions
+# at all, so their states and reactions had nothing to say; they now have
+# hand-written ones (glue/expressions/). The case that matters is not "the table
+# names a file" -- that passes with the file missing -- but "the model loaded
+# that name", because setUp() keys its expressions by name and setExpression()
+# does nothing at all for a name it does not have.
+add "a sample that shipped no expressions now has them" \
+  "$PAGE?model=Hiyori&probe=1" "" \
+  'probe["expressions"] and "exp_thinking" in probe["expressions"] and probe["states"]["thinking"]=="exp_thinking"'
+# Wanko names its parameters the old way (PARAM_EYE_L_OPEN), so it is the one
+# that would break quietly if the generator ever assumed the Param* spelling.
+add "the legacy-named sample loads its own too" "$PAGE?model=Wanko&probe=1" "" \
+  '"exp_amused" in probe["expressions"] and probe["gesture"]["group"]=="TapBody"'
+# Rice has no mouth and no brows: eyes, gaze and head only, and deliberately no
+# entry for speaking, which is the same rig saying nothing rather than guessing.
+add "the eyes-only sample gets a table and stays quiet while speaking" \
+  "$PAGE?model=Rice&probe=1" "" \
+  '"exp_listening" in probe["expressions"] and probe["states"]["speaking"]==None'
+# Mark is the one rig with no TapBody group, so a gesture on him is refused.
+add "Mark has six idle motions and no gesture group" "$PAGE?model=Mark&probe=1" "" \
+  'probe["gesture"]["can"]==False and probe["gesture"]["group"]==""'
+
+# A gesture asked for once the page is up, read back at +4s. The counter only
+# moves when the motion queue really started something, which is the difference
+# between a gesture and the refusal the queue reports as -1. The inject runs at
+# document-start, so it waits for load and then for the model -- ArisuFace does
+# not exist yet at the moment the script is installed.
+add "a gesture plays on a rig that has one" "$PAGE?model=Natori&probe=1" \
+  'window.addEventListener("load",function(){setTimeout(function(){window.ArisuFace&&window.ArisuFace.gesture();},1500);});' \
+  'probe["motionCount"]>=1 and probe["gesture"]["group"]=="TapBody"'
+add "a rig with no gesture group refuses quietly" "$PAGE?model=Mark&probe=1" \
+  'window.addEventListener("load",function(){setTimeout(function(){window.ArisuFace&&window.ArisuFace.gesture();},1500);});' \
+  'probe["motionCount"]==0 and probe["gesture"]["can"]==False'
+
 echo "Live2D scene verification against $BASE"
 echo
 
+# The probe wants a JSON *array*, and add() writes one JSON object per line --
+# a drift that cost a whole run. JSON.parse threw, the probe said so on stderr,
+# stderr was going to /dev/null, and all twenty-five cases came back as "check
+# threw: 'mode'": a report about a broken page that was really a broken client.
+# Converted here rather than teaching the probe to accept both, because the array
+# is the format it documents and one of the two should be the shape.
+python3 - "$RESULTS.cases" "$CASEJSON" <<'PY'
+import json, sys
+src, dst = sys.argv[1], sys.argv[2]
+cases = [json.loads(line) for line in open(src) if line.strip()]
+with open(dst, "w") as fh:
+    json.dump(cases, fh)
+print(f"{len(cases)} cases")
+PY
+
 # The probe exits non-zero if any case did not render, and that is information
 # rather than failure -- a case that expected no model still counts. The verdicts
-# are what decide, so the probe's status is deliberately not checked here.
-node "$HERE/live2d-probe.mjs" --batch "$RESULTS.cases" 6000 > "$RESULTS.json" 2>/dev/null
+# are what decide, so the probe's status is deliberately not checked here. Its
+# stderr is kept rather than discarded, and shown when it produced nothing at all.
+node "$HERE/live2d-probe.mjs" --batch "$CASEJSON" 25000 > "$RESULTS.json" 2>"$RESULTS.err"
+if [ ! -s "$RESULTS.json" ]; then
+  echo "the probe produced no results. Its stderr said:"
+  sed 's/^/    /' "$RESULTS.err" | head -20
+  exit 1
+fi
 
 # Through a file, not a pipe: a while loop on the right of a pipe runs in a
 # subshell, so its counters would be gone by the time the summary printed. That

@@ -2,6 +2,37 @@
 
 *Progress lives in the lain Backlog (Arisu). Measurements and reasons: `LIVE2D.md`.*
 
+## Her voice was corrected (lain `13fb209`, `a88eeee`)
+
+Five journeys filed from one evening of listening; four are about how she talks.
+Fixed in two places on purpose, because **a prompt is not a gate**:
+
+- **Rules** (`lain/server/realtime.py`): one question, one answer; never narrate
+  the work; no tool, file, branch or function name is ever spoken; `quiet` on
+  its own is silence, not "Quiet."; a go-ahead is the whole instruction — do it
+  and say what changed, never promise. A new `go_quiet` tool gives silence a
+  name she can call.
+- **Gate** (`lain/arisu/arisu-voice.js`, loaded by `index.html`, tested by
+  `lain/tests/test_arisu_voice.js`): a response that is not the page's own is
+  silenced while `think` is out; nothing gets through while hushed until her
+  name; and a reply is asked for **once per turn, after the last tool answers**
+  — asking per tool is where one turn became 81 spoken lines.
+
+**Silenced, never cancelled.** `response.cancel` used to kill a response the
+page had not asked for, and a function call rides inside its response — so it
+killed the `think` call, and the question came back with no answer at all (ten
+sessions at 22:25 do exactly that). The decision is taken at
+`output_audio_buffer.started`, not at `response.created`: at creation there is
+no way to know what the response carries. A silenced line is shown greyed and
+logged with kind `silenced`.
+
+**Every line she speaks is now on disk** (`lain/server/voice.py`):
+`/var/lib/lain/arisu-voice.jsonl`, `GET /arisu/voice` for the last 400, `tail`
+for the file itself. That is the answer to "she said something that is not in
+the turn record", which before this had none. **Still open:** the stale line
+itself ("round two of two", 19:10) was never reproduced, so the seq
+high-water-mark half of that journey stays open — the log is what will catch it.
+
 ## State
 
 Clean trees, all pushed. arisu head is this handoff (native command inbox in

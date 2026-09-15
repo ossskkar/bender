@@ -59,11 +59,77 @@
                    speaking: 'exp_01', asleep: 'exp_03' },
       reactions: { amused: 'exp_02', confused: 'exp_05', error: 'exp_04' }
     },
-    Hiyori: { states: {}, reactions: {} },
-    Rice:   { states: {}, reactions: {} },
-    Mark:   { states: {}, reactions: {} },
-    Wanko:  { states: {}, reactions: {} }
+    // The four that shipped no expressions, given hand-written ones instead --
+    // glue/expressions/, written by tools/make-expressions.py and copied in by
+    // patch-sdk.sh. Their tables below name those files.
+    //
+    // They are not all the same kind of face, and the tables say so rather than
+    // pretending otherwise. Rice has eyes and a head and nothing else: no mouth,
+    // no brows. Mark has brows and a mouth that opens but no mouth shape, so he
+    // cannot smile -- his amusement is in the eyes. Wanko names its parameters
+    // the old way (PARAM_EYE_L_OPEN) and has ears, which is why the one sample
+    // with ears is the one whose surprise moves them.
+    Hiyori: {
+      states:    { idle: 'exp_idle', listening: 'exp_listening',
+                   thinking: 'exp_thinking', speaking: 'exp_speaking',
+                   asleep: 'exp_asleep' },
+      reactions: { surprise: 'exp_surprised', amused: 'exp_amused',
+                   confused: 'exp_confused', error: 'exp_sad' }
+    },
+    // No idle and no speaking entry: this rig has no mouth and no brows, and
+    // everything left (eyes, gaze, head) is already saying something in those
+    // two states. Silence is the honest expression for "nothing in particular".
+    Rice: {
+      states:    { listening: 'exp_listening', thinking: 'exp_thinking',
+                   asleep: 'exp_asleep' },
+      reactions: { surprise: 'exp_surprised', amused: 'exp_amused',
+                   confused: 'exp_confused', error: 'exp_sad' }
+    },
+    Mark: {
+      states:    { idle: 'exp_idle', listening: 'exp_listening',
+                   thinking: 'exp_thinking', speaking: 'exp_idle',
+                   asleep: 'exp_asleep' },
+      reactions: { surprise: 'exp_surprised', amused: 'exp_amused',
+                   confused: 'exp_confused', error: 'exp_sad' }
+    },
+    Wanko: {
+      states:    { idle: 'exp_idle', listening: 'exp_listening',
+                   thinking: 'exp_thinking', speaking: 'exp_speaking',
+                   asleep: 'exp_asleep' },
+      reactions: { surprise: 'exp_surprised', amused: 'exp_amused',
+                   confused: 'exp_confused', error: 'exp_sad' }
+    }
   };
+
+  // Which rigs have a body gesture to spend. Every sample declares an Idle group
+  // and -- except Mark -- a TapBody one; the group names are the SDK's own
+  // (lappdefine.ts), so this is a capability list rather than a naming choice.
+  // Mark ships six idle motions and no TapBody at all, so on him a gesture
+  // request is a no-op, which is what the empty entry says.
+  var GESTURE_GROUP = {
+    Natori: 'TapBody', Haru: 'TapBody', Mao: 'TapBody', Ren: 'TapBody',
+    Hiyori: 'TapBody', Rice: 'TapBody', Wanko: 'TapBody',
+    Mark: ''
+  };
+
+  // PriorityForce (3), on the SDK's own scale: PriorityNone 0, PriorityIdle 1,
+  // PriorityNormal 2, PriorityForce 3.
+  //
+  // Measured, not chosen. At PriorityNormal the request was refused: the queue
+  // answered -1 with `_currentPriority` already 2, so `reserveMotion(2)` lost to
+  // a motion holding the same level -- and a gesture that silently does nothing
+  // is worse than no gesture at all. Force is the level the SDK itself uses for
+  // a motion the user just asked for: LAppModel.startMotion() calls
+  // setReservePriority(3) for it and skips the reserve check entirely, which is
+  // what a tap on a rig already does. A gesture is the same kind of thing.
+  //
+  // What does NOT change at force: idle still resumes by itself. When the
+  // gesture ends, LAppModel.update() sees isFinished() and starts an idle motion
+  // again -- so nothing here needs a timer or a per-frame driver. The note this
+  // replaces said a TapBody motion "would fight the idle motion queue": true of
+  // driving one by hand every frame, and true of asking for one at Normal, which
+  // is what the first measurement here found.
+  var GESTURE_PRIORITY = 3;
 
   var STATES = ['idle', 'listening', 'thinking', 'speaking', 'asleep'];
 
@@ -101,6 +167,7 @@
 
   var state = 'idle';
   var pending = expressionFor('idle');   // applied on the next frame, once
+  var pendingMotion = null;              // the same contract, for a body gesture
 
   window.ArisuFace = {
     model: MODEL,
@@ -137,6 +204,47 @@
 
     // Re-apply the current state's expression. setState() returns early when the
     // state has not changed, so a transient reaction needs this to get back.
-    refresh: function () { pending = expressionFor(state); }
+    refresh: function () { pending = expressionFor(state); },
+
+    // --- body gestures ---------------------------------------------------------
+    //
+    // The face module owns capability, the caller owns timing: this answers "can
+    // this rig gesture at all" and parks a request, and how often one is worth
+    // asking for is a taste question that belongs with the avatar (a state is
+    // not an occasion -- see arisu-avatar.js).
+    gestureGroup: function () { return GESTURE_GROUP[MODEL] || ''; },
+
+    canGesture: function () { return !!GESTURE_GROUP[MODEL]; },
+
+    // Ask for a gesture, or a no-op on a rig without one. The delegate picks a
+    // random motion from the group, which is what the group is for: the samples
+    // ship several and repeating one is what makes a rig look looped.
+    //
+    // `tries` is the part that makes this work at all. The delegate answers -1
+    // while the rig's motions are still being preloaded -- the sample starts the
+    // file load and returns "cannot start" in the same breath -- so the first ask
+    // of a page's life is routinely refused, and a gesture asked for once and
+    // dropped would simply never play. The budget is small on purpose: eight
+    // frames is a fifth of a second, long after which something else is wrong.
+    gesture: function () {
+      if (!GESTURE_GROUP[MODEL]) return false;
+      pendingMotion = { group: GESTURE_GROUP[MODEL], priority: GESTURE_PRIORITY,
+                        tries: 8 };
+      return true;
+    },
+
+    // The delegate could not start it *this frame*: park it again for the next
+    // one, and give up quietly once the budget is spent. Called only on refusal.
+    retryMotion: function (m) {
+      if (!m || !(m.tries > 1)) return false;
+      pendingMotion = { group: m.group, priority: m.priority, tries: m.tries - 1 };
+      return true;
+    },
+
+    // Same one-shot contract as takePendingExpression(), for the same reason:
+    // read every frame, acted on once.
+    takePendingMotion: function () {
+      var m = pendingMotion; pendingMotion = null; return m;
+    }
   };
 })();

@@ -8,8 +8,8 @@
 //
 // So this page reports. Loaded first, before Core and the bundle, so it hears
 // their errors too. It posts one report to /arisu/diag once the model has had
-// time to draw, plus any error after that, and it puts a line of text on the
-// face when there is nothing else to show. `GET /arisu/diag` reads them back.
+// time to draw, plus any error after that, and when there is no face it tells
+// the host page, which falls back to her portrait. No text over her face. `GET /arisu/diag` reads them back.
 
 (function () {
   'use strict';
@@ -76,8 +76,22 @@
     };
   }
 
+  // The same report, on the page as well as on the wire. The POST goes to the
+  // desk, which is exactly what is missing when you are looking at this page on
+  // a local rig server or a phone that cannot reach it -- and then a broken page
+  // explains itself to nobody. `window.ArisuDiag.report()` is what the probe
+  // reads, and `errors` is the only record of a throw that killed the animation
+  // loop: the SDK's loop has no catch in it, so the failure is otherwise a model
+  // that drew one frame and then stopped, which every visual check calls fine.
+  window.ArisuDiag = {
+    report: report,
+    errors: errors,
+    last: null
+  };
+
   function send(reason) {
     sent = true;
+    window.ArisuDiag.last = report(reason);
     try {
       fetch('/arisu/diag', {
         method: 'POST', keepalive: true,
@@ -87,31 +101,13 @@
     } catch (e) { /* nowhere left to report to */ }
   }
 
-  function show(text) {
-    var el = document.getElementById('arisu-diag');
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'arisu-diag';
-      el.style.cssText = [
-        'position:fixed', 'left:50%', 'top:40%', 'transform:translate(-50%,-50%)',
-        'max-width:80vw', 'text-align:center', 'color:#fff',
-        'font:14px/1.5 -apple-system,system-ui,sans-serif', 'opacity:.8',
-        'pointer-events:none', 'z-index:10'
-      ].join(';');
-      document.body.appendChild(el);
-    }
-    el.textContent = text;
-  }
-
   // The frame hook only runs while the page is painted, so a hidden tab would
   // read as a dead face. Start the clock when it is actually on screen.
   function check() {
     var r = report('check');
     if (r.rendered) return send('ok');
     send('no-face');
-    show(!r.gl.webgl1
-      ? 'Her face needs WebGL, and this browser has it switched off.'
-      : 'Her face did not load. The desk has the details.');
+    try { window.parent.postMessage({ arisu: 'no-face' }, location.origin); } catch (e) {}
   }
 
   function arm() {

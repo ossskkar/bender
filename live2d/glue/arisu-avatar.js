@@ -27,8 +27,18 @@
   // Reactions come from the model's own table in arisu-face.js. Anything a rig
   // cannot express is left out rather than approximated -- a wrong face is
   // worse than no change.
-  //   nod is missing on purpose: it is a head movement, not an expression, and
-  //   faking it with TapBody motions would fight the idle motion queue.
+  //
+  //   nod is still missing, and for a narrower reason than before. It used to
+  //   say faking a nod with a TapBody motion "would fight the idle motion queue".
+  //   That part is answered: a gesture now goes through the queue at
+  //   PriorityNormal, which interrupts idle and lets the delegate restart it.
+  //   What is left is that no sample ships a head motion at all -- TapBody is
+  //   the body -- so a "nod" would still be a lie about what she is doing.
+  //
+  // Gestures are asked for at occasions, never at states. A state lasts minutes
+  // and a gesture is two seconds: firing one on every idle->listening flip would
+  // make her twitch through a conversation, which is the thing this file exists
+  // to avoid. Two occasions earn one: waking up, and laughing.
 
   function transient(expression) {
     F.setExpression(expression);
@@ -51,10 +61,20 @@
       if (name === 'thinking') return F.setState('thinking');
       if (name === 'wake') {
         if (F.state() === 'asleep') F.setState('idle');
+        // Coming back is a body thing as well as a face one. On a rig with no
+        // gesture group this is false and nothing happens, which is the point of
+        // asking the face module rather than the model.
+        F.gesture();
         return true;
       }
       var expression = F.reaction(name);
-      if (expression) { transient(expression); return true; }
+      if (expression) {
+        // A laugh is not only a face either -- the samples' body motions are
+        // what "amused" looks like from the shoulders down.
+        if (name === 'amused') F.gesture();
+        transient(expression);
+        return true;
+      }
       return false;
     },
 

@@ -16,6 +16,23 @@
     return realFetch.apply(this, arguments);
   };
 
+  function iframeGlow() {
+    try {
+      var f = document.getElementById('face');
+      var w = f && f.contentWindow;
+      if (!w || !w.document.getElementById('glow')) return null;
+      var r = getComputedStyle(w.document.documentElement);
+      var g = w.document.getElementById('glow');
+      return {
+        state: r.getPropertyValue('--state').trim(),
+        glow: r.getPropertyValue('--glow').trim(),
+        cls: g.className,
+        z: getComputedStyle(g).zIndex,
+        blend: getComputedStyle(g).mixBlendMode
+      };
+    } catch (e) { return null; }
+  }
+
   function snap(label) {
     var root = getComputedStyle(document.documentElement);
     var g = document.getElementById('glow');
@@ -24,6 +41,7 @@
       label: label,
       state: root.getPropertyValue('--state').trim(),
       glow: root.getPropertyValue('--glow').trim(),
+      iframe: iframeGlow(),
       // Deliberately no readout. There is no text cue any more -- the glow is
       // the cue -- and a check that read one would be asserting a design Oscar
       // corrected.
