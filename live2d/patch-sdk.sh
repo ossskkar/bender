@@ -79,7 +79,9 @@ apply(
     "       otherwise cover the host's glow. */\n"
     "    #glow {\n"
     "      position: fixed; inset: 0; pointer-events: none; z-index: 1;\n"
-    "      mix-blend-mode: screen;\n"
+    "      /* No mix-blend-mode: screen over a transparent backdrop (this iframe's\n"
+    "         body) does not composite, so the light vanished. A glow is a translucent\n"
+    "         layer, and source-over is the right composite for it. */\n"
     "      background:\n"
     "        radial-gradient(circle at var(--glow-x, 54%) var(--glow-y, 42%),\n"
     "                  rgba(var(--state), var(--glow)) 0%,\n"
@@ -213,7 +215,7 @@ apply(
     "    canvas.style.inset = '0';\n"
     "    canvas.style.width = '100vw';\n"
     "    canvas.style.height = '100vh';\n"
-    "    canvas.style.zIndex = '-1';\n"
+    "    canvas.style.zIndex = '0';\n"
     "    canvas.style.pointerEvents = 'none';\n"
     "    this._sceneCanvas = canvas;\n"
     "    this._scene2d = canvas.getContext('2d');\n"
@@ -374,6 +376,17 @@ apply(
 # she ends up small and centred with a lot of room around her. scene.display
 # multiplies that fit -- 1 is exactly what shipped -- and shifts her, both as
 # fractions of the canvas.
+# The model canvas renders in front of the glow. Without this, the glow -- at
+# z-index 1 -- paints OVER her and screen-blends into her face instead of sitting
+# behind her. Two canvasless siblings (scene at 0, glow at 1) and the model at 2.
+apply(
+    "src/lappdelegate.ts",
+    "    // >>> arisu: model-z",
+    "    // <<< arisu: model-z",
+    "      canvas.style.zIndex = '2';\n",
+    "      canvas.style.width = `${width}vw`;\n",
+)
+
 apply(
     "src/lapplive2dmanager.ts",
     "      // >>> arisu: display",
