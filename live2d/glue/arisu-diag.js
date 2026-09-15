@@ -15,6 +15,11 @@
   'use strict';
 
   var CHECK_MS = 12000;       // the bundle, Core and a 2048 texture set, on a phone
+  // Only then does the host swap in the portrait. Still loading is not failing:
+  // on the work iPhone (2026-09-15) the 12s report fired mid-download, the swap
+  // navigated this page away, and that aborted every fetch in flight -- thirteen
+  // shaders "Load failed", which read as the cause and were the fallback's doing.
+  var GIVE_UP_MS = 60000;
   var MAX_ERRORS = 20;
   var errors = [];
   var sent = false;
@@ -60,6 +65,19 @@
     return out;
   }
 
+  // Which files have arrived, and how long each took. A face that is slow rather
+  // than broken shows up here as long downloads, and a file that never finished
+  // is the one missing from the list (only completed fetches are entries).
+  function resources() {
+    try {
+      return performance.getEntriesByType('resource').slice(-40).map(function (e) {
+        return { f: e.name.split('?')[0].split('/').slice(-2).join('/'),
+                 s: Math.round(e.startTime), d: Math.round(e.duration),
+                 kb: Math.round((e.transferSize || 0) / 1024) };
+      });
+    } catch (e) { return null; }
+  }
+
   function report(reason) {
     var canvas = document.querySelector('canvas');
     return {
@@ -72,6 +90,7 @@
       rendered: typeof window.__arisuParam === 'function',
       canvas: canvas ? canvas.width + 'x' + canvas.height : null,
       gl: glReport(),
+      resources: resources(),
       errors: errors
     };
   }
@@ -107,6 +126,15 @@
     var r = report('check');
     if (r.rendered) return send('ok');
     send('no-face');
+    if (!r.gl.webgl1) return fallBack();
+    setTimeout(function () {
+      if (report('late').rendered) return send('ok-late');
+      send('gave-up');
+      fallBack();
+    }, GIVE_UP_MS - CHECK_MS);
+  }
+
+  function fallBack() {
     try { window.parent.postMessage({ arisu: 'no-face' }, location.origin); } catch (e) {}
   }
 
