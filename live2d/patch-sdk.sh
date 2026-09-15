@@ -789,7 +789,10 @@ for model in ("Hiyori", "Rice", "Mark", "Wanko"):
     refs = doc.setdefault("FileReferences", {})
     theirs = [e for e in refs.get("Expressions", [])
               if not str(e.get("Name", "")).startswith("exp_")]
-    ours = [{"Name": f.stem, "File": f"exp/{f.name}"} for f in files]
+    # Not f.stem: on exp_idle.exp3.json that is "exp_idle.exp3", a name no
+    # table in arisu-face.js asks for, so every expression was silently missing.
+    ours = [{"Name": f.name.removesuffix(".exp3.json"), "File": f"exp/{f.name}"}
+            for f in files]
     refs["Expressions"] = theirs + ours
     manifest.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
     print(f"  Resources/{model:<8} {len(ours)} expressions "
