@@ -197,21 +197,25 @@
     //
     // setGlow writes the CSS custom properties on <html> (where the stylesheet
     // reads them) and leaves the class alone -- the page already swaps that.
+    //
+    // A patch: only the fields given are written. The host sends {loud} alone
+    // on every audio frame of a call; when missing fields fell back to defaults
+    // that blanked --state, so the colour-coded glow vanished as a call began.
     setGlow: function (g) {
       if (!g || !document.documentElement || !document.documentElement.style) {
         return;
       }
       var st = document.documentElement.style;
-      st.setProperty('--state', String(g.colour == null ? '' : g.colour).trim());
-      st.setProperty('--glow', String(g.glow == null ? 0 : g.glow));
-      st.setProperty('--glow-size', String(g.size == null ? 1 : g.size));
-      st.setProperty('--glow-x', (g.x == null ? 54 : g.x) + '%');
-      st.setProperty('--glow-y', (g.y == null ? 42 : g.y) + '%');
-      st.setProperty('--loud', String(g.loud == null ? 0 : g.loud));
+      if (g.colour != null) st.setProperty('--state', String(g.colour).trim());
+      if (g.glow != null) st.setProperty('--glow', String(g.glow));
+      if (g.size != null) st.setProperty('--glow-size', String(g.size));
+      if (g.x != null) st.setProperty('--glow-x', g.x + '%');
+      if (g.y != null) st.setProperty('--glow-y', g.y + '%');
+      if (g.loud != null) st.setProperty('--loud', String(g.loud));
       // The class drives the two breathing animations, exactly as the host
       // page's own glow does. The host forwards the state name for it.
       var el = document.getElementById('glow');
-      if (el) {
+      if (el && g.state != null) {
         el.className = (g.state === 'thinking' || g.state === 'speaking')
           ? g.state : '';
       }
