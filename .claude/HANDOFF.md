@@ -4,6 +4,9 @@
 
 ## State
 
+- **Glow during calls fixed** (arisu `364255a`, lain `0e2da65`, live 2026-09-16):
+  `setGlow({loud})` on every audio frame wiped `--state`, so no colour in a call.
+  Check: `node live2d/tools/glow-patch-check.js`. Oscar still to confirm on phone.
 - **iPhone face fixed** (lain `513ffb1`, live). It was slow, not broken: the
   work iPhone gets ~80–200 KB/s from the desk and every face file was served
   `no-store`, so each visit re-downloaded ~4 MB (Mao's 3 MB texture: 36 s).
