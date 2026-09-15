@@ -155,4 +155,14 @@
   } else {
     arm();
   }
+
+  // Her first drawn frame, told to the host the moment it happens, so the host
+  // can hold a still of her over the frame until then. On a phone's first visit
+  // that is about a minute of downloads that would otherwise be a blank room.
+  // ponytail: polls twice a second; a hook in the bundle's frame loop if it matters.
+  var drawnTimer = setInterval(function () {
+    if (typeof window.__arisuParam !== 'function') return;
+    clearInterval(drawnTimer);
+    try { window.parent.postMessage({ arisu: 'drawn' }, location.origin); } catch (e) {}
+  }, 500);
 })();
