@@ -786,3 +786,23 @@ costs nothing when framed and it is the only hand test of the rig.
 - **The iPad follows the character's saved model** (2026-09-13): `Persona.model`
   from `/arisu/characters`, picked in the web settings panel. Empty or unknown
   falls back to Haru for Arisu, Natori for Chopper, the portrait for anyone else.
+
+### Three silent faults, found 2026-09-16 while Oscar was away
+
+- **The glow vanished during every call.** The host sends `setGlow({loud})` on
+  each audio frame, and `setGlow` filled missing fields with defaults, so
+  `--state` went blank and `#glow` computed to `background-image: none`. It is a
+  patch now: only given fields are written. Check:
+  `node live2d/tools/glow-call-check.mjs '<face page url>'`.
+- **The four hand-written rigs had no working expressions.** `patch-sdk.sh`
+  named them with `f.stem`, which on `exp_idle.exp3.json` is `exp_idle.exp3`;
+  the face tables ask for `exp_idle`. Check without a browser:
+  `python3 live2d/tools/expression-names-check.py <lain>/arisu/live2d`.
+- **Every gesture that played was counted refused and restarted.**
+  `startRandomMotion` returns the queue entry, an object, when it starts, and
+  the literal `-1` when it refuses. The glue tested `>= 0`. It tests `!== -1`.
+- **A still of the model covers the first load.** The host puts
+  `live2d/thumbs/<Model>.png` over the frame and fades it out when
+  `arisu-diag.js` posts `{arisu:'drawn'}` (or on fallback to the portrait).
+  Chosen over a layer underneath because the room canvas inside the frame is
+  opaque. Reverse by removing `faceWait` from lain's `arisu/index.html`.
