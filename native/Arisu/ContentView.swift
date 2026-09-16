@@ -183,7 +183,7 @@ struct ContentView: View {
         // shown, so this only draws it.
         .sheet(item: $live.page) { PageSheet(page: $0) { live.page = nil } }
         .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet, live: live) }
-        .onChange(of: pet.heard) { _, t in say(t, mine: true) }
+        .onChange(of: pet.heard) { _, t in say(t, mine: true); obey(t) }
         .onChange(of: pet.line) { _, t in say(t, mine: false) }
         .animation(.easeInOut(duration: 0.25), value: pet.thinking)
         .animation(.easeInOut(duration: 0.25), value: live.thinking)
@@ -406,6 +406,19 @@ struct ContentView: View {
         .padding(.bottom, 24)
     }
 
+    /// The screen's buttons, spoken (Oscar, 2026-09-17). She still answers
+    /// the line; this only presses the button. No "unmute": a muted mic hears
+    /// nothing, so that one stays a tap.
+    private func obey(_ text: String) {
+        switch VoiceCommand(text) {
+        case .transcript(let on)?: showTranscript = on
+        case .group(let on)?: room.set(mode: on ? "group" : "solo")
+        case .mute?: live.muted = true
+        case .settings(let open)?: showSettings = open
+        case nil: break
+        }
+    }
+
     private func say(_ text: String, mine: Bool) {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return }
@@ -531,5 +544,26 @@ struct WebPage: UIViewRepresentable {
     func updateUIView(_ view: WKWebView, context: Context) {
         guard let url, view.url != url else { return }
         view.load(URLRequest(url: url))
+    }
+}
+
+/// A spoken button press, from his transcribed line. Explicit phrases only, so
+/// talking *about* the transcript does not flip it.
+enum VoiceCommand: Equatable {
+    case transcript(Bool), group(Bool), mute, settings(Bool)
+
+    init?(_ line: String) {
+        let t = line.lowercased()
+        func has(_ p: String) -> Bool { t.range(of: p, options: .regularExpression) != nil }
+        let on = #"\b(show|open|turn on|switch on)\b"#, off = #"\b(hide|close|turn off|switch off)\b"#
+        let chat = #"\b(transcript|subtitles|captions|chat)\b"#
+        if has(on + ".{0,12}" + chat) { self = .transcript(true) }
+        else if has(off + ".{0,12}" + chat) { self = .transcript(false) }
+        else if has(on + ".{0,12}\\bsettings\\b") { self = .settings(true) }
+        else if has(off + ".{0,12}\\bsettings\\b") { self = .settings(false) }
+        else if has(#"\bgroup (mode|conversation)\b"#) { self = .group(true) }
+        else if has(#"\bsolo (mode|conversation)\b"#) { self = .group(false) }
+        else if has(#"\bmute\b"#) { self = .mute }
+        else { return nil }
     }
 }
