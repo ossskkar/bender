@@ -30,6 +30,9 @@ final class Live: ObservableObject {
     @Published private(set) var paused = false
     @Published private(set) var speaking = false      // she is talking
     @Published private(set) var hearing = false       // he is talking
+    /// A page she was asked to show, until he closes it. Settable from the
+    /// view because closing the sheet is his, not hers.
+    @Published var page: ShowPage?
     /// A tool is out. On this path that means `think` -- a whole turn of
     /// Hermes on architect, which is seconds rather than milliseconds, so it
     /// is the one wait long enough that the screen has to account for it.
@@ -312,6 +315,10 @@ final class Live: ObservableObject {
     private func sayCommands(_ cmds: [QueuedCommand]) async {
         for cmd in cmds {
             guard !stopped, !Task.isCancelled else { return }
+            // The page goes up with the words, as on the web: a panel that
+            // appears with nothing said reads as a glitch, and a line about a
+            // page that never arrives reads as a promise.
+            if let page = cmd.show, page.worthShowing { self.page = page }
             await sayCommand(cmd.text)
         }
     }

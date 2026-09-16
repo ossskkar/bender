@@ -77,6 +77,32 @@ struct Cast: Codable {
 struct QueuedCommand: Decodable, Sendable {
     let id: String
     let text: String
+    /// A page to put on screen while she says the line. The desk fetched it
+    /// and decided how it can be shown (server/reader.py), because a browser
+    /// is given no signal at all when a site refuses to be framed. It rides on
+    /// the command so the line and the page cannot arrive apart.
+    let show: ShowPage?
+}
+
+/// One page, as the desk read it. `mode` is its decision, not ours:
+/// `frame` it can be shown in a web view, `reader` only its text or headlines
+/// survived, `tab` it needs his own browser and his own login.
+struct ShowPage: Decodable, Sendable, Identifiable, Equatable {
+    let url: String
+    let host: String?
+    let mode: String?
+    let title: String?
+    let text: String?
+    let headlines: [String]?
+    let ok: Bool?
+    let error: String?
+
+    /// The url is the identity: two pages on screen at once is not a thing,
+    /// and re-showing the same page should not re-present the sheet.
+    var id: String { url }
+    /// A page the desk could not fetch is not shown. She said so out loud
+    /// instead, which is the honest half of the pair.
+    var worthShowing: Bool { ok != false && !url.isEmpty }
 }
 
 struct CommandInbox: Decodable {

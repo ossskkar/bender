@@ -1,4 +1,5 @@
 import SwiftUI
+import WebKit
 
 /// The hologram: `FaceView` for her, plus scanlines and a sweep over the top.
 ///
@@ -169,6 +170,9 @@ struct ContentView: View {
             .overlay(alignment: .topLeading) { legend }
         }
         .ignoresSafeArea()
+        // A page she was asked to show. The desk already decided how it can be
+        // shown, so this only draws it.
+        .sheet(item: $live.page) { PageSheet(page: $0) { live.page = nil } }
         .animation(.easeInOut(duration: 0.25), value: pet.thinking)
         .animation(.easeInOut(duration: 0.25), value: live.thinking)
         .animation(.easeInOut(duration: 0.25), value: pet.running)
@@ -449,5 +453,83 @@ struct ContentView: View {
             .shadow(color: tint.opacity(0.7 * max(gain, 0.3)), radius: 10)
             .animation(.easeOut(duration: 0.12), value: gain)
         }
+    }
+}
+
+// MARK: - her screen
+
+/// A page she put on screen, in the app's own sheet.
+///
+/// The three modes are the desk's decision (server/reader.py), mirroring
+/// arisu-voice.js `drawPage` so the app and the web face show the same thing
+/// for the same page: `frame` is the site itself in a web view, `reader` is
+/// the text or the headlines the desk could read off it, and `tab` is the
+/// honest note -- his logins cannot survive our web view, so it goes to Safari.
+struct PageSheet: View {
+    let page: ShowPage
+    let close: () -> Void
+    @Environment(\.openURL) private var openURL
+
+    private var heads: [String] { page.headlines ?? [] }
+    private var body_text: String { page.text ?? "" }
+
+    var body: some View {
+        NavigationStack {
+            content
+                .navigationTitle(page.host ?? page.url)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close", action: close)
+                    }
+                    ToolbarItem(placement: .primaryAction) {
+                        Button("Safari") { if let u = URL(string: page.url) { openURL(u) } }
+                    }
+                }
+        }
+    }
+
+    @ViewBuilder private var content: some View {
+        if page.mode == "frame" {
+            WebPage(url: URL(string: page.url))
+        } else if page.mode == "tab" || (heads.isEmpty && body_text.isEmpty) {
+            note(page.mode == "tab"
+                 ? "This one needs you signed in, so it opens in your own browser."
+                 : (page.error ?? "I could not read anything off that page."))
+        } else if !heads.isEmpty {
+            List(Array(heads.enumerated()), id: \.offset) { _, head in
+                Text(head)
+            }
+        } else {
+            ScrollView { Text(body_text).padding() }
+        }
+    }
+
+    private func note(_ line: String) -> some View {
+        VStack(spacing: 16) {
+            Text(line).multilineTextAlignment(.center)
+            Button("Open in Safari") { if let u = URL(string: page.url) { openURL(u) } }
+                .buttonStyle(.borderedProminent)
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// The site itself. No script of hers lives in here, and no data of his goes
+/// in: a fresh non-persistent store, so the web view carries no cookies from
+/// anywhere else and leaves none behind.
+struct WebPage: UIViewRepresentable {
+    let url: URL?
+
+    func makeUIView(context: Context) -> WKWebView {
+        let config = WKWebViewConfiguration()
+        config.websiteDataStore = .nonPersistent()
+        return WKWebView(frame: .zero, configuration: config)
+    }
+
+    func updateUIView(_ view: WKWebView, context: Context) {
+        guard let url, view.url != url else { return }
+        view.load(URLRequest(url: url))
     }
 }
