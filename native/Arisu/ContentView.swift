@@ -23,15 +23,10 @@ struct ContentView: View {
     @AppStorage("arisu.live2d") private var live2dFace = false
     @State private var showSettings = false
 
-    /// The colour of work being done. Deliberately not one of the moods --
-    /// nothing she ever *is* looks like this, so it reads as a state and not
-    /// as a feeling.
-    private let working = Color(red: 1.0, green: 0.22, blue: 0.78)
-
     /// What she says, always. The mood still tints the room around her, but
     /// the words themselves stay one colour -- "hot" rendered them at
     /// (1.0, 0.30, 0.42), which reads as magenta and collided with the
-    /// magenta the meter now uses to mean she is working.
+    /// magenta the meter once used to mean she is working.
     private let voice = Color(red: 0.27, green: 0.90, blue: 0.97)
 
     /// Recording red. The one colour on this screen that is not part of the
@@ -64,12 +59,18 @@ struct ContentView: View {
         return .idle
     }
 
-    private var phaseColor: Color {
+    /// One colour for every state, the base colour, so the screen matches the
+    /// glow around her. The state reads from how the glow moves (FaceView)
+    /// and from how bright the ground is, not from a change of hue.
+    private var phaseColor: Color { glow }
+
+    /// How strongly the ground under her is lit, per state.
+    private var groundLight: Double {
         switch phase {
-        case .thinking:  return working
-        case .speaking:  return voice
-        case .listening: return listener
-        case .idle:      return glow
+        case .idle:      return 0.12
+        case .listening: return 0.24
+        case .thinking:  return 0.2
+        case .speaking:  return 0.3
         }
     }
 
@@ -82,13 +83,18 @@ struct ContentView: View {
         }
     }
 
-    private var glow: Color {
+    private var glowRGB: (Double, Double, Double) {
         switch pet.mood {
-        case "hot":   return Color(red: 1.0, green: 0.30, blue: 0.42)
-        case "wired": return Color(red: 0.35, green: 0.94, blue: 0.90)
-        case "sad":   return Color(red: 0.45, green: 0.60, blue: 0.95)
-        default:      return Color(red: 0.27, green: 0.90, blue: 0.97)
+        case "hot":   return (1.0, 0.30, 0.42)
+        case "wired": return (0.35, 0.94, 0.90)
+        case "sad":   return (0.45, 0.60, 0.95)
+        default:      return (0.27, 0.90, 0.97)
         }
+    }
+
+    private var glow: Color {
+        let (r, g, b) = glowRGB
+        return Color(red: r, green: g, blue: b)
     }
 
     var body: some View {
@@ -102,10 +108,10 @@ struct ContentView: View {
                 // The ground under her carries the same colour as the meter,
                 // so the state is readable from across the room, where the
                 // twenty bars are not.
-                RadialGradient(colors: [phaseColor.opacity(0.24),
-                                        phaseColor.opacity(0.06), .clear],
+                RadialGradient(colors: [phaseColor.opacity(groundLight),
+                                        phaseColor.opacity(groundLight / 4), .clear],
                                center: .center, startRadius: 4, endRadius: reach * 0.75)
-                    .animation(.easeInOut(duration: 0.35), value: phaseColor)
+                    .animation(.easeInOut(duration: 0.35), value: groundLight)
 
                 face
                 scanlines.allowsHitTesting(false)
@@ -270,7 +276,9 @@ struct ContentView: View {
         // soft bottom edge are all things the renderer does itself now, and
         // stacking SwiftUI's versions on top only muddied them.
         FaceView(face: pet.face, state: faceState, amplitude: Double(pet.level),
-                 live2d: live2dFace, model: pet.model)
+                 live2d: live2dFace, model: pet.model,
+                 glow: [glowRGB.0, glowRGB.1, glowRGB.2]
+                     .map { String(Int($0 * 255)) }.joined(separator: ","))
             .allowsHitTesting(false)
     }
 

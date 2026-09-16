@@ -35,6 +35,23 @@ struct FaceView: UIViewRepresentable {
     /// The character's saved Live2D sample, from the desk. Empty, or a name
     /// this build does not know, falls back to the character's default.
     var model = ""
+    /// The glow around her silhouette, as "r,g,b" in 0...255. How it behaves
+    /// is the state's business, in `glowCSS`.
+    var glow = "69,230,247"
+
+    /// A drop-shadow on the page body follows the canvas alpha, so the glow is
+    /// her outline rather than a disc behind her, and it works for the
+    /// portrait and the Live2D page alike without either page knowing.
+    /// Idle is dim and still, listening steady, thinking a slow pulse,
+    /// speaking follows `--amp`. Asleep has none.
+    fileprivate static let glowCSS = """
+    body{transition:filter .35s ease}
+    body[data-glow=idle]{filter:drop-shadow(0 0 6px rgba(var(--glow),.15))}
+    body[data-glow=listening]{filter:drop-shadow(0 0 10px rgba(var(--glow),.35))}
+    body[data-glow=thinking]{animation:arisu-pulse 1.8s ease-in-out infinite}
+    body[data-glow=speaking]{transition:none;filter:drop-shadow(0 0 calc(6px + 10px * var(--amp,0)) rgba(var(--glow),calc(.2 + .35 * var(--amp,0))))}
+    @keyframes arisu-pulse{0%,100%{filter:drop-shadow(0 0 5px rgba(var(--glow),.1))}50%{filter:drop-shadow(0 0 14px rgba(var(--glow),.4))}}
+    """
 
     /// Which Live2D sample each character wears by default. Mirrors the first
     /// entry of `LIVE2D_MODELS` in lain's `arisu/index.html`; a character with
@@ -72,6 +89,7 @@ struct FaceView: UIViewRepresentable {
         /// The character behind the page, for falling back to its portrait.
         private var shownFace = "arisu"
         private var sentState: String?
+        private var sentGlow: String?
         fileprivate var sentAmplitude = -1.0
         private var lastAmplitudeAt = Date.distantPast
         weak var web: WKWebView?
@@ -82,7 +100,13 @@ struct FaceView: UIViewRepresentable {
             // here it is the top page. The portrait has no such member.
             web.evaluateJavaScript(
                 "window.avatar && window.avatar.showPanel && window.avatar.showPanel(false)")
+            let css = FaceView.glowCSS.replacingOccurrences(of: "\n", with: " ")
+            web.evaluateJavaScript("""
+                var st=document.createElement('style');st.textContent='\(css)';\
+                document.head.appendChild(st)
+                """)
             // Whatever arrived while the page was still parsing.
+            if let g = sentGlow { sentGlow = nil; apply(glow: g) }
             if let s = sentState { sentState = nil; apply(state: s) }
         }
 
@@ -113,6 +137,7 @@ struct FaceView: UIViewRepresentable {
             shownFace = face
             loaded = false
             sentState = nil
+            sentGlow = nil
             sentAmplitude = -1
             if url.isFileURL {
                 web.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
@@ -126,7 +151,15 @@ struct FaceView: UIViewRepresentable {
             guard state != sentState else { return }
             sentState = state
             guard loaded, let web else { return }
-            web.evaluateJavaScript("window.avatar && window.avatar.setState('\(state)')")
+            web.evaluateJavaScript("document.body.dataset.glow='\(state)';" +
+                                   "window.avatar && window.avatar.setState('\(state)')")
+        }
+
+        func apply(glow: String) {
+            guard glow != sentGlow else { return }
+            sentGlow = glow
+            guard loaded, let web else { return }
+            web.evaluateJavaScript("document.body.style.setProperty('--glow','\(glow)')")
         }
 
         /// The level publishes far faster than a face can show, so this sends
@@ -142,6 +175,7 @@ struct FaceView: UIViewRepresentable {
             sentAmplitude = amplitude
             lastAmplitudeAt = now
             web.evaluateJavaScript(
+                "document.body.style.setProperty('--amp','\(String(format: "%.3f", amplitude))');" +
                 "window.avatar && window.avatar.setAmplitude(\(String(format: "%.3f", amplitude)))")
         }
     }
@@ -176,6 +210,7 @@ struct FaceView: UIViewRepresentable {
     func updateUIView(_ web: WKWebView, context: Context) {
         context.coordinator.show(face, key: key,
                                  url: FaceView.url(for: face, live2d: live2d, model: model))
+        context.coordinator.apply(glow: glow)
         context.coordinator.apply(state: state)
         context.coordinator.apply(amplitude: amplitude)
     }
