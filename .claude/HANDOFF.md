@@ -47,6 +47,9 @@ no internal names; talking over her works and she does not cut herself off.
 - His bubbles match hers (glass, outline + text only) in the legend's thinking magenta rgb(255,56,199); web (lain 2eb633f..aacd35b) and iPad app (installed via xcodebuild + devicectl). iPhone app not rebuilt.
 - architect's lain checkout carries someone's UNCOMMITTED glow edits (arisu/index.html, cues.js, live2d/index.html, title-check.html). Deploys there need stash / pull / stash pop.
 
+## Tap to show controls (2026-09-17, verified by Oscar)
+- iPad app (f5bde79): fold button removed; legend + buttons start hidden, a screen tap toggles them. Settings sheet moved to body so hiding never closes it. iPhone app and web unchanged.
+
 ## Resume
 
 "Read arisu/.claude/HANDOFF.md, then read the voice log from Oscar's last conversation with Arisu."
