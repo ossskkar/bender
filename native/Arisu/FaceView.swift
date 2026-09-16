@@ -153,6 +153,7 @@ struct FaceView: UIViewRepresentable {
             guard loaded, let web else { return }
             web.evaluateJavaScript("document.body.dataset.glow='\(state)';" +
                                    "window.avatar && window.avatar.setState('\(state)')")
+            spotlight()
         }
 
         func apply(glow: String) {
@@ -160,6 +161,19 @@ struct FaceView: UIViewRepresentable {
             sentGlow = glow
             guard loaded, let web else { return }
             web.evaluateJavaScript("document.body.style.setProperty('--glow','\(glow)')")
+            spotlight()
+        }
+
+        /// The Live2D page stands her in an opaque room, which hides the
+        /// drop-shadow glow. It has its own light between the room and the
+        /// model, a spotlight behind her, so the state colour goes there.
+        /// Peaks mirror lain's `cues.js`. The portrait has no `ArisuScene`.
+        private func spotlight() {
+            guard loaded, let web, let state = sentState, let glow = sentGlow else { return }
+            let peak = ["idle": 0.55, "listening": 0.7, "thinking": 1.0,
+                        "speaking": 0.95][state] ?? 0.4
+            web.evaluateJavaScript(
+                "window.ArisuScene && ArisuScene.setGlow({state:'\(state)',colour:'\(glow)',glow:\(peak)})")
         }
 
         /// The level publishes far faster than a face can show, so this sends
@@ -176,7 +190,8 @@ struct FaceView: UIViewRepresentable {
             lastAmplitudeAt = now
             web.evaluateJavaScript(
                 "document.body.style.setProperty('--amp','\(String(format: "%.3f", amplitude))');" +
-                "window.avatar && window.avatar.setAmplitude(\(String(format: "%.3f", amplitude)))")
+                "window.avatar && window.avatar.setAmplitude(\(String(format: "%.3f", amplitude)));" +
+                "window.ArisuScene && ArisuScene.setGlow({loud:\(String(format: "%.2f", amplitude * 0.85))})")
         }
     }
 

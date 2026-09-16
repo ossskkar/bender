@@ -81,9 +81,9 @@ struct ContentView: View {
     }
 
     /// How strongly the ground under her is lit, per state.
-    /// What each colour means, top left, with the current one lit.
+    /// What each colour means, one row top left, with the current one lit.
     private var legend: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        HStack(spacing: 18) {
             ForEach([(Phase.idle, "idle"), (.listening, "listening"),
                      (.thinking, "thinking"), (.speaking, "speaking")], id: \.1) { p, name in
                 let (r, g, b) = Self.rgb(p)
@@ -111,15 +111,6 @@ struct ContentView: View {
         case .listening: return 0.24
         case .thinking:  return 0.2
         case .speaking:  return 0.3
-        }
-    }
-
-    private var phaseLabel: String? {
-        switch phase {
-        case .thinking:  return "thinking"
-        case .speaking:  return "arisu"
-        case .listening: return "you"
-        case .idle:      return nil
         }
     }
 
@@ -399,37 +390,21 @@ struct ContentView: View {
 
     /// The same twenty bars all the way through, because a second widget
     /// appearing elsewhere on the screen was the thing that made her look
-    /// busy in a different place from where she listens. Working is the same
-    /// object moving differently, in a colour she is never otherwise.
+    /// busy in a different place from where she listens. No word under it:
+    /// the legend top left already names the colour (Oscar, 2026-09-16).
     private var meter: some View {
-        VStack(spacing: 7) {
-            Group {
-                switch phase {
-                // One travelling wave for every state. Thinking and speaking
-                // run it at full height; listening scales it by his
-                // microphone, so it is a mic light; idle holds it flat.
-                case .thinking, .speaking: wave(phaseColor, gain: 1)
-                case .listening: wave(phaseColor, gain: Double(live.micLevel))
-                case .idle:      wave(phaseColor, gain: 0)
-                }
-            }
-            .frame(height: 36)
-            if let phaseLabel {
-                Text(phaseLabel)
-                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                    .tracking(2.2)
-                    .foregroundStyle(phaseColor.opacity(0.85))
-                    .shadow(color: phaseColor.opacity(0.6), radius: 6)
-                    .transition(.opacity)
-            } else {
-                // Held open, so the meter does not hop up and down the screen
-                // every time one of them stops talking.
-                Color.clear.frame(height: 17)
+        Group {
+            switch phase {
+            // One travelling wave for every state. Thinking and speaking
+            // run it at full height; listening scales it by his
+            // microphone, so it is a mic light; idle holds it flat.
+            case .thinking, .speaking: wave(phaseColor, gain: 1)
+            case .listening: wave(phaseColor, gain: Double(live.micLevel))
+            case .idle:      wave(phaseColor, gain: 0)
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: phaseLabel)
+        .frame(height: 36)
     }
-
 
     /// A wave running left to right. `TimelineView` drives it off the frame
     /// clock rather than an animation on a `@State` flag: twenty bars each
