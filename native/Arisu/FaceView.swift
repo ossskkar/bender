@@ -43,8 +43,11 @@ struct FaceView: UIViewRepresentable {
     /// her outline rather than a disc behind her, and it works for the
     /// portrait and the Live2D page alike without either page knowing.
     /// Idle is dim and still, listening steady, thinking a slow pulse,
-    /// speaking follows `--amp`. Asleep has none.
+    /// speaking follows `--amp`. Asleep has none. It also hides the Live2D
+    /// page's test buttons for good: `showPanel(false)` runs before
+    /// `window.avatar` exists on a slow load, and the bar stayed up.
     fileprivate static let glowCSS = """
+    #arisu-harness{display:none!important}
     body{transition:filter .35s ease}
     body[data-glow=idle]{filter:drop-shadow(0 0 6px rgba(var(--glow),.15))}
     body[data-glow=listening]{filter:drop-shadow(0 0 10px rgba(var(--glow),.35))}
