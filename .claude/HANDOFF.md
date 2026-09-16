@@ -50,6 +50,9 @@ no internal names; talking over her works and she does not cut herself off.
 ## Tap to show controls (2026-09-17, verified by Oscar)
 - iPad app (f5bde79): fold button removed; legend + buttons start hidden, a screen tap toggles them. Settings sheet moved to body so hiding never closes it. iPhone app and web unchanged.
 
+## Voice commands (2026-09-17, verified by Oscar)
+- iPad app (123b6ee): `VoiceCommand` in ContentView.swift matches his heard line: show/hide transcript, group/solo mode, mute, open/close settings. No voice unmute (muted mic hears nothing). She still replies to the line. iPhone app and web lack it.
+
 ## Resume
 
 "Read arisu/.claude/HANDOFF.md, then read the voice log from Oscar's last conversation with Arisu."
