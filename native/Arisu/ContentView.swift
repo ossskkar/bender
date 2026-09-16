@@ -63,7 +63,9 @@ struct ContentView: View {
     /// her, the ground, the meter and its label all wear it, so the state
     /// reads from across the room. Each is a hue she never has otherwise:
     /// indigo waiting, green hearing him, magenta working, cyan talking.
-    private var phaseRGB: (Double, Double, Double) {
+    private var phaseRGB: (Double, Double, Double) { Self.rgb(phase) }
+
+    private static func rgb(_ phase: Phase) -> (Double, Double, Double) {
         switch phase {
         case .idle:      return (0.50, 0.55, 1.0)
         case .listening: return (0.30, 1.0, 0.50)
@@ -78,6 +80,30 @@ struct ContentView: View {
     }
 
     /// How strongly the ground under her is lit, per state.
+    /// What each colour means, top left, with the current one lit.
+    private var legend: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach([(Phase.idle, "idle"), (.listening, "listening"),
+                     (.thinking, "thinking"), (.speaking, "speaking")], id: \.1) { p, name in
+                let (r, g, b) = Self.rgb(p)
+                let c = Color(red: r, green: g, blue: b)
+                HStack(spacing: 8) {
+                    Circle().fill(c).frame(width: 10, height: 10)
+                        .shadow(color: c.opacity(0.8), radius: phase == p ? 6 : 0)
+                    Text(name)
+                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(c)
+                }
+                .opacity(phase == p ? 1 : 0.45)
+            }
+        }
+        .shadow(color: .black.opacity(0.85), radius: 4)
+        .padding(.leading, 26)
+        .padding(.top, 30)
+        .animation(.easeInOut(duration: 0.25), value: phase)
+        .allowsHitTesting(false)
+    }
+
     private var groundLight: Double {
         switch phase {
         case .idle:      return 0.12
@@ -360,8 +386,10 @@ struct ContentView: View {
         }
         .animation(.easeInOut(duration: 0.45), value: pet.heard)
         .animation(.easeInOut(duration: 0.45), value: pet.line)
-        .padding(.horizontal, 28)
-        .padding(.bottom, 18)
+        // Clear of the control column on the right, and the same on the left
+        // so the lines stay centred under her.
+        .padding(.horizontal, 130)
+        .padding(.bottom, 40)
     }
 
     /// The same twenty bars all the way through, because a second widget
@@ -372,18 +400,18 @@ struct ContentView: View {
         VStack(spacing: 7) {
             Group {
                 switch phase {
-                // Thinking and speaking are both things happening off-screen
-                // with no signal to plot, so both are the same travelling
-                // wave; only the colour separates them. Listening plots his
-                // actual microphone, because there the signal exists.
-                case .thinking, .speaking: wave(phaseColor)
-                case .listening, .idle:    level_meter
+                // One travelling wave for every state. Thinking and speaking
+                // run it at full height; listening scales it by his
+                // microphone, so it is a mic light; idle holds it flat.
+                case .thinking, .speaking: wave(phaseColor, gain: 1)
+                case .listening: wave(phaseColor, gain: Double(live.micLevel))
+                case .idle:      wave(phaseColor, gain: 0)
                 }
             }
-            .frame(height: 16)
+            .frame(height: 36)
             if let phaseLabel {
                 Text(phaseLabel)
-                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
                     .tracking(2.2)
                     .foregroundStyle(phaseColor.opacity(0.85))
                     .shadow(color: phaseColor.opacity(0.6), radius: 6)

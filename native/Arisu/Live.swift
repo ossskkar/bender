@@ -104,6 +104,9 @@ final class Live: ObservableObject {
     }
     @Published private(set) var status = ""
     @Published var level: Float = 0
+    /// His microphone, 0...1, for the meter only. Published on a visible
+    /// change, not on every tap, or the whole screen redraws at tap rate.
+    @Published private(set) var micLevel: Float = 0
 
     /// She called `set_mood`: the hologram's colour and animation.
     var onMood: ((String, String) -> Void)?
@@ -937,6 +940,8 @@ final class Live: ObservableObject {
             // driven by `heardSelf` off her own playback. This rms is only
             // ever used to decide whether somebody said something.
             self.meter(rms)
+            let mic = self.muted ? 0 : min(1, rms * 12)
+            if abs(mic - self.micLevel) > 0.03 { self.micLevel = mic }
 
             if self.dormant {
                 // Asleep: the only question is whether that was a voice. The
