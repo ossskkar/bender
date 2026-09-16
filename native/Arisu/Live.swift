@@ -506,7 +506,10 @@ final class Live: ObservableObject {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 5_000_000_000)
                 guard let self else { return }
-                guard let gap = self.idleClose, self.connected, !self.speaking
+                // Not with an answer still owed: closing then drops it, and a
+                // muted room never refreshes `lastVoice` (Oscar, 2026-09-17).
+                guard let gap = self.idleClose, self.connected, !self.speaking,
+                      self.awaiting.isEmpty, self.openPlans.isEmpty, self.toolsOut == 0
                 else { continue }
                 if Date().timeIntervalSince(self.lastVoice) > gap {
                     self.sleepSession()

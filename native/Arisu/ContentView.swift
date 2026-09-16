@@ -314,10 +314,10 @@ struct ContentView: View {
     /// asleep, which is not a phase of a conversation but the absence of one:
     /// the microphone is down and there is nothing to be idle about.
     private var faceState: String {
-        // Muted is not a phase of a conversation either. She should look like
-        // she is waiting rather than listening, or the face says the room is
-        // being heard when it is not.
-        guard pet.running, !live.muted else { return "asleep" }
+        // Muted is not asleep: she still thinks and speaks what was asked
+        // before the mute; `phase` already keeps her from looking like she is
+        // listening (Oscar, 2026-09-17).
+        guard pet.running else { return "asleep" }
         switch phase {
         case .idle:      return "idle"
         case .listening: return "listening"
