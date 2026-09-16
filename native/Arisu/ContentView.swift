@@ -43,6 +43,8 @@ struct ContentView: View {
     /// (1.0, 0.30, 0.42), which reads as magenta and collided with the
     /// magenta the meter once used to mean she is working.
     private let voice = Color(red: 0.27, green: 0.90, blue: 0.97)
+    /// His chat bubbles: blue, light enough to read as text on the glass.
+    private let mineColor = Color(red: 0.39, green: 0.71, blue: 1.0)
 
     /// Recording red. The one colour on this screen that is not part of the
     /// hologram's palette, on purpose: a record light should look like a
@@ -405,14 +407,14 @@ struct ContentView: View {
                     if m.mine { Spacer(minLength: 80) }
                     Text(m.text)
                         .font(.system(size: 19, weight: .medium))
-                        .foregroundStyle(m.mine ? .white : voice)
+                        .foregroundStyle(m.mine ? mineColor : voice)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)
+                        // Same glass bubble for both; only outline and text carry the colour.
                         .background(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(m.mine ? Color(red: 0.04, green: 0.52, blue: 1.0)
-                                         : Color.white.opacity(0.12)))
+                            .fill(Color.white.opacity(0.12)))
                         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(m.mine ? .clear : voice.opacity(0.35)))
+                            .stroke((m.mine ? mineColor : voice).opacity(0.35)))
                     if !m.mine { Spacer(minLength: 80) }
                 }
                 .opacity(0.4 + 0.6 * Double(i + 1) / Double(messages.count))
