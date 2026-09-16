@@ -25,6 +25,18 @@ struct ContentView: View {
     /// The moving bars at the bottom, on or off (Settings > Face).
     @AppStorage("arisu.meter") private var showMeter = true
     @State private var showSettings = false
+    /// The recent lines of both of them, oldest first, as chat bubbles.
+    @State private var messages: [Bubble] = []
+    /// The control column is one button until pressed, and folds back after
+    /// a few quiet seconds (Oscar, 2026-09-16).
+    @State private var controlsOpen = false
+    @State private var foldTask: Task<Void, Never>?
+
+    private struct Bubble: Identifiable, Equatable {
+        let id = UUID()
+        let mine: Bool
+        let text: String
+    }
 
     /// What she says, always. The mood still tints the room around her, but
     /// the words themselves stay one colour -- "hot" rendered them at
@@ -152,7 +164,7 @@ struct ContentView: View {
                 VStack {
                     Spacer()
                     if room.isGroup { company }
-                    if showTranscript { caption }
+                    if showTranscript { transcript }
                     // A meter for a microphone that is down would be a lie.
                     if pet.running && showMeter { meter.padding(.bottom, 22) }
                     else { Color.clear.frame(height: 36).padding(.bottom, 22) }
@@ -166,6 +178,8 @@ struct ContentView: View {
         // A page she was asked to show. The desk already decided how it can be
         // shown, so this only draws it.
         .sheet(item: $live.page) { PageSheet(page: $0) { live.page = nil } }
+        .onChange(of: pet.heard) { _, t in say(t, mine: true) }
+        .onChange(of: pet.line) { _, t in say(t, mine: false) }
         .animation(.easeInOut(duration: 0.25), value: pet.thinking)
         .animation(.easeInOut(duration: 0.25), value: live.thinking)
         .animation(.easeInOut(duration: 0.25), value: pet.running)
@@ -191,6 +205,32 @@ struct ContentView: View {
     /// those are no longer choices anyone makes: the desk decides which
     /// realtime model to spend on at mint time, and whisper is the old path.
     private var controls: some View {
+        VStack(spacing: 16) {
+            if controlsOpen { controlColumn.transition(.opacity.combined(with: .move(edge: .bottom))) }
+            iconButton(controlsOpen ? "chevron.down.circle" : "ellipsis.circle", tint: off) {
+                controlsOpen.toggle()
+                touched()
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: controlsOpen)
+        .padding(.trailing, 26)
+        .padding(.bottom, 26)
+        .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet, live: live) }
+    }
+
+    /// Any press restarts the clock; eight quiet seconds fold the column. Not
+    /// while a turn is held, or the record button would vanish under his thumb.
+    private func touched() {
+        foldTask?.cancel()
+        guard controlsOpen else { return }
+        foldTask = Task {
+            try? await Task.sleep(nanoseconds: 8_000_000_000)
+            guard !Task.isCancelled else { return }
+            if live.pushing { touched() } else { controlsOpen = false }
+        }
+    }
+
+    private var controlColumn: some View {
         VStack(spacing: 16) {
             iconButton(showTranscript ? "text.bubble.fill" : "text.bubble",
                        tint: showTranscript ? glow : off) {
@@ -237,9 +277,6 @@ struct ContentView: View {
                 showSettings = true
             }
         }
-        .padding(.trailing, 26)
-        .padding(.bottom, 26)
-        .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet, live: live) }
     }
 
     /// Hold to say something long.
@@ -269,7 +306,7 @@ struct ContentView: View {
             .shadow(color: .black.opacity(0.85), radius: 5)
             .contentShape(Rectangle())
             .scaleEffect(live.pushing ? 1.12 : 1)
-            .onTapGesture { live.turnMode.toggle() }
+            .onTapGesture { live.turnMode.toggle(); touched() }
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in if armed { live.startTurn() } }
@@ -279,7 +316,7 @@ struct ContentView: View {
 
     private func iconButton(_ symbol: String, tint: Color,
                             action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button(action: { action(); touched() }) {
             Image(systemName: symbol)
                 .font(.system(size: 34, weight: .medium))
                 .foregroundStyle(tint)
@@ -359,36 +396,40 @@ struct ContentView: View {
         .animation(.easeInOut(duration: 0.25), value: room.holder)
     }
 
-    /// The last thing each of them said, and nothing older. A new line does
-    /// not replace the text in place -- changing the `id` makes it a new view,
-    /// so the old one fades out as the new one fades in and the two are never
-    /// legible at once. Colour is the only thing saying who spoke.
-    private var caption: some View {
-        VStack(spacing: 6) {
-            if !pet.heard.isEmpty {
-                Text(pet.heard)
-                    .font(.system(size: 22, weight: .medium))
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.white)
-                    .id(pet.heard)
-                    .transition(.opacity)
-            }
-            if !pet.line.isEmpty {
-                Text(pet.line)
-                    .font(.system(size: 22, weight: .medium))
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(voice)
-                    .shadow(color: voice.opacity(0.5), radius: 12)
-                    .id(pet.line)
-                    .transition(.opacity)
+    /// The conversation as chat bubbles: his on the right, hers on the left,
+    /// the last four lines, older ones fading (Oscar, 2026-09-16).
+    private var transcript: some View {
+        VStack(spacing: 8) {
+            ForEach(Array(messages.enumerated()), id: \.element.id) { i, m in
+                HStack {
+                    if m.mine { Spacer(minLength: 80) }
+                    Text(m.text)
+                        .font(.system(size: 19, weight: .medium))
+                        .foregroundStyle(m.mine ? .white : voice)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 9)
+                        .background(RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(m.mine ? Color(red: 0.04, green: 0.52, blue: 1.0)
+                                         : Color.white.opacity(0.12)))
+                        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(m.mine ? .clear : voice.opacity(0.35)))
+                    if !m.mine { Spacer(minLength: 80) }
+                }
+                .opacity(0.4 + 0.6 * Double(i + 1) / Double(messages.count))
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(.easeInOut(duration: 0.45), value: pet.heard)
-        .animation(.easeInOut(duration: 0.45), value: pet.line)
-        // Clear of the control column on the right, and the same on the left
-        // so the lines stay centred under her.
+        .frame(maxWidth: 620)
+        .animation(.easeOut(duration: 0.3), value: messages)
         .padding(.horizontal, 130)
-        .padding(.bottom, 40)
+        .padding(.bottom, 24)
+    }
+
+    private func say(_ text: String, mine: Bool) {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return }
+        messages.append(Bubble(mine: mine, text: t))
+        if messages.count > 4 { messages.removeFirst(messages.count - 4) }
     }
 
     /// The same twenty bars all the way through, because a second widget
