@@ -90,13 +90,17 @@ struct SettingsSheet: View {
             Section {
                 Toggle("Live2D face", isOn: $live2dFace)
                     .font(.system(size: 19))
+                if live2dFace { modelGrid }
             } header: {
                 header("Face")
             } footer: {
                 footer("Draws her as a moving Live2D model, loaded from the desk. "
-                       + "Arisu wears Haru, Chopper wears Natori. If the desk "
-                       + "cannot be reached, the portrait comes back.")
+                       + "The model is saved to the character, so the web page "
+                       + "shows the same one. If the desk cannot be reached, "
+                       + "the portrait comes back.")
             }
+
+            if live2dFace { glowSection }
 
             Section {
                 dial("Warmth", "Friendly distance", "Openly fond",
@@ -174,6 +178,86 @@ struct SettingsSheet: View {
             }
         }
         .tint(accent)
+    }
+
+    /// The models as pictures, not names -- the same stills the web panel
+    /// shows, served by the desk. The character's choice is saved there.
+    private var modelGrid: some View {
+        let current = FaceView.models.contains(pet.model) ? pet.model
+            : (pet.face == "chopper" ? "Natori" : "Haru")
+        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4),
+                         spacing: 10) {
+            ForEach(FaceView.models, id: \.self) { m in
+                Button { pickModel(m) } label: {
+                    VStack(spacing: 4) {
+                        AsyncImage(url: Brain.base.appendingPathComponent("live2d/thumbs/\(m).png")) {
+                            $0.resizable().scaledToFit()
+                        } placeholder: { Color.white.opacity(0.05) }
+                        .aspectRatio(3 / 4, contentMode: .fit)
+                        Text(m).font(.system(size: 14))
+                            .foregroundStyle(m == current ? .white : .white.opacity(0.6))
+                    }
+                    .padding(6)
+                    .background(RoundedRectangle(cornerRadius: 10)
+                        .fill(m == current ? accent.opacity(0.12) : Color.white.opacity(0.03)))
+                    .overlay(RoundedRectangle(cornerRadius: 10)
+                        .stroke(m == current ? accent : .white.opacity(0.1)))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.vertical, 6)
+    }
+
+    private func pickModel(_ m: String) {
+        guard m != pet.model else { return }
+        Task {
+            _ = try? await brain.setPersona(["model": m])
+            await pet.refreshCast()
+        }
+    }
+
+    /// The spotlight behind the model. The light moves under his thumb, and
+    /// the desk hears once he lets go. Defaults mirror cues.js.
+    private var glowSection: some View {
+        Section {
+            glowDial("Strength", \.strength, 1.5, 0...4, "Off", "Bright")
+            glowDial("Size", \.size, 1.3, 0.4...3, "Tight", "Wide")
+            glowDial("Left / right", \.x, 54, 0...100, "Left", "Right")
+            glowDial("Up / down", \.y, 42, 0...100, "Top", "Bottom")
+            Button("Reset the glow") {
+                pet.glow = Persona.Glow(strength: 1.5, size: 1.3, x: 54, y: 42)
+                saveGlow()
+            }
+            .font(.system(size: 19))
+        } header: {
+            header("Glow")
+        } footer: {
+            footer("The light behind her. Its colour follows what she is doing.")
+        }
+    }
+
+    private func glowDial(_ title: String, _ key: WritableKeyPath<Persona.Glow, Double?>,
+                          _ fallback: Double, _ range: ClosedRange<Double>,
+                          _ low: String, _ high: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(.system(size: 19, weight: .medium))
+            Slider(value: Binding(get: { pet.glow[keyPath: key] ?? fallback },
+                                  set: { pet.glow[keyPath: key] = $0 }),
+                   in: range,
+                   onEditingChanged: { if !$0 { saveGlow() } })
+            HStack { Text(low); Spacer(); Text(high) }
+                .font(.system(size: 13))
+                .foregroundStyle(.white.opacity(0.4))
+        }
+        .padding(.vertical, 6)
+    }
+
+    private func saveGlow() {
+        let g = pet.glow
+        let patch = ["strength": g.strength ?? 1.5, "size": g.size ?? 1.3,
+                     "x": g.x ?? 54, "y": g.y ?? 42]
+        Task { try? await brain.setPersona(["glow": patch]) }
     }
 
     /// Who is on the desk.

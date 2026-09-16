@@ -48,7 +48,18 @@ struct Persona: Codable {
     /// Set from the web settings panel; the iPad draws it when its own Live2D
     /// switch is on.
     var model: String?
+    /// The spotlight behind the Live2D model, shared with the web panel:
+    /// `strength` multiplies each state's own brightness, `size` spreads it,
+    /// `x`/`y` move its centre in percent of the frame. Missing means default.
+    var glow: Glow?
     var voices: [String]?
+
+    struct Glow: Codable, Equatable {
+        var strength: Double?
+        var size: Double?
+        var x: Double?
+        var y: Double?
+    }
     /// A sentence in her current manner, chosen by the desk. The phone does
     /// not compose it: what counts as warm at 0.9 is a decision that belongs
     /// next to the instructions it has to match.

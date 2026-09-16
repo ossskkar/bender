@@ -99,6 +99,9 @@ final class Pet: ObservableObject {
     /// The Live2D sample this character has chosen on the desk, or empty.
     /// Only drawn when the device's Live2D switch is on.
     @Published private(set) var model = ""
+    /// Its spotlight, from the desk. Settable so the sliders move the light
+    /// while he drags, before the desk has heard about it.
+    @Published var glow = Persona.Glow()
 
     /// The room and the session, kept in step.
     ///
@@ -175,6 +178,7 @@ final class Pet: ObservableObject {
         // character once it has one and the desk's active one before that.
         let mine = room.character.isEmpty ? cast.active : room.character
         model = cast.characters[mine]?.model ?? ""
+        glow = cast.characters[mine]?.glow ?? Persona.Glow()
         // Only as a default. Once this device has picked a character of its
         // own -- which the room does on the first join -- the desk's active
         // one is somebody else's screen and must not repaint this one.

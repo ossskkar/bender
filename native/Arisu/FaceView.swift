@@ -38,6 +38,8 @@ struct FaceView: UIViewRepresentable {
     /// The glow around her silhouette, as "r,g,b" in 0...255. How it behaves
     /// is the state's business, in `glowCSS`.
     var glow = "69,230,247"
+    /// How the Live2D spotlight is tuned. Ignored by the portrait.
+    var tune = Persona.Glow()
 
     /// A drop-shadow on the page body follows the canvas alpha, so the glow is
     /// her outline rather than a disc behind her, and it works for the
@@ -61,8 +63,8 @@ struct FaceView: UIViewRepresentable {
     /// no model keeps its portrait.
     private static let live2dModel = ["arisu": "Haru", "chopper": "Natori"]
     /// Every sample lain ships, mirroring `ALL_MODELS` in `arisu/index.html`.
-    private static let allModels: Set<String> =
-        ["Haru", "Hiyori", "Mao", "Rice", "Natori", "Ren", "Mark", "Wanko"]
+    static let models = ["Haru", "Hiyori", "Mao", "Rice", "Natori", "Ren", "Mark", "Wanko"]
+    private static let allModels = Set(models)
 
     /// The page for a character, or the fallback. `arisu` is the fallback
     /// because hers is the portrait the renderer was authored against, so it
@@ -93,6 +95,7 @@ struct FaceView: UIViewRepresentable {
         private var shownFace = "arisu"
         private var sentState: String?
         private var sentGlow: String?
+        private var sentTune: Persona.Glow?
         fileprivate var sentAmplitude = -1.0
         private var lastAmplitudeAt = Date.distantPast
         weak var web: WKWebView?
@@ -109,6 +112,7 @@ struct FaceView: UIViewRepresentable {
                 document.head.appendChild(st)
                 """)
             // Whatever arrived while the page was still parsing.
+            if let t = sentTune { sentTune = nil; apply(tune: t) }
             if let g = sentGlow { sentGlow = nil; apply(glow: g) }
             if let s = sentState { sentState = nil; apply(state: s) }
         }
@@ -141,6 +145,7 @@ struct FaceView: UIViewRepresentable {
             loaded = false
             sentState = nil
             sentGlow = nil
+            sentTune = nil
             sentAmplitude = -1
             if url.isFileURL {
                 web.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
@@ -167,16 +172,26 @@ struct FaceView: UIViewRepresentable {
             spotlight()
         }
 
+        func apply(tune: Persona.Glow) {
+            guard tune != sentTune else { return }
+            sentTune = tune
+            spotlight()
+        }
+
         /// The Live2D page stands her in an opaque room, which hides the
         /// drop-shadow glow. It has its own light between the room and the
         /// model, a spotlight behind her, so the state colour goes there.
         /// Peaks mirror lain's `cues.js`. The portrait has no `ArisuScene`.
         private func spotlight() {
             guard loaded, let web, let state = sentState, let glow = sentGlow else { return }
-            let peak = ["idle": 0.55, "listening": 0.7, "thinking": 1.0,
+            let t = sentTune ?? Persona.Glow()
+            let base = ["idle": 0.55, "listening": 0.7, "thinking": 1.0,
                         "speaking": 0.95][state] ?? 0.4
+            // Defaults and the cap at 1 mirror `resolveGlow` in cues.js.
+            let peak = min(1, base * (t.strength ?? 1.5))
             web.evaluateJavaScript(
-                "window.ArisuScene && ArisuScene.setGlow({state:'\(state)',colour:'\(glow)',glow:\(peak)})")
+                "window.ArisuScene && ArisuScene.setGlow({state:'\(state)',colour:'\(glow)'," +
+                "glow:\(peak),size:\(t.size ?? 1.3),x:\(t.x ?? 54),y:\(t.y ?? 42)})")
         }
 
         /// The level publishes far faster than a face can show, so this sends
@@ -228,6 +243,7 @@ struct FaceView: UIViewRepresentable {
     func updateUIView(_ web: WKWebView, context: Context) {
         context.coordinator.show(face, key: key,
                                  url: FaceView.url(for: face, live2d: live2d, model: model))
+        context.coordinator.apply(tune: tune)
         context.coordinator.apply(glow: glow)
         context.coordinator.apply(state: state)
         context.coordinator.apply(amplitude: amplitude)

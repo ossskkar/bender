@@ -313,7 +313,8 @@ struct ContentView: View {
         FaceView(face: pet.face, state: faceState, amplitude: Double(pet.level),
                  live2d: live2dFace, model: pet.model,
                  glow: [phaseRGB.0, phaseRGB.1, phaseRGB.2]
-                     .map { String(Int($0 * 255)) }.joined(separator: ","))
+                     .map { String(Int($0 * 255)) }.joined(separator: ","),
+                 tune: pet.glow)
             .allowsHitTesting(false)
     }
 
