@@ -35,6 +35,7 @@ struct SettingsSheet: View {
     /// Shared with `ContentView`, which hands it to the face. A preference of
     /// this screen, not of the character, so it lives on the device.
     @AppStorage("arisu.live2d") private var live2dFace = false
+    @AppStorage("arisu.meter") private var showMeter = true
 
     private let brain = Brain()
     private let accent = Color(red: 0.27, green: 0.90, blue: 0.97)
@@ -89,6 +90,8 @@ struct SettingsSheet: View {
 
             Section {
                 Toggle("Live2D face", isOn: $live2dFace)
+                    .font(.system(size: 19))
+                Toggle("Moving bars at the bottom", isOn: $showMeter)
                     .font(.system(size: 19))
                 if live2dFace { modelGrid }
             } header: {

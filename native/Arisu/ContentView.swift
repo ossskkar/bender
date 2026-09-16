@@ -22,6 +22,8 @@ struct ContentView: View {
     /// The Live2D face instead of the portrait. Off by default: it loads from
     /// the desk, and the portrait is the face that works with no network.
     @AppStorage("arisu.live2d") private var live2dFace = false
+    /// The moving bars at the bottom, on or off (Settings > Face).
+    @AppStorage("arisu.meter") private var showMeter = true
     @State private var showSettings = false
 
     /// What she says, always. The mood still tints the room around her, but
@@ -152,7 +154,7 @@ struct ContentView: View {
                     if room.isGroup { company }
                     if showTranscript { caption }
                     // A meter for a microphone that is down would be a lie.
-                    if pet.running { meter.padding(.bottom, 22) }
+                    if pet.running && showMeter { meter.padding(.bottom, 22) }
                     else { Color.clear.frame(height: 36).padding(.bottom, 22) }
                 }
             }
