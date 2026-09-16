@@ -27,10 +27,9 @@ struct ContentView: View {
     @State private var showSettings = false
     /// The recent lines of both of them, oldest first, as chat bubbles.
     @State private var messages: [Bubble] = []
-    /// The control column is one button until pressed, and folds back after
-    /// a few quiet seconds (Oscar, 2026-09-16).
-    @State private var controlsOpen = false
-    @State private var foldTask: Task<Void, Never>?
+    /// Legend and buttons start hidden; a tap on the screen shows them, the
+    /// next hides them (Oscar, 2026-09-17).
+    @State private var chromeShown = false
 
     private struct Bubble: Identifiable, Equatable {
         let id = UUID()
@@ -173,13 +172,17 @@ struct ContentView: View {
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
-            .overlay(alignment: .bottomTrailing) { controls }
-            .overlay(alignment: .topLeading) { legend }
+            .contentShape(Rectangle())
+            .onTapGesture { chromeShown.toggle() }
+            .overlay(alignment: .bottomTrailing) { if chromeShown { controls.transition(.opacity) } }
+            .overlay(alignment: .topLeading) { if chromeShown { legend.transition(.opacity) } }
+            .animation(.easeOut(duration: 0.2), value: chromeShown)
         }
         .ignoresSafeArea()
         // A page she was asked to show. The desk already decided how it can be
         // shown, so this only draws it.
         .sheet(item: $live.page) { PageSheet(page: $0) { live.page = nil } }
+        .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet, live: live) }
         .onChange(of: pet.heard) { _, t in say(t, mine: true) }
         .onChange(of: pet.line) { _, t in say(t, mine: false) }
         .animation(.easeInOut(duration: 0.25), value: pet.thinking)
@@ -207,32 +210,6 @@ struct ContentView: View {
     /// those are no longer choices anyone makes: the desk decides which
     /// realtime model to spend on at mint time, and whisper is the old path.
     private var controls: some View {
-        VStack(spacing: 16) {
-            if controlsOpen { controlColumn.transition(.opacity.combined(with: .move(edge: .bottom))) }
-            iconButton(controlsOpen ? "chevron.down.circle" : "ellipsis.circle", tint: off) {
-                controlsOpen.toggle()
-                touched()
-            }
-        }
-        .animation(.easeOut(duration: 0.2), value: controlsOpen)
-        .padding(.trailing, 26)
-        .padding(.bottom, 26)
-        .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet, live: live) }
-    }
-
-    /// Any press restarts the clock; eight quiet seconds fold the column. Not
-    /// while a turn is held, or the record button would vanish under his thumb.
-    private func touched() {
-        foldTask?.cancel()
-        guard controlsOpen else { return }
-        foldTask = Task {
-            try? await Task.sleep(nanoseconds: 8_000_000_000)
-            guard !Task.isCancelled else { return }
-            if live.pushing { touched() } else { controlsOpen = false }
-        }
-    }
-
-    private var controlColumn: some View {
         VStack(spacing: 16) {
             iconButton(showTranscript ? "text.bubble.fill" : "text.bubble",
                        tint: showTranscript ? glow : off) {
@@ -279,6 +256,8 @@ struct ContentView: View {
                 showSettings = true
             }
         }
+        .padding(.trailing, 26)
+        .padding(.bottom, 26)
     }
 
     /// Hold to say something long.
@@ -308,7 +287,7 @@ struct ContentView: View {
             .shadow(color: .black.opacity(0.85), radius: 5)
             .contentShape(Rectangle())
             .scaleEffect(live.pushing ? 1.12 : 1)
-            .onTapGesture { live.turnMode.toggle(); touched() }
+            .onTapGesture { live.turnMode.toggle() }
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in if armed { live.startTurn() } }
@@ -318,7 +297,7 @@ struct ContentView: View {
 
     private func iconButton(_ symbol: String, tint: Color,
                             action: @escaping () -> Void) -> some View {
-        Button(action: { action(); touched() }) {
+        Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 34, weight: .medium))
                 .foregroundStyle(tint)
