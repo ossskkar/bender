@@ -43,8 +43,8 @@ struct ContentView: View {
     /// (1.0, 0.30, 0.42), which reads as magenta and collided with the
     /// magenta the meter once used to mean she is working.
     private let voice = Color(red: 0.27, green: 0.90, blue: 0.97)
-    /// His chat bubbles: blue, light enough to read as text on the glass.
-    private let mineColor = Color(red: 0.39, green: 0.71, blue: 1.0)
+    /// His chat bubbles: amber, far from her cyan and magenta.
+    private let mineColor = Color(red: 1.0, green: 0.71, blue: 0.33)
 
     /// Recording red. The one colour on this screen that is not part of the
     /// hologram's palette, on purpose: a record light should look like a
