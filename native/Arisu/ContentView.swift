@@ -59,10 +59,23 @@ struct ContentView: View {
         return .idle
     }
 
-    /// One colour for every state, the base colour, so the screen matches the
-    /// glow around her. The state reads from how the glow moves (FaceView)
-    /// and from how bright the ground is, not from a change of hue.
-    private var phaseColor: Color { glow }
+    /// One colour per state, the same for every character. The glow around
+    /// her, the ground, the meter and its label all wear it, so the state
+    /// reads from across the room. Each is a hue she never has otherwise:
+    /// indigo waiting, green hearing him, magenta working, cyan talking.
+    private var phaseRGB: (Double, Double, Double) {
+        switch phase {
+        case .idle:      return (0.50, 0.55, 1.0)
+        case .listening: return (0.30, 1.0, 0.50)
+        case .thinking:  return (1.0, 0.22, 0.78)
+        case .speaking:  return (0.27, 0.90, 0.97)
+        }
+    }
+
+    private var phaseColor: Color {
+        let (r, g, b) = phaseRGB
+        return Color(red: r, green: g, blue: b)
+    }
 
     /// How strongly the ground under her is lit, per state.
     private var groundLight: Double {
@@ -111,7 +124,7 @@ struct ContentView: View {
                 RadialGradient(colors: [phaseColor.opacity(groundLight),
                                         phaseColor.opacity(groundLight / 4), .clear],
                                center: .center, startRadius: 4, endRadius: reach * 0.75)
-                    .animation(.easeInOut(duration: 0.35), value: groundLight)
+                    .animation(.easeInOut(duration: 0.35), value: phaseColor)
 
                 face
                 scanlines.allowsHitTesting(false)
@@ -277,7 +290,7 @@ struct ContentView: View {
         // stacking SwiftUI's versions on top only muddied them.
         FaceView(face: pet.face, state: faceState, amplitude: Double(pet.level),
                  live2d: live2dFace, model: pet.model,
-                 glow: [glowRGB.0, glowRGB.1, glowRGB.2]
+                 glow: [phaseRGB.0, phaseRGB.1, phaseRGB.2]
                      .map { String(Int($0 * 255)) }.joined(separator: ","))
             .allowsHitTesting(false)
     }
