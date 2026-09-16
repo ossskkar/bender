@@ -63,7 +63,7 @@ struct FaceView: UIViewRepresentable {
     /// no model keeps its portrait.
     private static let live2dModel = ["arisu": "Haru", "chopper": "Natori"]
     /// Every sample lain ships, mirroring `ALL_MODELS` in `arisu/index.html`.
-    static let models = ["Haru", "Hiyori", "Mao", "Rice", "Natori", "Ren", "Mark", "Wanko"]
+    static let models = ["Haru", "Hiyori", "Mao", "Rice", "Natori", "Ren", "Mark", "Wanko", "Arisu3D"]
     private static let allModels = Set(models)
 
     /// The page for a character, or the fallback. `arisu` is the fallback
@@ -77,9 +77,14 @@ struct FaceView: UIViewRepresentable {
     private static func url(for face: String, live2d: Bool, model saved: String) -> URL? {
         let chosen = allModels.contains(saved) ? saved : live2dModel[face]
         guard live2d, let model = chosen else { return portrait(for: face) }
-        var parts = URLComponents(url: Brain.base.appendingPathComponent("live2d/index.html"),
+        // Arisu3D is the 3D page (lain's arisu/vrm), which answers the same
+        // avatar and ArisuScene calls as the Live2D page.
+        let is3D = model == "Arisu3D"
+        var parts = URLComponents(url: Brain.base.appendingPathComponent(
+                                      is3D ? "vrm/index.html" : "live2d/index.html"),
                                   resolvingAgainstBaseURL: false)
-        parts?.queryItems = [URLQueryItem(name: "model", value: model)]
+        parts?.queryItems = [is3D ? URLQueryItem(name: "file", value: "arisu")
+                                  : URLQueryItem(name: "model", value: model)]
         return parts?.url ?? portrait(for: face)
     }
 
