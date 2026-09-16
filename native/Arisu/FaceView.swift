@@ -51,11 +51,11 @@ struct FaceView: UIViewRepresentable {
     fileprivate static let glowCSS = """
     #arisu-harness{display:none!important}
     body{transition:filter .35s ease}
-    body[data-glow=idle]{filter:drop-shadow(0 0 6px rgba(var(--glow),.15))}
-    body[data-glow=listening]{filter:drop-shadow(0 0 10px rgba(var(--glow),.35))}
+    body[data-glow=idle]{filter:drop-shadow(0 0 6px rgba(var(--halo),.15))}
+    body[data-glow=listening]{filter:drop-shadow(0 0 10px rgba(var(--halo),.35))}
     body[data-glow=thinking]{animation:arisu-pulse 1.8s ease-in-out infinite}
-    body[data-glow=speaking]{transition:none;filter:drop-shadow(0 0 calc(6px + 10px * var(--amp,0)) rgba(var(--glow),calc(.2 + .35 * var(--amp,0))))}
-    @keyframes arisu-pulse{0%,100%{filter:drop-shadow(0 0 5px rgba(var(--glow),.1))}50%{filter:drop-shadow(0 0 14px rgba(var(--glow),.4))}}
+    body[data-glow=speaking]{transition:none;filter:drop-shadow(0 0 calc(6px + 10px * var(--amp,0)) rgba(var(--halo),calc(.2 + .35 * var(--amp,0))))}
+    @keyframes arisu-pulse{0%,100%{filter:drop-shadow(0 0 5px rgba(var(--halo),.1))}50%{filter:drop-shadow(0 0 14px rgba(var(--halo),.4))}}
     """
 
     /// Which Live2D sample each character wears by default. Mirrors the first
@@ -168,7 +168,7 @@ struct FaceView: UIViewRepresentable {
             guard glow != sentGlow else { return }
             sentGlow = glow
             guard loaded, let web else { return }
-            web.evaluateJavaScript("document.body.style.setProperty('--glow','\(glow)')")
+            web.evaluateJavaScript("document.body.style.setProperty('--halo','\(glow)')")
             spotlight()
         }
 
