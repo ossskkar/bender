@@ -54,6 +54,26 @@ final class Live: ObservableObject {
     /// Responses this client asked for and has not yet seen created. Any other
     /// response is the server answering on its own -- see `response.created`.
     private var ownResponses = 0
+
+    // One turn, one spoken line, for the newest question only. The same rules
+    // as lain's arisu/arisu-voice.js, which has the tests and the reasons:
+    // every turn starts as a text-only plan so nothing is heard before she
+    // thinks, and a think that comes back for a question he has moved past is
+    // kept in the conversation but never spoken.
+    /// Real work out, per response id.
+    private var work = [String: Int]()
+    /// The newest response that sent work out.
+    private var latestWork: String?
+    /// Plans still generating, and plans whose work came back before they did.
+    private var openPlans = Set<String>()
+    private var owedPlans = Set<String>()
+    /// He said "quiet" (or she called go_quiet); his next "Arisu" ends it.
+    private var hushed = false
+    /// When this turn started, when its plan ended and when its reply was
+    /// asked for -- the split of a slow first word, written to the face log.
+    private var turnAt: Date?
+    private var planAt: Date?
+    private var replyAt: Date?
     /// A continuation waiting for her current line to finish playing,
     /// resolved by `response.done` / `response.output_audio.done` (speaker
     /// dry) or by an error. The command inbox uses it to say queued lines in
@@ -251,6 +271,7 @@ final class Live: ObservableObject {
         toolsOut = 0
         awaiting.removeAll()
         ownResponses = 0
+        resetTurns()
         await connect()
     }
 
@@ -389,6 +410,9 @@ final class Live: ObservableObject {
             r.setValue("Bearer " + token.value, forHTTPHeaderField: "Authorization")
             let ws = session.webSocketTask(with: r)
             socket = ws
+            // A new session has none of the old one's responses.
+            work.removeAll(); latestWork = nil
+            openPlans.removeAll(); owedPlans.removeAll()
             ws.resume()
             connected = true
             dormant = false
@@ -572,6 +596,14 @@ final class Live: ObservableObject {
 
         switch type {
         case "response.output_audio.delta":
+            if let t = turnAt, let r = replyAt {
+                let ms = { (a: Date, b: Date) in Int(b.timeIntervalSince(a) * 1000) }
+                let now = Date()
+                let p = planAt ?? t
+                brain.debug(["ev": "timing",
+                             "text": "first word \(ms(t, now)) ms: plan \(ms(t, p)), think \(ms(p, r)), voice \(ms(r, now))"])
+                turnAt = nil
+            }
             // She is talking, so whatever she was thinking about is finished.
             // The count is the truth in the normal case; this is what catches
             // the abnormal one, and it costs nothing to be sure.
@@ -580,7 +612,19 @@ final class Live: ObservableObject {
             if !speaking { brain.debug(["ev": "audio-began"]) }
             speaking = true
 
-        case "response.output_audio.done", "response.done":
+        case "response.done":
+            let r = ev["response"] as? [String: Any] ?? [:]
+            if let id = r["id"] as? String, openPlans.contains(id) {
+                planFinished(id: id, response: r)
+                break
+            }
+            if pending == 0 {
+                speaking = false
+                lineFinished?.resume()
+                lineFinished = nil
+            }
+
+        case "response.output_audio.done":
             // Only if the speaker is already dry. Otherwise she is still
             // talking and `speaking` has to stay true, or the idle watch and
             // the interrupt path both believe a silent socket means silence.
@@ -604,6 +648,14 @@ final class Live: ObservableObject {
 
         case "conversation.item.input_audio_transcription.completed":
             if let t = ev["transcript"] as? String {
+                let low = t.lowercased()
+                if low.range(of: #"(^|[^a-z])qui+et([^a-z]|$)"#, options: .regularExpression) != nil {
+                    hushed = true
+                    flush()
+                } else if hushed, low.range(of: #"(^|[^a-z])arisu([^a-z]|$)"#, options: .regularExpression) != nil {
+                    hushed = false
+                    if awaiting.isEmpty { speakReply() }
+                }
                 onHeard?(t)
                 brain.debug(["ev": "heard", "text": String(t.prefix(200))])
             }
@@ -625,12 +677,23 @@ final class Live: ObservableObject {
             hearing = false
             lastVoice = Date()
 
+        // Minted with create_response off: the turn ended, and this client
+        // decides what it becomes. Push-to-talk plans in endTurn instead.
+        case "input_audio_buffer.committed":
+            if !turnMode && !role.group && !silenced { startPlan() }
+
         case "response.function_call_arguments.done":
             let name = ev["name"] as? String ?? ""
             let callID = ev["call_id"] as? String ?? ""
             let args = ev["arguments"] as? String ?? "{}"
+            let responseID = ev["response_id"] as? String ?? "?"
             if name != "set_mood" { awaiting.insert(callID) }
-            Task { await self.runTool(name: name, callID: callID, args: args) }
+            if Live.isWork(name) {
+                work[responseID, default: 0] += 1
+                latestWork = responseID
+            }
+            Task { await self.runTool(name: name, callID: callID, args: args,
+                                      responseID: responseID) }
 
         case "response.created":
             // Something he said -- more words, an "hm", noise the server took
@@ -640,6 +703,10 @@ final class Live: ObservableObject {
             // answers to one question (face log, 2026-09-12). His words are
             // already in the conversation, so the reply that follows `think`
             // covers them; this one is cancelled before it says anything.
+            let r = ev["response"] as? [String: Any] ?? [:]
+            let isPlan = (r["metadata"] as? [String: Any])?["kind"] as? String == "plan"
+                || (r["output_modalities"] as? [String]) == ["text"]
+            if isPlan, let id = r["id"] as? String { openPlans.insert(id) }
             if ownResponses > 0 {
                 ownResponses -= 1
             } else if !awaiting.isEmpty {
@@ -705,8 +772,10 @@ final class Live: ObservableObject {
             ? NSNull()
             : ["type": "semantic_vad",
                "eagerness": "low",
-               "create_response": !role.group,
-               "interrupt_response": false] as [String: Any]
+               // Off everywhere: solo, the plan below asks for the reply;
+               // in a group, the desk names who answers.
+               "create_response": false,
+               "interrupt_response": true] as [String: Any]
         send(["type": "session.update",
               "session": ["type": "realtime",
                           "audio": ["input": ["turn_detection": detection]]]])
@@ -739,8 +808,72 @@ final class Live: ObservableObject {
         hearing = false
         lastVoice = Date()
         send(["type": "input_audio_buffer.commit"])
+        startPlan()
+    }
+
+    // MARK: - plan, then speak once
+
+    private static func isWork(_ name: String) -> Bool {
+        !name.isEmpty && name != "set_mood" && name != "go_quiet"
+    }
+
+    private func resetTurns() {
+        work.removeAll(); latestWork = nil
+        openPlans.removeAll(); owedPlans.removeAll()
+        hushed = false
+        turnAt = nil; planAt = nil; replyAt = nil
+    }
+
+    /// A turn begins as a text-only response: whatever it says before it
+    /// decides to think is never audio.
+    private func startPlan() {
+        turnAt = Date(); planAt = nil; replyAt = nil
         ownResponses += 1
-        send(["type": "response.create"])
+        send(["type": "response.create",
+              "response": ["output_modalities": ["text"],
+                           "metadata": ["kind": "plan"]]])
+    }
+
+    /// The one spoken line of a turn, tools off so it cannot start another.
+    private func speakReply() {
+        guard connected, !hushed else { return }
+        replyAt = Date()
+        ownResponses += 1
+        send(["type": "response.create", "response": ["tool_choice": "none"]])
+    }
+
+    private func planFinished(id: String, response r: [String: Any]) {
+        openPlans.remove(id)
+        planAt = Date()
+        // Its text is dropped, so the reply is the first thing she says.
+        for item in r["output"] as? [[String: Any]] ?? [] {
+            if item["type"] as? String == "message", let iid = item["id"] as? String {
+                send(["type": "conversation.item.delete", "item_id": iid])
+            }
+        }
+        if owedPlans.remove(id) != nil {
+            if latestWork == id { speakReply() } else { superseded() }
+            return
+        }
+        if r["status"] as? String == "cancelled" { return }
+        if (work[id] ?? 0) > 0 { return }            // its work will ask
+        if work.values.contains(where: { $0 > 0 }) { return }   // an earlier think covers it
+        speakReply()
+    }
+
+    /// A tool came back; ask for the reply only if it was the last one out
+    /// for the newest question.
+    private func workDone(name: String, responseID id: String) {
+        guard Live.isWork(name), let n = work[id] else { return }
+        if n > 1 { work[id] = n - 1; return }
+        work[id] = nil
+        guard latestWork == id else { superseded(); return }
+        if openPlans.contains(id) { owedPlans.insert(id); return }
+        speakReply()
+    }
+
+    private func superseded() {
+        brain.debug(["ev": "superseded", "text": "answer to an earlier question, not spoken"])
     }
 
     // MARK: - the room
@@ -788,7 +921,8 @@ final class Live: ObservableObject {
 
     // MARK: - her hands, which are on the desk
 
-    private func runTool(name: String, callID: String, args: String) async {
+    private func runTool(name: String, callID: String, args: String,
+                         responseID: String) async {
         var output = "{\"ok\":true}"
         let isBody = name == "set_mood"
         if !isBody { toolsOut += 1 }
@@ -813,14 +947,11 @@ final class Live: ObservableObject {
         ]
         awaiting.remove(callID)
         send(item)
-        // `set_mood` is her face, not an answer. Asking for a response after it
-        // made her reply twice to one question: once for the mood call and once
-        // for the thinking call, because she routinely makes both in a turn.
-        // Only the tool that actually fetched something gets a new response.
-        // Through the room rather than straight at the socket: a tool answer
-        // is still an answer, and one that skipped the floor would be the one
-        // way a device could start talking over another.
-        if !isBody { answer() }
+        if name == "go_quiet" { hushed = true; flush() }
+        // In a group the desk decides who speaks, through the floor. Solo, one
+        // reply per turn for the newest question -- see workDone.
+        if role.group { if Live.isWork(name) { answer() } }
+        else { workDone(name: name, responseID: responseID) }
     }
 
     // MARK: - audio
