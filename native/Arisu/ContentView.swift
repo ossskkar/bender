@@ -161,11 +161,12 @@ struct ContentView: View {
                     if showTranscript { caption }
                     // A meter for a microphone that is down would be a lie.
                     if pet.running { meter.padding(.bottom, 22) }
-                    else { Color.clear.frame(height: 16).padding(.bottom, 22) }
+                    else { Color.clear.frame(height: 36).padding(.bottom, 22) }
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .overlay(alignment: .bottomTrailing) { controls }
+            .overlay(alignment: .topLeading) { legend }
         }
         .ignoresSafeArea()
         .animation(.easeInOut(duration: 0.25), value: pet.thinking)
@@ -419,47 +420,34 @@ struct ContentView: View {
             } else {
                 // Held open, so the meter does not hop up and down the screen
                 // every time one of them stops talking.
-                Color.clear.frame(height: 13)
+                Color.clear.frame(height: 17)
             }
         }
         .animation(.easeInOut(duration: 0.2), value: phaseLabel)
     }
 
-    private var level_meter: some View {
-        HStack(spacing: 3) {
-            ForEach(0..<20, id: \.self) { i in
-                let lit = Float(i) / 20 < pet.level
-                RoundedRectangle(cornerRadius: 1)
-                    .fill(lit ? (i > 16 ? Color.pink : phaseColor)
-                              : Color.white.opacity(0.12))
-                    .frame(width: 5, height: 10)
-            }
-        }
-        .shadow(color: phase == .listening ? phaseColor.opacity(0.5) : .clear,
-                radius: 7)
-        .animation(.easeOut(duration: 0.12), value: pet.level)
-    }
 
     /// A wave running left to right. `TimelineView` drives it off the frame
     /// clock rather than an animation on a `@State` flag: twenty bars each
     /// with their own phase is exactly the shape SwiftUI's implicit
     /// animation cannot express.
-    private func wave(_ tint: Color) -> some View {
+    private func wave(_ tint: Color, gain: Double) -> some View {
         TimelineView(.animation) { tl in
             let t = tl.date.timeIntervalSinceReferenceDate
             // She speaks faster than she thinks, and the bars should say so
             // before the colour does.
             let speed = phase == .speaking ? 1.5 : 0.85
-            HStack(spacing: 3) {
+            HStack(spacing: 5) {
                 ForEach(0..<20, id: \.self) { i in
                     let offset = Double(i) / 20 - t * speed
-                    let w = (sin(offset * .pi * 2) + 1) / 2
-                    RoundedRectangle(cornerRadius: 1)
+                    let w = (sin(offset * .pi * 2) + 1) / 2 * gain
+                    RoundedRectangle(cornerRadius: 2)
                         .fill(tint.opacity(0.18 + w * 0.82))
-                        .frame(width: 5, height: 4 + w * 12)
+                        .frame(width: 9, height: 6 + w * 30)
                 }
             }
-            .shadow(color: tint.opacity(0.7), radius: 8)
+            .shadow(color: tint.opacity(0.7 * max(gain, 0.3)), radius: 10)
+            .animation(.easeOut(duration: 0.12), value: gain)
         }
     }
 }
