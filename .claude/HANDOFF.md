@@ -1,58 +1,54 @@
-# HANDOFF — Arisu (2026-09-16, conversation fixes)
+# HANDOFF — Arisu (2026-09-17, iPad controls, voice commands, mute)
 
 *Progress lives in the lain Backlog (Arisu). Measurements and reasons: `LIVE2D.md`.*
 
 ## State
 
-- **Plan-first turns: deployed on the web (lain 5a8ad90) and installed on the iPad (arisu 8e83867).**
-  Every turn is a text-only response ("plan"); its text is deleted, and one audio
-  reply with `tool_choice: none` is asked for once its work is back.
-  - Fillers ("let me think…") can no longer be heard: the live-API probe showed the
-    plan writing that line as text and the only audio being the answer.
-  - Only the newest question's `think` gets a reply; a late one is logged
-    `superseded` (web voice log) / `ev: superseded` (iPad face log).
-  - Quiet: no reply is asked for while hushed; iPad now has quiet too.
-  - Barge-in back on (`LAIN_ARISU_INTERRUPT` default 1; clients set it on connect).
-  - Timing per answered turn: plan / think / voice ms (voice log `kind: timing`; face log `ev: timing`).
-  - Hermes `SPOKEN` prefix: act on a change and say what changed, no asking (deletions
-    excepted); never name tools/files. She rarely says his name.
-- His own lines are now logged as `kind: heard`, not `answer`.
-- Rules + tests: `lain/arisu/arisu-voice.js`, `lain/tests/test_arisu_voice.js`. iPad mirror in `Live.swift` (no tests).
+All three changes are in `native/Arisu/` and installed on the iPad. iPhone app and web do not have them.
 
-## Open — needs Oscar's ears
+- **Tap to show controls (f5bde79), verified by Oscar.** Fold button removed. Legend and
+  button column start hidden; a tap anywhere on the screen toggles `chromeShown`. The
+  Settings sheet moved to `body` so hiding the buttons never closes it.
+- **Voice commands (123b6ee), verified by Oscar.** `enum VoiceCommand` at the end of
+  `ContentView.swift`, run from `.onChange(of: pet.heard)` → `obey()`. Phrases: show/hide
+  transcript (subtitles, captions, chat), group/solo mode|conversation, mute, open/close
+  settings. She still replies to the line. No voice unmute (a muted mic sends nothing).
+- **Mute keeps her awake (1a92d3a), NOT yet heard by Oscar.**
+  - `faceState` no longer returns `asleep` when muted (the asleep face held the jaw shut).
+  - The 90 s idle close in `startIdleWatch` now waits while `awaiting`, `openPlans` or
+    `toolsOut` are non-empty. A muted room never refreshes `lastVoice`, so a long think
+    was being cut off and its answer lost.
 
-Stale answer never heard; one-word answer heard first time; quiet holds; go = done;
-no internal names; talking over her works and she does not cut herself off.
+Earlier, still open: plan-first turns and chat bubbles (see git log `eafc833` and before).
+architect's lain checkout carries someone's UNCOMMITTED glow edits; deploys there need
+stash / pull / stash pop.
 
 ## Decisions
 
-- Greetings pay ~0.5 s extra (plan, then speech). Accepted to kill fillers structurally.
-- An "hm" with no tool while think is out waits for that think (no second reply).
-- Group room mode unchanged: the desk still asks via `answer()`.
+- Voice commands match his transcript on the device, not a model tool: instant, no desk change.
+- Explicit phrases only, so talking *about* the transcript does not flip it.
+
+## Open questions
+
+- Should muting stop the dormant session waking on room noise? Not asked; left as is.
+- Should she skip her spoken reply to a voice command? Oscar has not said.
 
 ## Next steps
 
-1. Oscar talks to her; read `ssh architect tail -50 /var/lib/lain/arisu-voice.jsonl` and the face log for `timing`/`superseded`.
-2. If she cuts herself off: set `LAIN_ARISU_INTERRUPT=0` in lain.service AND flip `interrupt_response` in `index.html` applyInput and `Live.swift` applyInput.
-3. Latency journey step 1: split one slow reply using the timing lines.
+1. Oscar asks something slow, mutes, and confirms she stays awake and answers. Then tick the Backlog step.
+2. Port tap-to-show and voice commands to the web page (`lain/arisu/index.html`) and the iPhone app if he wants them (Backlog step on the web journey).
+3. From before: read `ssh architect tail -50 /var/lib/lain/arisu-voice.jsonl` for `timing`/`superseded`.
 
 ## Gotchas
 
-- Install on the iPad: see the previous build commands (xcodebuild with `id=085B9100-31D5-5A2D-B44C-82D143A30ACA`, `devicectl device install app`, `process launch --terminate-existing com.oscar.arisu`).
-- Response kinds on the web come from the `asked` queue in order; audio responses echo no metadata.
-- Backlog MCP tools return ~80k chars; POST `/backlog` ops directly instead.
+- Build and install on the iPad (device id `085B9100-31D5-5A2D-B44C-82D143A30ACA`):
+  `xcodebuild -project native/Arisu.xcodeproj -scheme Arisu -destination 'id=…' -derivedDataPath <scratch>/dd -allowProvisioningUpdates build`,
+  then `xcrun devicectl device install app --device <id> <dd>/Build/Products/Debug-iphoneos/Arisu.app`,
+  then `xcrun devicectl device process launch --terminate-existing --device <id> com.oscar.arisu`.
+- `VoiceCommand` check: copy the enum plus asserts into a scratch `.swift`, `swiftc` it, run it.
+- Backlog MCP tools return ~80k chars; POST ops to `/backlog` directly (project `pspsrzn75jy`).
 - Never make `ossskkar/lain` public (Cubism Core).
-
-## Chat bubbles (2026-09-17)
-- His bubbles match hers (glass, outline + text only) in the legend's thinking magenta rgb(255,56,199); web (lain 2eb633f..aacd35b) and iPad app (installed via xcodebuild + devicectl). iPhone app not rebuilt.
-- architect's lain checkout carries someone's UNCOMMITTED glow edits (arisu/index.html, cues.js, live2d/index.html, title-check.html). Deploys there need stash / pull / stash pop.
-
-## Tap to show controls (2026-09-17, verified by Oscar)
-- iPad app (f5bde79): fold button removed; legend + buttons start hidden, a screen tap toggles them. Settings sheet moved to body so hiding never closes it. iPhone app and web unchanged.
-
-## Voice commands (2026-09-17, verified by Oscar)
-- iPad app (123b6ee): `VoiceCommand` in ContentView.swift matches his heard line: show/hide transcript, group/solo mode, mute, open/close settings. No voice unmute (muted mic hears nothing). She still replies to the line. iPhone app and web lack it.
 
 ## Resume
 
-"Read arisu/.claude/HANDOFF.md, then read the voice log from Oscar's last conversation with Arisu."
+"Read arisu/.claude/HANDOFF.md, then check whether muting kept Arisu awake and answering."
