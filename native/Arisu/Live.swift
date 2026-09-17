@@ -176,7 +176,7 @@ final class Live: ObservableObject {
     /// billed by the minute it is open, not by the minute it is used: at a ten
     /// hour day an always-open one is $100+/month. Nil keeps it open forever,
     /// which is the right setting only while testing.
-    var idleClose: TimeInterval? = 90
+    var idleClose: TimeInterval? = 60
 
     private let brain = Brain()
     private var socket: URLSessionWebSocketTask?
