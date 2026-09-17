@@ -6,9 +6,10 @@
 
 - **Claude drives the ChatGPT conversation directly** (Oscar's go-ahead, 2026-09-17: "you do the conversation, I won't intervene"). Chrome tab, chat titled **"ChatGPT Plus Features"** = https://chatgpt.com/c/6aaad90a-89e0-83eb-8321-7758f0b8e439 (NOT "3D Avatar Creation").
 - Loop per round: download ChatGPT's `arisu_vX_Y_*.py` + `MESSAGE_FOR_CLAUDE_*.txt` (file card → viewer → Download button in its banner; Escape) → **read the script** → run it headless on `v1-build/arisu_v1_blockout.blend` → render + measure → write `v1-build/arisu_vX_Y_note_for_chatgpt.txt` → upload note + renders (file input, max ~10 MB per call, files must be under the project) → short summary message → wait ~100 s → next.
-- **Last sent: V2.27 PASS (saved), asked for V2.28 face/expression validation.** Rig: V2.26b attached all 75 armour pieces (67 rigid + 8 Body-weighted shells); V2.27 articulation cleanup (KneeCap 50/50 UpperLeg/LowerLeg, HipJoint 35/65 Hips/UpperLeg, ShoulderBridge/Joint 35/65 UpperChest/UpperArm, ChestFront Bust weights folded). Body rig FROZEN. **Current baseline `v1-build/arisu_v2_27.blend`** (chain: arisu_v1_blockout.blend V2.23c body -> arisu_v2_25f.blend head -> arisu_v2_26b.blend rigged -> arisu_v2_27.blend).
+- **Last sent: V2.28 face validation report (contract met; optional tuning: thinking weak, relaxed half-lidded, attentive~happy), asked ChatGPT: V2.28b tuning or move on.** Earlier: Rig: V2.26b attached all 75 armour pieces (67 rigid + 8 Body-weighted shells); V2.27 articulation cleanup (KneeCap 50/50 UpperLeg/LowerLeg, HipJoint 35/65 Hips/UpperLeg, ShoulderBridge/Joint 35/65 UpperChest/UpperArm, ChestFront Bust weights folded). Body rig FROZEN. **Current baseline `v1-build/arisu_v2_27.blend`** (chain: arisu_v1_blockout.blend V2.23c body -> arisu_v2_25f.blend head -> arisu_v2_26b.blend rigged -> arisu_v2_27.blend).
 - Export snapshot: 57,980 tris, 86 meshes, 18 materials, 16.17 MB (over the 50k / 15 MB limits; optimisation is V4). Knee target was revised by ChatGPT to rest-relative (+6.2 mm max at 45 deg accepted).
-- Offered ChatGPT runtime expression tests in headless WebKit with three-vrm (tools/webkit_shot.swift + vrm_expression_probe.js).
+- Runtime expression harness: `v1-build/tools/runtime_harness/` (index.html + harness.js + harness.swift). Copy next to a test VRM named test.vrm, symlink `lib` -> lain/arisu/vrm/lib, `python3 -m http.server 8765 --bind 127.0.0.1`, `swiftc -O harness.swift -o harness`, `./harness http://127.0.0.1:8765/index.html <shots dir>`. Reports influences, override multipliers, per-region displacement, PNGs.
+- Blender add-on preset names are snake_case (blink_left, look_up); glTF/runtime use camelCase.
 - ChatGPT's roadmap after that: face expressions -> V3 rigging/motion clips -> V4 optimise + VRM 1.0 export + app QA.
 - Frozen/passed: arms (V2.4 + Body Tops_01 mask), full torso (V2.15: dense chest, inset/emblem, slim wings, conforming pelvis), boots (V2.23c), legs hip->ankle (V2.21: bone-line x +/-0.074, conforming thigh/knee/shin shells, cores hidden, knee joint 30 mm, hip connector seated). Known cosmetic: small dark notch at each kneecap outer edge (deferred by ChatGPT).
 - 3D face page is live in lain (`arisu/vrm/`, model "Arisu3D", `?dev` panel). Uses the pixiv stand-in `arisu.vrm`; ChatGPT's model is not in the app yet (15.8 MB, over budget).
@@ -38,4 +39,4 @@
 
 ## Resume
 
-"Read arisu/.claude/HANDOFF.md, open the ChatGPT chat and continue the 3D loop from V2.28 (face/expression validation, baseline arisu_v2_27.blend)."
+"Read arisu/.claude/HANDOFF.md, open the ChatGPT chat and continue the 3D loop from ChatGPT's reply to the V2.28 report (baseline arisu_v2_27.blend)."
