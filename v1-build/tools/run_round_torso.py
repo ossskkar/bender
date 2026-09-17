@@ -60,6 +60,23 @@ for (x,z) in ((0,(pb[4]+pb[5])/2),(pb[0]+0.01,pb[4]+0.005),(pb[1]-0.01,pb[4]+0.0
     print('PELVISGAP at', round(x,3), round(z,3), 'body front', round(h.y,4) if h else None, 'pelvis back', pb[3], 'gap mm', round((h.y-pb[3])*1000,1) if h else None)
 for n in ('ARISU_Torso_ChestWing_-1','ARISU_Torso_ChestWing_1'):
     print('WINGLOCALDEPTH', n, round(max(v.co.y for v in bpy.data.objects[n].data.vertices)-min(v.co.y for v in bpy.data.objects[n].data.vertices),4))
+pv=bpy.data.objects['ARISU_Torso_PelvisBridge']; PN=25
+print('PELVIS mesh', len(pv.data.vertices), len(pv.data.polygons))
+pbk=[pv.matrix_world @ pv.data.vertices[PN+k].co for k in range(PN)]
+def bclr(p):
+    h,_,_,_=bvh.ray_cast(Vector((p.x,-0.4,p.z)),Vector((0,1,0)),0.6); return (h.y-p.y)*1000 if h else None
+pvc=[c for c in (bclr(p) for p in pbk) if c is not None]; pfine=[]; pworst=None
+for r in range(4):
+    for c in range(4):
+        a,b2,d,e=pbk[r*5+c],pbk[r*5+c+1],pbk[(r+1)*5+c+1],pbk[(r+1)*5+c]
+        for u in (0.25,0.5,0.75):
+            for t in (0.25,0.5,0.75):
+                p=a.lerp(b2,u).lerp(e.lerp(d,u),t); v=bclr(p)
+                if v is not None:
+                    pfine.append(v)
+                    if pworst is None or v<pworst[0]: pworst=(v,round(p.x,3),round(p.z,3))
+st=lambda L:(round(min(L),1),round(max(L),1),round(sum(L)/len(L),1),len(L))
+print('PELVIS back vertex clearance mm', st(pvc)); print('PELVIS 9 pts/cell clearance mm', st(pfine), 'worst', pworst[1:])
 print('WING rot unchanged', all(tuple(bpy.data.objects[n].rotation_euler)==v[1] for n,v in wingstate.items()))
 # base-mesh back grid (81 back verts are indices 81..161); face centres + 3x3 interior points per cell
 R=C=9; N=81

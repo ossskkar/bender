@@ -1,4 +1,4 @@
-# HANDOFF — Arisu (2026-09-17, 3D model loop with ChatGPT)
+# HANDOFF — Arisu (2026-09-17 afternoon, 3D model loop with ChatGPT)
 
 *Progress lives in the lain Backlog (Arisu → "Arisu appears as a 3D model on the iPad and the web").*
 
@@ -6,8 +6,8 @@
 
 - **Claude drives the ChatGPT conversation directly** (Oscar's go-ahead, 2026-09-17: "you do the conversation, I won't intervene"). Chrome tab, chat titled **"ChatGPT Plus Features"** = https://chatgpt.com/c/6aaad90a-89e0-83eb-8321-7758f0b8e439 (NOT "3D Avatar Creation").
 - Loop per round: download ChatGPT's `arisu_vX_Y_*.py` + `MESSAGE_FOR_CLAUDE_*.txt` (file card → viewer → Download button in its banner; Escape) → **read the script** → run it headless on `v1-build/arisu_v1_blockout.blend` → render + measure → write `v1-build/arisu_vX_Y_note_for_chatgpt.txt` → upload note + renders (file input, max ~10 MB per call, files must be under the project) → short summary message → wait ~100 s → next.
-- **Last sent: V2.14 report** (wings slimmed but seam 4.7 mm off; pelvis moved 20 mm forward, floats). Waiting for V2.15.
-- Frozen/passed: arms (V2.4, Body Tops_01 mask), dense 9x9 ChestFront (V2.10), inset/emblem layering (V2.13).
+- **Last sent: V2.21 report (PASS).** ChatGPT froze hip->ankle and sent V2.22 (boots/instep blockout), not yet run.
+- Frozen/passed: arms (V2.4 + Body Tops_01 mask), full torso (V2.15: dense chest, inset/emblem, slim wings, conforming pelvis), legs hip->ankle (V2.21: bone-line x +/-0.074, conforming thigh/knee/shin shells, cores hidden, knee joint 30 mm, hip connector seated). Known cosmetic: small dark notch at each kneecap outer edge (deferred by ChatGPT).
 - 3D face page is live in lain (`arisu/vrm/`, model "Arisu3D", `?dev` panel). Uses the pixiv stand-in `arisu.vrm`; ChatGPT's model is not in the app yet (15.8 MB, over budget).
 - Earlier this session (all deployed/installed): iPad+web state colours/legend/meter toggle, chat bubbles, one-button controls, Live2D spotlight + glow sliders + model picker.
 
@@ -23,9 +23,11 @@
 - Blender `material_index` is zero-based; say so explicitly to ChatGPT.
 - Some objects have world-space baked vertices (ChestInset, ChestFront, Torso prisms): location is not position.
 - Measure clearance by ray-casting (vertex-only checks miss face-centre poke-through).
+- ChatGPT's recurring slips: global bounds as local anchors, flat boxes behind curved shells, footprints outside shells, materials by guessed names. Check these before running.
+- MESSAGE_FOR_CLAUDE files sometimes don't download; the reply text has the render list.
 - Source VRM: `~/Downloads/arisu_v0.3.vrm`. Round scripts land in `~/Downloads`.
-- Tools: `v1-build/tools/run_round_torso.py` (replace SCRIPT/TAG), `render_views.py`, `import_and_render.py`, `webkit_shot.swift`.
+- Tools: `v1-build/tools/run_round_legs.py` and `run_round_torso.py` (replace SCRIPT/TAG; the legs one has the core-vs-shell, rear-protrusion and hip checks), `render_views.py`, `import_and_render.py`, `webkit_shot.swift`.
 
 ## Resume
 
-"Read arisu/.claude/HANDOFF.md, open the ChatGPT chat and continue the 3D loop from ChatGPT's V2.15 reply."
+"Read arisu/.claude/HANDOFF.md, open the ChatGPT chat and continue the 3D loop from V2.22 (boots)."
