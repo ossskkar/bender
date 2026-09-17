@@ -49,6 +49,11 @@ stash / pull / stash pop.
 - Backlog MCP tools return ~80k chars; POST ops to `/backlog` directly (project `pspsrzn75jy`).
 - Never make `ossskkar/lain` public (Cubism Core).
 
+## Cloned voice (2026-09-17, parked)
+- Backlog Arisu journey "Arisu speaks in a cloned voice": OpenAI realtime has no custom voices;
+  needs text-out + local cloning TTS. architect (i5-8365U) and Mac (i9-9880H) have no GPU, too slow.
+  ElevenLabs breaks the data rule. Waiting on a GPU.
+
 ## Resume
 
 "Read arisu/.claude/HANDOFF.md, then check whether muting kept Arisu awake and answering."
