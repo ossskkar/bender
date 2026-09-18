@@ -14,7 +14,9 @@ final class Pet: ObservableObject {
     /// Whether she is in the conversation at all. False is not a mute: the
     /// microphone tap comes down and the socket goes, so nothing is heard,
     /// nothing is recorded and nothing is billed while it is off.
-    @Published private(set) var running = true
+    /// Off by default: a double tap starts it, and so does coming back to
+    /// the iPad with something queued to say (Oscar, 2026-09-18).
+    @Published private(set) var running = false
 
     /// Which path is running. Mutually exclusive -- all three want the
     /// microphone and the audio session -- and cycled from the button under
@@ -143,10 +145,11 @@ final class Pet: ObservableObject {
         }
     }
 
-    func begin() {
+    func begin(saying first: [QueuedCommand] = []) {
         running = true
         room.start()
-        mode == .whisper ? beginWhisper() : beginLive()
+        // ponytail: whisper drops the greeting; it is the old path.
+        mode == .whisper ? beginWhisper() : beginLive(saying: first)
         Task { await refreshCast() }
     }
 
@@ -193,6 +196,20 @@ final class Pet: ObservableObject {
         running ? halt() : begin()
     }
 
+    /// Screen locked or app left: the conversation ends, so it is off when
+    /// he comes back.
+    func stop() { if running { halt() } }
+
+    /// He is back at the iPad. The conversation stays off unless Hermes has
+    /// queued something for him -- a brief, a reminder -- in which case she
+    /// starts by saying it. The queue is pop-on-read, so only the first
+    /// arrival after something was queued says it.
+    func arrive() async {
+        guard !running else { return }
+        let cmds = await brain.commands(character: room.character)
+        if !cmds.isEmpty && !running { begin(saying: cmds) }
+    }
+
     private func halt() {
         running = false
         voice.stop()
@@ -213,7 +230,7 @@ final class Pet: ObservableObject {
     /// Speech to speech. Nothing here decides when he has stopped talking or
     /// whether he is interrupting: the model does both, which is the whole
     /// reason this path exists.
-    private func beginLive() {
+    private func beginLive(saying first: [QueuedCommand] = []) {
         live.onMood = { [weak self] m, a in
             Task { @MainActor in self?.mood = m; self?.action = a }
         }
@@ -235,7 +252,7 @@ final class Pet: ObservableObject {
         live.role = Live.Role(group: room.isGroup,
                               listener: room.isListener,
                               blocked: room.othersSpeaking)
-        live.begin()
+        live.begin(saying: first)
     }
 
     private func beginWhisper() {

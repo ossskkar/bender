@@ -247,13 +247,23 @@ final class Live: ObservableObject {
 
     // MARK: - the socket
 
-    func begin() {
+    /// `first`: queued lines already collected from the desk, said as soon as
+    /// the session is up -- the greeting when he comes back to the iPad.
+    func begin(saying first: [QueuedCommand] = []) {
         stopped = false
         paused = false
         halted.withLock { $0 = false }
         guard socket == nil else { return }
+        // Before the watch starts, so its first poll does not talk over them.
+        if !first.isEmpty { speakingCommand = true }
         startCommandWatch()
-        Task { await connect() }
+        Task {
+            await connect()
+            if !first.isEmpty {
+                await sayCommands(first)
+                speakingCommand = false
+            }
+        }
     }
 
     /// Start the session again, so anything fixed to it at mint time -- her

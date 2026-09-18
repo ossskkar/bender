@@ -173,6 +173,8 @@ struct ContentView: View {
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .contentShape(Rectangle())
+            // Double tap: the conversation on or off. Single tap: the chrome.
+            .onTapGesture(count: 2) { pet.toggleRunning() }
             .onTapGesture { chromeShown.toggle() }
             .overlay(alignment: .bottomTrailing) { if chromeShown { controls.transition(.opacity) } }
             .overlay(alignment: .topLeading) { if chromeShown { legend.transition(.opacity) } }
@@ -189,9 +191,7 @@ struct ContentView: View {
         .animation(.easeInOut(duration: 0.25), value: live.thinking)
         .animation(.easeInOut(duration: 0.25), value: pet.running)
         .onAppear {
-            // Only if she was left running: coming back to the app should not
-            // undo a stop.
-            if pet.running { pet.begin() }
+            Task { await pet.arrive() }
             withAnimation(.linear(duration: 5.6).repeatForever(autoreverses: false)) { sweep = true }
         }
     }

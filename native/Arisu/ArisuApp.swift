@@ -17,7 +17,13 @@ struct ArisuApp: App {
                 // whole complaint: he has to unlock it, and a dark screen means
                 // he forgets she is there. Re-take it on every return.
                 .onChange(of: phase) { _, now in
-                    if now == .active { UIApplication.shared.isIdleTimerDisabled = true }
+                    if now == .active {
+                        UIApplication.shared.isIdleTimerDisabled = true
+                        Task { await pet.arrive() }
+                    }
+                    // Locking the screen ends the conversation; it starts off
+                    // again on the way back.
+                    if now == .background { pet.stop() }
                 }
         }
     }
