@@ -85,6 +85,7 @@ struct FaceView: UIViewRepresentable {
                                   resolvingAgainstBaseURL: false)
         parts?.queryItems = [is3D ? URLQueryItem(name: "file", value: "arisu")
                                   : URLQueryItem(name: "model", value: model)]
+        if is3D { parts?.queryItems?.append(URLQueryItem(name: "v", value: "93c916b")) }
         return parts?.url ?? portrait(for: face)
     }
 
