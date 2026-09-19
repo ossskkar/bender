@@ -34,7 +34,7 @@ struct SettingsSheet: View {
     @State private var previewing = false
     /// Shared with `ContentView`, which hands it to the face. A preference of
     /// this screen, not of the character, so it lives on the device.
-    @AppStorage("arisu.live2d") private var live2dFace = false
+    @AppStorage("arisu.live2d") private var live2dFace = true
     @AppStorage("arisu.meter") private var showMeter = true
 
     private let brain = Brain()

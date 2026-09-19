@@ -21,7 +21,7 @@ struct ContentView: View {
     @AppStorage("arisu.transcript") private var showTranscript = true
     /// The Live2D face instead of the portrait. Off by default: it loads from
     /// the desk, and the portrait is the face that works with no network.
-    @AppStorage("arisu.live2d") private var live2dFace = false
+    @AppStorage("arisu.live2d") private var live2dFace = true
     /// The moving bars at the bottom, on or off (Settings > Face).
     @AppStorage("arisu.meter") private var showMeter = true
     @State private var showSettings = false

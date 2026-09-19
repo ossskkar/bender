@@ -61,7 +61,7 @@ struct FaceView: UIViewRepresentable {
     /// Which Live2D sample each character wears by default. Mirrors the first
     /// entry of `LIVE2D_MODELS` in lain's `arisu/index.html`; a character with
     /// no model keeps its portrait.
-    private static let live2dModel = ["arisu": "Haru", "chopper": "Natori"]
+    private static let live2dModel = ["arisu": "Arisu3D", "chopper": "Natori"]
     /// Every sample lain ships, mirroring `ALL_MODELS` in `arisu/index.html`.
     static let models = ["Haru", "Hiyori", "Mao", "Rice", "Natori", "Ren", "Mark", "Wanko", "Arisu3D"]
     private static let allModels = Set(models)
