@@ -165,7 +165,14 @@ struct ContentView: View {
                 VStack {
                     Spacer()
                     if room.isGroup { company }
-                    if showTranscript { transcript }
+                    if showTranscript {
+                        HStack {
+                            transcript
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.leading, 34)
+                        .padding(.trailing, 260)
+                    }
                     // A meter for a microphone that is down would be a lie.
                     if pet.running && showMeter { meter.padding(.bottom, 22) }
                     else { Color.clear.frame(height: 36).padding(.bottom, 22) }
@@ -400,9 +407,9 @@ struct ContentView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .frame(maxWidth: 620)
+        .frame(maxWidth: 520, alignment: .leading)
         .animation(.easeOut(duration: 0.3), value: messages)
-        .padding(.horizontal, 130)
+        .padding(.horizontal, 0)
         .padding(.bottom, 24)
     }
 
