@@ -122,10 +122,10 @@ struct ContentView: View {
 
     private var groundLight: Double {
         switch phase {
-        case .idle:      return 0.12
-        case .listening: return 0.24
-        case .thinking:  return 0.2
-        case .speaking:  return 0.3
+        case .idle:      return 0.06
+        case .listening: return 0.12
+        case .thinking:  return 0.1
+        case .speaking:  return 0.15
         }
     }
 
