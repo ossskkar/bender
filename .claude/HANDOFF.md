@@ -11,12 +11,14 @@ history of this file.*
   voice commands (show/hide subtitles, open/close settings, mute). No "•••"
   button, no meter bars (Oscar: not needed). Oscar confirmed the tap on the 16 Pro.
 - **3D versions are separate faces** in Settings > Face: Arisu3D (= arisu.vrm =
-  V10, still default and on the iPad), V5, V11–V16. All live on architect,
-  all pass `tests/check_arisu_loading.mjs` with 12 clips.
+  V10, still default and on the iPad), V5, V11–V19. All live on architect
+  (SHA-256 checked), all pass `tests/check_arisu_loading.mjs` with 12 clips.
+  The iPad's `FaceView.arisu3D` lists the same (compiles; needs his weekly build).
 - **V12–V16 (Claude)** built from V11 by `v1-build/tools/make_white_suit.py`,
   editing the VRM directly (no Blender): white suit, soft seams, graphite
   gloves/sides/V panel, box armour gone, white arms, over-ear headset, white
-  shoes, sheet hair colour. Target: the Type-02 sheet,
+  shoes, sheet hair colour; V17 headband + slim smooth arms; V18 round
+  graphite knees; V19 neutral outline, glowing cyan. Target: the Type-02 sheet,
   `~/Downloads/ChatGPT Image Sep 16, 2026, 10_44_38 PM.png`.
 - Fixed: body clips only started for `arisu`/`arisu_v5` stems (V11 had none).
 
@@ -32,8 +34,10 @@ history of this file.*
 1. Oscar compares V10 and V16 in Safari and names the default.
 2. Copy that file over `lain/arisu/vrm/arisu.vrm`, bump `v=` in
    `native/Arisu/FaceView.swift`, deploy (deploy-lain skill).
-3. Further V17+ ideas: slimmer rounded arms (faceted cylinders now), white
-   headband over the head, knee bands wrap round instead of flat front plates.
+   Adding a version touches three lists: `ARISU_3D` (web), `FaceView.arisu3D`
+   (iPad), and a thumb.
+3. V20+ ideas: smaller shoulder joints (skinned, so scale the vertices, not
+   the node); fade the upper-hip harness; smooth the stepped band edges.
 4. Still open: 60 fps on the 2020 iPad Pro; her mouth in a real Safari call.
 
 ## Gotchas
