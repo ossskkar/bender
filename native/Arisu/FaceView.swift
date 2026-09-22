@@ -62,8 +62,19 @@ struct FaceView: UIViewRepresentable {
     /// entry of `LIVE2D_MODELS` in lain's `arisu/index.html`; a character with
     /// no model keeps its portrait.
     private static let live2dModel = ["arisu": "Arisu3D", "chopper": "Natori"]
+    /// Every version of her own 3D model is a face of its own, name to file
+    /// stem in lain's arisu/vrm/. Mirrors `ARISU_3D` in `arisu/index.html`;
+    /// Arisu3D is whatever arisu.vrm currently is (2026-09-23).
+    static let arisu3D: [(name: String, file: String)] = [
+        ("Arisu3D", "arisu"), ("Arisu3D V5", "arisu_v5_visual_pass"),
+        ("Arisu3D V11", "arisu_v11_material_refine"), ("Arisu3D V12", "arisu_v12_white_suit"),
+        ("Arisu3D V13", "arisu_v13_headset"), ("Arisu3D V14", "arisu_v14_white_arms"),
+        ("Arisu3D V15", "arisu_v15_soft_seams"), ("Arisu3D V16", "arisu_v16_clean_legs"),
+        ("Arisu3D V17", "arisu_v17_headband"),
+    ]
     /// Every sample lain ships, mirroring `ALL_MODELS` in `arisu/index.html`.
-    static let models = ["Haru", "Hiyori", "Mao", "Rice", "Natori", "Ren", "Mark", "Wanko", "Arisu3D"]
+    static let models = ["Haru", "Hiyori", "Mao", "Rice", "Natori", "Ren", "Mark", "Wanko"]
+        + arisu3D.map(\.name)
     private static let allModels = Set(models)
 
     /// The page for a character, or the fallback. `arisu` is the fallback
@@ -79,11 +90,12 @@ struct FaceView: UIViewRepresentable {
         guard live2d, let model = chosen else { return portrait(for: face) }
         // Arisu3D is the 3D page (lain's arisu/vrm), which answers the same
         // avatar and ArisuScene calls as the Live2D page.
-        let is3D = model == "Arisu3D"
+        let file = arisu3D.first { $0.name == model }?.file
+        let is3D = file != nil
         var parts = URLComponents(url: Brain.base.appendingPathComponent(
                                       is3D ? "vrm/index.html" : "live2d/index.html"),
                                   resolvingAgainstBaseURL: false)
-        parts?.queryItems = [is3D ? URLQueryItem(name: "file", value: "arisu")
+        parts?.queryItems = [is3D ? URLQueryItem(name: "file", value: file)
                                   : URLQueryItem(name: "model", value: model)]
         if is3D { parts?.queryItems?.append(URLQueryItem(name: "v", value: "93c916b")) }
         return parts?.url ?? portrait(for: face)
