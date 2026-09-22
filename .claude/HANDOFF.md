@@ -1,49 +1,51 @@
-# HANDOFF — Arisu 3D model (2026-09-18, ~03:30)
+# HANDOFF — Arisu web + 3D model (2026-09-23)
 
-*Progress lives in the lain Backlog (Arisu → "Arisu appears as a 3D model on the iPad and the web").*
+*Progress lives in the lain Backlog (Arisu → "Arisu appears as a 3D model…" and
+"I use Arisu on the web like on the iPad"). Earlier session detail is in git
+history of this file.*
 
 ## State
 
-- **Her model is live.** lain 62cb2ad swapped `lain/arisu/vrm/arisu.vrm` from the pixiv stand-in to
-  Arisu V4.0; architect serves it (14,523,564 bytes). https://architect-server.tailaa64e9.ts.net:8443/arisu/?model=Arisu3D
-  Not yet seen by Oscar on a real screen.
-- **V3 is frozen, 12/12 clips:** `v1-build/arisu_v3_3c.blend` (verified on reopen: 12 actions, signatures
-  match the QA run). VRMAs: `v1-build/vrma_v3_3c/` (12 files).
-- **V4.0 done by Claude, no ChatGPT:** `v1-build/arisu_v4_0.blend`. Hair COLLAPSE-decimated 0.6 under the
-  armature modifier (27,090 → 16,254 tris, 0 unweighted verts, looked identical at 0.5), thumbnail
-  2048² → 512². Export: 47,144 tris, 13.85 MB, 86 meshes, 18 materials, 21 expressions, 8 springs.
-- **Runtime check passed** (arisu tools/runtime_harness with lain's lib/): all 21 expressions drive their own
-  morphs, stacking works, zero values give zero displacement.
-- **Not done:** the lain page does not play the body clips — needs `@pixiv/three-vrm-animation`.
+- **Web page matches the iPad** (lain df5a49d, bf5d2d4, live): one tap shows
+  legend + buttons, next hides; double tap starts/ends the call; red mute;
+  voice commands (show/hide subtitles, open/close settings, mute). No "•••"
+  button, no meter bars (Oscar: not needed). Oscar confirmed the tap on the 16 Pro.
+- **3D versions are separate faces** in Settings > Face: Arisu3D (= arisu.vrm =
+  V10, still default and on the iPad), V5, V11–V16. All live on architect,
+  all pass `tests/check_arisu_loading.mjs` with 12 clips.
+- **V12–V16 (Claude)** built from V11 by `v1-build/tools/make_white_suit.py`,
+  editing the VRM directly (no Blender): white suit, soft seams, graphite
+  gloves/sides/V panel, box armour gone, white arms, over-ear headset, white
+  shoes, sheet hair colour. Target: the Type-02 sheet,
+  `~/Downloads/ChatGPT Image Sep 16, 2026, 10_44_38 PM.png`.
+- Fixed: body clips only started for `arisu`/`arisu_v5` stems (V11 had none).
 
-## Decisions (overturn cheaply)
+## Decisions & open questions
 
-- ChatGPT's hard distinctness metric (max per-bone angle) could not tell a shoulder raise from a drop — V3.3b
-  and V3.3c scored an identical 9.46°. I put both options to ChatGPT; it accepted V3.3c on shoulder height
-  (+14.5 mm vs nod ~0) and froze V3. I did not override its hard gate myself.
-- Deployed the swap without asking: it was the approved next step, it is one `git revert` away, and a static
-  file needed no service restart.
-- Left the 4 `MToon Outline (…)` materials: they have 2 users each (VRM add-on refs), and export already drops
-  them (18 materials in the .vrm).
-- Did not use Codex; the web chat was used for 3 more messages.
-
-## Gotchas
-
-- lain's own page in headless WebKit shows only its first frame (rAF never runs off-screen): eyes shut, mouth
-  open, head close-up — for the stand-in too. Test the model with `tools/runtime_harness` (calls
-  `vrm.update` itself), and the page on a real screen.
-- ChatGPT's "Download file" buttons do nothing: click the filename → Download in the viewer → Escape.
-- Shoulder axes: Z raises (L +, R −); X is forward/back only. Bone frames are mirrored L/R.
-- Budget math: the work iPhone pulled ~80 KB/s from the desk (2026-09-15), so 13.85 MB ≈ 3 min first load.
+- Codex (09-19/20) made V5–V11 and conceded the model missed the bar; it
+  suggested buying BOOTH "Peke". Not bought. Claude continued on the own model.
+- Oscar picks which version becomes `arisu.vrm` (the iPad default). Not done.
+- The iPad app's `FaceView.models` does not list the versions.
 
 ## Next steps
 
-1. Oscar looks at https://architect-server.tailaa64e9.ts.net:8443/arisu/?model=Arisu3D in Safari; tick the Backlog step.
-2. With his OK: vendor `@pixiv/three-vrm-animation` into `lain/arisu/vrm/lib/`, copy the 12 .vrma into lain,
-   play idle/listening/talking/thinking/asleep by state and the reactions on events.
-3. Optional, his call: a texturing round (flat panels are the gap to the reference pictures); texture `_11`
-   (2.82 MB) halving would cut first-load time.
+1. Oscar compares V10 and V16 in Safari and names the default.
+2. Copy that file over `lain/arisu/vrm/arisu.vrm`, bump `v=` in
+   `native/Arisu/FaceView.swift`, deploy (deploy-lain skill).
+3. Further V17+ ideas: slimmer rounded arms (faceted cylinders now), white
+   headband over the head, knee bands wrap round instead of flat front plates.
+4. Still open: 60 fps on the 2020 iPad Pro; her mouth in a real Safari call.
+
+## Gotchas
+
+- Render check: serve `lain/` with `python3 -m http.server 18796 --bind 127.0.0.1`,
+  then a CDP script like `tests/check_arisu_loading.mjs`; `vrm/index.html?file=<stem>`.
+  `--headless=new --screenshot` hangs on the render loop; use CDP.
+- UV probe trick: swap the suit texture for a UV gradient, render, read the colour.
+- Adding a version: VRM into `lain/arisu/vrm/`, a line in `ARISU_3D`
+  (`arisu/index.html`), a 300×400 thumb `live2d/thumbs/<name>.png`.
+- lain has unrelated uncommitted work (lights, systems.html); commit only your files.
 
 ## Resume
 
-"Read arisu/.claude/HANDOFF.md; Oscar has checked the 3D page — continue with step 2."
+"Read arisu/.claude/HANDOFF.md and continue with the 3D version Oscar picked."
