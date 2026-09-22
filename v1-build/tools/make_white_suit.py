@@ -16,7 +16,9 @@ HIDE = ('ARISU_Torso_', 'ThighFront', 'ThighRail', 'ThighCore', 'ThighCyan',
         'ShinFront', 'ShinCore', 'ShinCyan', 'HipConnector', 'HipJoint',
         # V14: the arm plates, so the arms are plain white sleeves
         'ArmFrontPlate', 'ArmTopPlate', 'PlateSaddle', 'ForearmStatus',
-        'ForearmFrontPlate', 'ForearmTopPlate', 'ElbowAxle', 'ShoulderBridge')
+        'ForearmFrontPlate', 'ForearmTopPlate', 'ElbowAxle', 'ShoulderBridge',
+        # V18: flat front plates; the knee is painted round instead
+        'KneeCap', 'KneeJoint')
 KEEP = ()
 GRAPHITE_MESHES = ('KneeCap',)
 # The sheet's arms are white with graphite elbows and wrists.
@@ -31,6 +33,14 @@ EAR = 'ARISU_V5_Head_'
 EAR_SCALE = 1.45
 EAR_OUT = 0.004
 EAR_DOWN = 0.032                             # V5 sat above the ears
+# V17: the arms were thicker than the sheet's and faceted. Their cores and
+# joints slim across the bone (x/z), and their normals are smoothed.
+SLIM = {'UpperArmCore': 0.82, 'ForearmCore': 0.82, 'ElbowJoint': 0.86, 'WristJoint': 0.9}
+SMOOTH = ('UpperArmCore', 'ForearmCore', 'ElbowJoint', 'WristJoint', 'ShoulderJoint',
+          'WhiteHousing', 'KneeCap')
+SMOOTH_ANGLE = 50                            # degrees; sharper edges stay sharp
+# V17: the sheet's headband, 1 cm over her hair, ear unit to ear unit.
+BAND = dict(clear=0.010, width=0.024, thick=0.010, end_x=0.142, end_y=1.470, z=-0.008)
 SUIT = 'Onepiece'
 WHITE = np.array([247, 248, 250], float)     # sheet: primary white #F7F8FA
 GRAPHITE = np.array([46, 46, 51], float)     # sheet: graphite #2E2E33
@@ -93,6 +103,120 @@ CALM = r'(UpperLeg|LowerLeg|Hips)'
 # V16: the graphite panel between the legs, in bind-pose metres: a V, narrow
 # below the navel and widening to the inner thighs.
 CROTCH = dict(top=0.012, bottom=0.05, y=(0.73, 0.86))
+# V18: the sheet's graphite knee, all the way round the leg, bind-pose metres.
+KNEE_Y = (0.475, 0.545)
+
+
+def put(j, views, i, arr):
+    """Overwrite a tightly packed float accessor in place."""
+    acc = j['accessors'][i]
+    assert 'byteStride' not in j['bufferViews'][acc['bufferView']]
+    raw = bytearray(views[acc['bufferView']])
+    off = acc.get('byteOffset', 0)
+    data = arr.astype(np.float32).tobytes()
+    raw[off:off + len(data)] = data
+    views[acc['bufferView']] = bytes(raw)
+
+
+def smooth_normals(j, views, mesh):
+    cos = np.cos(np.radians(SMOOTH_ANGLE))
+    for p in j['meshes'][mesh]['primitives']:
+        P = accessor(j, views, p['attributes']['POSITION'])
+        N = accessor(j, views, p['attributes']['NORMAL'])
+        out = N.copy()
+        keys = {}
+        for v, k in enumerate(map(tuple, np.round(P, 5))):
+            keys.setdefault(k, []).append(v)
+        for group in keys.values():
+            for v in group:
+                near = [u for u in group if N[u] @ N[v] > cos]
+                n = N[near].sum(0)
+                out[v] = n / (np.linalg.norm(n) or 1)
+        put(j, views, p['attributes']['NORMAL'], out)
+
+
+def quat_mat(q):
+    x, y, z, w = q
+    return np.array([[1 - 2*(y*y + z*z), 2*(x*y - z*w), 2*(x*z + y*w)],
+                     [2*(x*y + z*w), 1 - 2*(x*x + z*z), 2*(y*z - x*w)],
+                     [2*(x*z - y*w), 2*(y*z + x*w), 1 - 2*(x*x + y*y)]])
+
+
+def world_matrix(j, i):
+    parent = {c: n for n, x in enumerate(j['nodes']) for c in x.get('children', [])}
+    M = np.eye(4)
+    while i is not None:
+        x = j['nodes'][i]
+        L = np.eye(4)
+        L[:3, :3] = quat_mat(x.get('rotation', [0, 0, 0, 1])) * np.array(x.get('scale', [1, 1, 1]))
+        L[:3, 3] = x.get('translation', [0, 0, 0])
+        M = L @ M
+        i = parent.get(i)
+    return M
+
+
+def add_blob(j, views, data, target=None):
+    j['bufferViews'].append({'buffer': 0, 'byteLength': len(data), **({'target': target} if target else {})})
+    views.append(data)
+    return len(j['bufferViews']) - 1
+
+
+def add_headband(j, views, material):
+    """A flattened tube over the top of her hair, parented to the head bone."""
+    hair = next(x for x in j['nodes'] if x.get('name') == 'Hair')
+    H = np.vstack([accessor(j, views, p['attributes']['POSITION'])
+                   for p in j['meshes'][hair['mesh']]['primitives']])
+    H = H[np.abs(H[:, 2] - BAND['z']) < 0.03]
+    xs = np.linspace(-BAND['end_x'], BAND['end_x'], 41)
+    ys = []
+    for x in xs:
+        s = H[np.abs(H[:, 0] - x) < 0.008]
+        ys.append(s[:, 1].max() + BAND['clear'] if len(s) and abs(x) < 0.1 else np.nan)
+    ys = np.array(ys)
+    ok = ~np.isnan(ys)
+    # Past the hair's crown the band runs down to the ear unit tops.
+    ends = np.array([-BAND['end_x'], BAND['end_x']])
+    ys = np.interp(xs, np.r_[ends[0], xs[ok], ends[1]],
+                   np.r_[BAND['end_y'], ys[ok], BAND['end_y']])
+    ys = np.convolve(np.pad(ys, 2, mode='edge'), np.ones(5) / 5, 'valid')
+    path = np.c_[xs, ys, np.full_like(xs, BAND['z'])]
+    ring = 10
+    verts, norms = [], []
+    for k, c in enumerate(path):
+        t = path[min(k + 1, len(path) - 1)] - path[max(k - 1, 0)]
+        t /= np.linalg.norm(t)
+        up = np.cross([0, 0, 1], t)                  # outward, in the arc's plane
+        up /= np.linalg.norm(up)
+        for a in np.linspace(0, 2 * np.pi, ring, endpoint=False):
+            d = np.cos(a) * up * BAND['thick'] / 2 + np.sin(a) * np.array([0, 0, 1.0]) * BAND['width'] / 2
+            n = np.cos(a) * up / BAND['thick'] + np.sin(a) * np.array([0, 0, 1.0]) / BAND['width']
+            verts.append(c + d)
+            norms.append(n / np.linalg.norm(n))
+    idx = []
+    for k in range(len(path) - 1):
+        for r in range(ring):
+            a, b = k * ring + r, k * ring + (r + 1) % ring
+            idx += [a, b + ring, b, a, a + ring, b + ring]
+    head = next(i for i, x in enumerate(j['nodes']) if x.get('name') == 'J_Bip_C_Head')
+    inv = np.linalg.inv(world_matrix(j, head))
+    V = (inv[:3, :3] @ np.array(verts).T).T + inv[:3, 3]
+    N = (inv[:3, :3] @ np.array(norms).T).T
+    N /= np.linalg.norm(N, axis=1)[:, None]
+    accs = []
+    for arr, typ in ((V, 'VEC3'), (N, 'VEC3')):
+        bv = add_blob(j, views, arr.astype(np.float32).tobytes(), 34962)
+        a = {'bufferView': bv, 'componentType': 5126, 'count': len(arr), 'type': typ}
+        if len(accs) == 0:
+            a['min'], a['max'] = V.min(0).tolist(), V.max(0).tolist()
+        j['accessors'].append(a)
+        accs.append(len(j['accessors']) - 1)
+    bv = add_blob(j, views, np.array(idx, np.uint16).tobytes(), 34963)
+    j['accessors'].append({'bufferView': bv, 'componentType': 5123, 'count': len(idx), 'type': 'SCALAR'})
+    j['meshes'].append({'name': 'ARISU_Headband', 'primitives': [{
+        'attributes': {'POSITION': accs[0], 'NORMAL': accs[1]},
+        'indices': len(j['accessors']) - 1, 'material': material}]})
+    j['nodes'].append({'name': 'ARISU_Headband', 'mesh': len(j['meshes']) - 1})
+    j['nodes'][head].setdefault('children', []).append(len(j['nodes']) - 1)
 
 
 def graphite_mask(j, views, suit, size):
@@ -131,6 +255,9 @@ def graphite_mask(j, views, suit, size):
             f = np.clip((y1 - pos[:, 1]) / (y1 - y0), 0, 1)
             half = CROTCH['top'] + (CROTCH['bottom'] - CROTCH['top']) * f
             on = (np.abs(pos[:, 0]) < half) & (pos[:, 1] > y0) & (pos[:, 1] < y1) & (pos[:, 2] > -0.02)
+            for t in tri[on[tri].all(1)]:
+                d.polygon([tuple(uv[v]) for v in t], fill=255)
+            on = (pos[:, 1] > KNEE_Y[0]) & (pos[:, 1] < KNEE_Y[1])
             for t in tri[on[tri].all(1)]:
                 d.polygon([tuple(uv[v]) for v in t], fill=255)
     calm = np.asarray(calm.filter(ImageFilter.GaussianBlur(12))) / 255.0
@@ -213,6 +340,18 @@ def main(src, dst):
             n['translation'] = t.tolist()
             n['scale'] = [EAR_SCALE] * 3
 
+    for n in j['nodes']:
+        name = n.get('name', '')
+        if 'mesh' not in n:
+            continue
+        for k, f in SLIM.items():
+            if k in name:
+                sc = n.get('scale', [1, 1, 1])
+                n['scale'] = [sc[0] * f, sc[1], sc[2] * f]
+        if any(k in name for k in SMOOTH):
+            smooth_normals(j, views, n['mesh'])
+    add_headband(j, views, white)
+
     suit = next(i for i, m in enumerate(mats) if SUIT in m['name'])
     tex = mats[suit]['pbrMetallicRoughness']['baseColorTexture']['index']
     img = j['images'][j['textures'][tex]['source']]
@@ -248,6 +387,20 @@ def main(src, dst):
     buf = io.BytesIO()
     Image.fromarray(h.astype(np.uint8), 'RGBA').save(buf, 'PNG', optimize=True)
     views[himg['bufferView']] = buf.getvalue()
+
+    # V19: VRoid's dark-red outline drew a red edge round her; the matcap's
+    # blue tint turned graphite navy; the cyan did not glow as on the sheet.
+    for i in (suit, shoes):
+        mt = mats[i]['extensions']['VRMC_materials_mtoon']
+        mt['outlineColorFactor'] = [0.14, 0.14, 0.16]
+        mt['matcapFactor'] = [0.35, 0.35, 0.35]
+        mt['shadeColorFactor'] = [0.80, 0.81, 0.84]
+    cyan = next(i for i, m in enumerate(mats) if m['name'] == 'ARISU_Cyan')
+    mats[cyan]['emissiveFactor'] = [0.24, 0.93, 1.0]
+    mats[cyan].setdefault('extensions', {})['KHR_materials_emissive_strength'] = {'emissiveStrength': 1.6}
+    j.setdefault('extensionsUsed', [])
+    if 'KHR_materials_emissive_strength' not in j['extensionsUsed']:
+        j['extensionsUsed'].append('KHR_materials_emissive_strength')
 
     j['asset']['generator'] = j['asset'].get('generator', '') + ' + make_white_suit'
     write(dst, j, views)
