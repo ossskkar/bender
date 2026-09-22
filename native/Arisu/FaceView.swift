@@ -71,6 +71,7 @@ struct FaceView: UIViewRepresentable {
         ("Arisu3D V13", "arisu_v13_headset"), ("Arisu3D V14", "arisu_v14_white_arms"),
         ("Arisu3D V15", "arisu_v15_soft_seams"), ("Arisu3D V16", "arisu_v16_clean_legs"),
         ("Arisu3D V17", "arisu_v17_headband"),
+        ("Arisu3D V18", "arisu_v18_round_knees"),
     ]
     /// Every sample lain ships, mirroring `ALL_MODELS` in `arisu/index.html`.
     static let models = ["Haru", "Hiyori", "Mao", "Rice", "Natori", "Ren", "Mark", "Wanko"]
