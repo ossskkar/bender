@@ -27,11 +27,12 @@ history of this file.*
 - Codex (09-19/20) made V5–V11 and conceded the model missed the bar; it
   suggested buying BOOTH "Peke". Not bought. Claude continued on the own model.
 - Oscar picks which version becomes `arisu.vrm` (the iPad default). Not done.
-- The iPad app's `FaceView.models` does not list the versions.
+- Assumption: the red outline, navy graphite and stepped band edges are the
+  renderer and triangle masks, not his taste; V19 fixes the outline only.
 
 ## Next steps
 
-1. Oscar compares V10 and V16 in Safari and names the default.
+1. Oscar compares V10 and V19 in Safari and names the default.
 2. Copy that file over `lain/arisu/vrm/arisu.vrm`, bump `v=` in
    `native/Arisu/FaceView.swift`, deploy (deploy-lain skill).
    Adding a version touches three lists: `ARISU_3D` (web), `FaceView.arisu3D`
