@@ -10,7 +10,7 @@ git history.*
   right) on web and iPad. Voice = her face. Chat = `lain/arisu/chat.html`, a
   terminal page: lain masthead (ARISUへようこそ！ · present day · present time, no
   glow), icon buttons, a real visible textarea (the hidden-textarea trick did
-  not raise the iPad keyboard -- fix live, not yet confirmed on the device).
+  not raise the iPad keyboard -- fixed; keyboard verified in the iPad simulator).
   iPad shows chat.html full screen (`ChatScreen`, no iOS bar); its Voice half
   posts `close` to the `arisu` WKScriptMessageHandler.
 - Chat backend: `GET/POST /arisu/chat`, own Hermes session (40 turns, low
