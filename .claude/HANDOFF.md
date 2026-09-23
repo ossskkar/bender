@@ -6,6 +6,20 @@ character shopping) are unchanged and their record is in the Backlog too —
 the shopping hunt is still open and his last word was **no** to the nit02
 cyber model.*
 
+## Parallel thread: chat and the apps (2026-09-23/24) -- separate from the portrait work below
+
+- **Voice | Chat toggle** (icons, top right) on web and iPad. Chat = lain
+  `arisu/chat.html`: lain masthead, real textarea (iPad keyboard verified in
+  the simulator), icons. iPad shows it full screen (`ChatScreen`).
+- **History (09-24):** history button (every chat + voice conversation, tap
+  for the transcript) and + for a new conversation (fresh Hermes session).
+  `lain/server/history.py`, skill `lain/.claude/skills/arisu-history`. Web and
+  iPad now log voice lines and call edges; voice log keeps 200k lines. Live:
+  53 conversations listed; + not pressed on the live system.
+- Removed on request: mute, hold-to-talk, group, meter, in-screen chat mode.
+  Web has the iPad's 60 s idle hang-up and the queued-line offer. lain phone
+  app is separate from Arisu again.
+
 ## State — what works now
 
 A third face track, **animating the flat portrait itself**. Nothing is
