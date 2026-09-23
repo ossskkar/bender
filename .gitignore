@@ -12,3 +12,6 @@ DerivedData/
 # live2d/CubismSdkForWeb. Do not use the CubismWebSamples GitHub repo instead --
 # it ships neither Core nor the Framework submodule, and will not build.
 live2d/CubismSdkForWeb/
+
+# Python scratch from the flatface tools
+__pycache__/

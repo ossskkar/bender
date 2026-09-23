@@ -1,0 +1,205 @@
+{
+ "source_eye_ratio": 0.48,
+ "source_lip_ratio": 0.01,
+ "size": [
+  532,
+  535
+ ],
+ "poses": {
+  "mouth0": {
+   "params": {
+    "lip": 0.0
+   },
+   "box": [
+    196,
+    319,
+    119,
+    105
+   ]
+  },
+  "mouth1": {
+   "params": {
+    "lip": 0.08
+   },
+   "box": [
+    201,
+    302,
+    112,
+    122
+   ]
+  },
+  "mouth2": {
+   "params": {
+    "lip": 0.16
+   },
+   "box": [
+    117,
+    301,
+    209,
+    124
+   ]
+  },
+  "mouth3": {
+   "params": {
+    "lip": 0.26
+   },
+   "box": [
+    97,
+    301,
+    236,
+    146
+   ]
+  },
+  "mouth4": {
+   "params": {
+    "lip": 0.38
+   },
+   "box": [
+    97,
+    301,
+    261,
+    146
+   ]
+  },
+  "mouth_wide": {
+   "params": {
+    "lip": 0.3,
+    "wide": 12.0
+   },
+   "box": [
+    69,
+    198,
+    301,
+    251
+   ]
+  },
+  "mouth_round": {
+   "params": {
+    "lip": 0.35,
+    "round_": 12.0
+   },
+   "box": [
+    97,
+    271,
+    272,
+    178
+   ]
+  },
+  "neutral": {
+   "params": {},
+   "box": null
+  },
+  "blink_half": {
+   "params": {
+    "eye": 0.2
+   },
+   "box": [
+    65,
+    171,
+    322,
+    289
+   ]
+  },
+  "blink_shut": {
+   "params": {
+    "eye": 0.0
+   },
+   "box": [
+    44,
+    158,
+    417,
+    331
+   ]
+  },
+  "gaze_left": {
+   "params": {
+    "gaze_x": -12.0
+   },
+   "box": [
+    107,
+    206,
+    272,
+    243
+   ]
+  },
+  "gaze_right": {
+   "params": {
+    "gaze_x": 12.0
+   },
+   "box": [
+    65,
+    213,
+    309,
+    243
+   ]
+  },
+  "gaze_up": {
+   "params": {
+    "gaze_y": 8.0
+   },
+   "box": [
+    107,
+    200,
+    283,
+    249
+   ]
+  },
+  "gaze_down": {
+   "params": {
+    "gaze_y": -8.0
+   },
+   "box": [
+    94,
+    209,
+    273,
+    251
+   ]
+  },
+  "smile": {
+   "params": {
+    "smile": 1.0
+   },
+   "box": [
+    59,
+    260,
+    391,
+    200
+   ]
+  },
+  "smile_big": {
+   "params": {
+    "smile": 1.6,
+    "lip": 0.2
+   },
+   "box": [
+    42,
+    36,
+    423,
+    449
+   ]
+  },
+  "curious": {
+   "params": {
+    "eyebrow": 8.0,
+    "eye": 0.5
+   },
+   "box": [
+    65,
+    186,
+    325,
+    262
+   ]
+  },
+  "concerned": {
+   "params": {
+    "eyebrow": -8.0
+   },
+   "box": [
+    59,
+    127,
+    323,
+    332
+   ]
+  }
+ }
+}
