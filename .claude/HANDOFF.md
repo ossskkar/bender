@@ -1,51 +1,69 @@
-# HANDOFF — Arisu web + 3D model (2026-09-23, away session)
+# HANDOFF — Arisu (2026-09-23)
 
-*Progress lives in the lain Backlog (Arisu → "Arisu appears as a 3D model…" and
-"I use Arisu on the web like on the iPad"). Earlier detail is in git history.*
+*Progress lives in the lain Backlog (Arisu → "I see Arisu's Live2D face react
+to the conversation" and "Arisu appears as a 3D model…"). Earlier detail is in
+git history.*
 
 ## State
 
-- **Web page matches the iPad** (lain df5a49d, bf5d2d4): tap shows chrome,
-  double tap talks, red mute, voice commands, no meter. Oscar confirmed on the 16 Pro.
-- **Her default is V30** (`lain/arisu/vrm/arisu.vrm`). Rule (Oscar, 09-23): the
-  latest version is always the default. Every version stays a face of its
-  own (V5, V11–V30) on the web and in `FaceView.arisu3D` (iPad, compiles,
-  needs his weekly build). All pass `tests/check_arisu_loading.mjs` (12 clips).
-- **Arisu's saved face is now `Arisu3D`** (was "Arisu3D V20", his own pick) so
-  she follows the latest. Backup: `arisu/v1-build/backups/characters-2026-09-23.json`.
-- **Build chain:** `sh v1-build/tools/build.sh <out.vrm>` = `make_white_suit.py`
-  (paint, per-pixel panels) → `reshape.py` (proportions) → `long_hair.py`
-  (length, side fringe) → `add_parts.py` (hip plates);
-  then `python3 tools/publish_version.py N stem render.png`. Source is Codex's
-  V11; `lain/arisu/vrm/MODEL.md` lists what each version changed.
+- **Nothing in this repo changed this session.** No commits but this handoff.
+- **Character shopping (new thread).** Oscar asked for a model to buy for
+  Arisu and rejected four shortlists. The brief settled through the
+  rejections: a **cool cyber or robot adult woman, anime style, fully
+  dressed** — not cute, not sexualised, and not dull office-wear either.
+  BOOTH and nizima surveyed; the full record, every candidate with its link
+  and why it was rejected, is in the new Backlog step *"Decide Arisu's bought
+  character, or commission one"* (journey 2). Read that, not this file.
+  His last word was **no** to the nit02 cyber model — the hunt is still open.
+- **VRM thread (carried over, unchanged today).** Her default is still V30
+  (`lain/arisu/vrm/arisu.vrm`); latest version is always the default. Web page
+  matches the iPad (lain df5a49d, bf5d2d4). Build chain:
+  `sh v1-build/tools/build.sh <out.vrm>` then
+  `python3 tools/publish_version.py N stem render.png`.
+- **Remote Control is now on** for new sessions by default, and for this one.
+  Idle sessions refuse it — they connect when next woken with a message.
 
 ## Decisions & open questions
 
-- Codex (09-19/20) made V5–V11, then suggested buying BOOTH "Peke". Not bought.
-- Everything edits the VRM directly (numpy), not Blender: reversible, keeps rig,
-  expressions and clips. Blender 4.5 + VRM add-on are installed if needed.
-- Arms: `body-motion.js` TUCK=0.14 pulls the upper arms in for the looping
-  states (sheet pose); thinking/reactions untouched. TUCK=0 undoes it.
-- `/arisu/vrm/` is served `no-cache` (304 on repeat visits); V30 is 12.0 MB.
-- Graphite renders navy on the page: that is the idle state light, not the model.
-- His Chrome cannot make a WebGL context (acceleration off); check in Safari.
+- **Licence is not a constraint.** Arisu is private — his machines and phones
+  over the tailnet, never published — so an ordinary VTuber licence is fine.
+  Do not pay extra for commercial or embedding rights, and do not rule a model
+  out over them. Two turns were wasted on this.
+- **Unresolved contradiction:** `arisu/LIVE2D.md` says 3D/VRM is superseded by
+  Live2D, but the VRM Arisu (V30) is what actually ships as her face today.
+  Nobody has decided which track the bought character belongs to. Ask him.
+- Unexplored when the session ended: nizima's 限定1点 tier (~¥30k–200k), where
+  the adult android models live, and nizima's order-made commission system
+  (~¥50k–180k). Links in the Backlog step.
 
 ## Next steps
 
-1. Oscar looks at her in Safari on the 16 Pro and says what still differs.
-2. Candidates: red accent dots on the headset and knees (sheet); a white
-   headband with more shape; face proportions (eye size) need Blender.
-3. Still open: 60 fps on the 2020 iPad Pro; her mouth in a real Safari call.
+1. Ask Oscar which track the bought character is for — Live2D or the VRM.
+2. Open the two nizima 限定1点 androids named in the Backlog step and show him
+   the artwork. Both match the brief on their titles; neither was opened.
+3. If he rejects those too, price a commission on nizima and put the number
+   in front of him.
 
 ## Gotchas
 
-- Render: `python3 -m http.server 18796 --bind 127.0.0.1` in `lain/`, then a CDP
-  script (see `tests/check_arisu_loading.mjs`). `--headless=new --screenshot` hangs.
-- Body clips only start for files named `arisu*` — name probes `arisu_zz_probe`.
-- Rotating `__vrm.scene` flings the hair; wait 5 s before judging it.
-- Positions in `make_white_suit.py` are V11 bind-pose metres (before reshape).
-- lain has unrelated uncommitted work (lights, systems.html); commit only yours.
+- **Judge every candidate by looking at the artwork, never by the title.**
+  Japanese product titles hide both the outfit and the age. Three wrong
+  shortlists came from reading titles: "お酒好きのお姉さん" and "ダークエルフメイド"
+  read as neutral in text and are not.
+- Search terms that waste time: メカ (returns chibi animals), 露出控えめ (no
+  results), スーツ (mostly male). Terms that work: サイバーパンク, アンドロイド,
+  近未来, 軍用, 電脳.
+- nizima renders blank in the sandboxed browser pane. `get_page_text` and
+  JavaScript work; for pictures, pull the `storage.googleapis.com` image URLs
+  out of the DOM and open them directly.
+- `backlog_project` and `backlog_step_add` on Arisu both blow the token limit
+  and spill to a file — grep that file rather than reading it.
+- `v1-build/*.vrm` and `v1-build/tools/*.py` are untracked leftovers from the
+  V5–V30 sessions. Not this session's; left alone.
+- The shared-notes write (`arisu-look-adult-not-cute`) committed but reported
+  `pushed: false`. Check it reached architect.
 
 ## Resume
 
-"Read arisu/.claude/HANDOFF.md and continue with what Oscar said about V30."
+"Read arisu/.claude/HANDOFF.md, then the Arisu Backlog step 'Decide Arisu's
+bought character, or commission one', and continue the character hunt."
