@@ -83,7 +83,7 @@ def accessor(j, views, i):
     acc = j['accessors'][i]
     bv = j['bufferViews'][acc['bufferView']]
     dt = {5121: np.uint8, 5123: np.uint16, 5125: np.uint32, 5126: np.float32}[acc['componentType']]
-    k = {'SCALAR': 1, 'VEC2': 2, 'VEC3': 3, 'VEC4': 4}[acc['type']]
+    k = {'SCALAR': 1, 'VEC2': 2, 'VEC3': 3, 'VEC4': 4, 'MAT4': 16}[acc['type']]
     raw = views[acc['bufferView']]
     stride = bv.get('byteStride', np.dtype(dt).itemsize * k)
     off = acc.get('byteOffset', 0)
