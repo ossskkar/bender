@@ -262,17 +262,18 @@ struct ContentView: View {
     private var modeToggle: some View {
         let cyan = Color(red: 0.27, green: 0.90, blue: 0.97)
         return HStack(spacing: 0) {
-            Text("VOICE")
+            Image(systemName: "waveform")
                 .foregroundStyle(Color(red: 0.02, green: 0.09, blue: 0.10))
-                .padding(.horizontal, 16).frame(height: 38)
+                .frame(width: 54, height: 38)
                 .background(cyan)
+                .accessibilityLabel("Voice")
             Button { showChat = true } label: {
-                Text("CHAT").foregroundStyle(cyan)
-                    .padding(.horizontal, 16).frame(height: 38)
+                Image(systemName: "terminal").foregroundStyle(cyan)
+                    .frame(width: 54, height: 38)
             }
+            .accessibilityLabel("Chat")
         }
-        .font(.system(size: 13, weight: .bold, design: .monospaced))
-        .tracking(2.2)
+        .font(.system(size: 19, weight: .semibold))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(cyan.opacity(0.55)))
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .padding(.top, 24)
@@ -539,6 +540,7 @@ struct ChatScreen: UIViewRepresentable {
         let config = WKWebViewConfiguration()
         config.userContentController.add(context.coordinator, name: "arisu")
         let web = WKWebView(frame: .zero, configuration: config)
+        if #available(iOS 16.4, *) { web.isInspectable = true }
         // Her own black while the page loads, not a white flash.
         web.isOpaque = false
         web.backgroundColor = .black
