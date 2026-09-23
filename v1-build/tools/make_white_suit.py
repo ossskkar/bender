@@ -483,6 +483,16 @@ def main(src, dst):
         Image.fromarray(f.astype(np.uint8), 'RGBA').save(buf, 'PNG', optimize=True)
         views[im_['bufferView']] = buf.getvalue()
 
+    # V30: the body skin's normal map was 3 MB of a 15 MB download for skin the
+    # suit covers almost everywhere; 512 px is plenty for the neck.
+    skin = next(i for i, m in enumerate(mats) if 'Body_00_SKIN' in m['name'])
+    if 'normalTexture' in mats[skin]:
+        nimg = j['images'][j['textures'][mats[skin]['normalTexture']['index']]['source']]
+        im_ = Image.open(io.BytesIO(views[nimg['bufferView']]))
+        buf = io.BytesIO()
+        im_.resize((512, 512), Image.Resampling.LANCZOS).save(buf, 'PNG', optimize=True)
+        views[nimg['bufferView']] = buf.getvalue()
+
     # V15: her hair lifted to the sheet's blue-grey, strand shading kept.
     hair = next(i for i, m in enumerate(mats) if m['name'].startswith('N00_000_Hair_00'))
     himg = j['images'][j['textures'][mats[hair]['pbrMetallicRoughness']['baseColorTexture']['index']]['source']]
