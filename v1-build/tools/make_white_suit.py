@@ -110,6 +110,8 @@ CROTCH = dict(top=0.012, bottom=0.05, y=(0.73, 0.86))
 KNEE_Y = (0.475, 0.545)
 # V22: the sheet's high graphite collar: suit above this height, near the neck.
 COLLAR = dict(y=1.215, half_width=0.065)
+# V23: the sheet's back view has a graphite seat: back-facing suit, hip height.
+SEAT = dict(y=(0.74, 0.93), back=-0.35)
 
 
 def put(j, views, i, arr):
@@ -242,7 +244,8 @@ def graphite_mask(j, views, suit, size):
             uv = accessor(j, views, at['TEXCOORD_0']) * size
             J = accessor(j, views, at['JOINTS_0']).astype(int)
             W = accessor(j, views, at['WEIGHTS_0'])
-            nx = np.abs(accessor(j, views, at['NORMAL'])[:, 0])
+            nrm = accessor(j, views, at['NORMAL'])
+            nx = np.abs(nrm[:, 0])
             pos = accessor(j, views, at['POSITION'])
             tri = accessor(j, views, p['indices']).astype(int).reshape(-1, 3)
             for pattern, side in GRAPHITE_REGIONS:
@@ -260,6 +263,9 @@ def graphite_mask(j, views, suit, size):
             f = np.clip((y1 - pos[:, 1]) / (y1 - y0), 0, 1)
             half = CROTCH['top'] + (CROTCH['bottom'] - CROTCH['top']) * f
             on = (np.abs(pos[:, 0]) < half) & (pos[:, 1] > y0) & (pos[:, 1] < y1) & (pos[:, 2] > -0.02)
+            for t in tri[on[tri].all(1)]:
+                d.polygon([tuple(uv[v]) for v in t], fill=255)
+            on = (pos[:, 1] > SEAT['y'][0]) & (pos[:, 1] < SEAT['y'][1]) & (nrm[:, 2] < SEAT['back'])
             for t in tri[on[tri].all(1)]:
                 d.polygon([tuple(uv[v]) for v in t], fill=255)
             on = (pos[:, 1] > COLLAR['y']) & (np.abs(pos[:, 0]) < COLLAR['half_width'])
