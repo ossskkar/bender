@@ -10,8 +10,8 @@ history of this file.*
   legend + buttons, next hides; double tap starts/ends the call; red mute;
   voice commands (show/hide subtitles, open/close settings, mute). No "•••"
   button, no meter bars (Oscar: not needed). Oscar confirmed the tap on the 16 Pro.
-- **3D versions are separate faces** in Settings > Face: Arisu3D (= arisu.vrm =
-  V10, still default and on the iPad), V5, V11–V20. All live on architect
+- **3D versions are separate faces** in Settings > Face: Arisu3D (= arisu.vrm = the latest,
+  now V20; Oscar: latest is always the default), V5, V11–V20. All live on architect
   (SHA-256 checked), all pass `tests/check_arisu_loading.mjs` with 12 clips.
   The iPad's `FaceView.arisu3D` lists the same (compiles; needs his weekly build).
 - **V12–V16 (Claude)** built from V11 by `v1-build/tools/make_white_suit.py`,
@@ -27,13 +27,14 @@ history of this file.*
 
 - Codex (09-19/20) made V5–V11 and conceded the model missed the bar; it
   suggested buying BOOTH "Peke". Not bought. Claude continued on the own model.
-- Oscar picks which version becomes `arisu.vrm` (the iPad default). Not done.
+- Oscar 09-23: the latest version is always the default. Each new version is
+  also copied over `lain/arisu/vrm/arisu.vrm` and `thumbs/Arisu3D.png`.
 - Assumption: the red outline, navy graphite and stepped band edges are the
   renderer and triangle masks, not his taste; V19 fixes the outline only.
 
 ## Next steps
 
-1. Oscar compares V10 and V20 in Safari and names the default.
+1. Blender pass (headless bpy, Blender is installed): proportions, hair.
 2. Copy that file over `lain/arisu/vrm/arisu.vrm`, bump `v=` in
    `native/Arisu/FaceView.swift`, deploy (deploy-lain skill).
    Adding a version touches three lists: `ARISU_3D` (web), `FaceView.arisu3D`

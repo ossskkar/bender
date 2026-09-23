@@ -64,7 +64,7 @@ struct FaceView: UIViewRepresentable {
     private static let live2dModel = ["arisu": "Arisu3D", "chopper": "Natori"]
     /// Every version of her own 3D model is a face of its own, name to file
     /// stem in lain's arisu/vrm/. Mirrors `ARISU_3D` in `arisu/index.html`;
-    /// Arisu3D is whatever arisu.vrm currently is (2026-09-23).
+    /// Arisu3D is arisu.vrm, always a copy of the latest version (2026-09-23).
     static let arisu3D: [(name: String, file: String)] = [
         ("Arisu3D", "arisu"), ("Arisu3D V5", "arisu_v5_visual_pass"),
         ("Arisu3D V11", "arisu_v11_material_refine"), ("Arisu3D V12", "arisu_v12_white_suit"),
