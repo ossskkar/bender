@@ -25,10 +25,10 @@ struct ContentView: View {
     /// The moving bars at the bottom, on or off (Settings > Face).
     @AppStorage("arisu.meter") private var showMeter = true
     @State private var showSettings = false
-    /// Typing to her instead of talking: the same screen, her face behind,
-    /// the thread in the subtitle bubbles and a field to type in (Oscar,
-    /// 2026-09-23: "chat should feel like a feature of the app").
-    @State private var chatMode = false
+    /// The typed chat: its own screen, the terminal page lain serves
+    /// (arisu/chat.html) full screen over her. Voice and chat are two
+    /// separate UIs in one app (Oscar, 2026-09-23).
+    @State private var showChat = false
     /// The recent lines of both of them, oldest first, as chat bubbles.
     @State private var messages: [Bubble] = []
     /// Legend and buttons start hidden; a tap on the screen shows them, the
@@ -166,21 +166,10 @@ struct ContentView: View {
                 face
                 scanlines.allowsHitTesting(false)
 
-                if chatMode {
-                    // Her face stays, dimmed, so the thread reads over it.
-                    Color.black.opacity(0.5).allowsHitTesting(false).transition(.opacity)
-                    ChatPanel(voice: voice, mineColor: mineColor) { chatMode = false }
-                        .padding(.leading, 34)
-                        .padding(.trailing, 110)
-                        .padding(.top, 70)
-                        .padding(.bottom, 26)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .transition(.opacity)
-                }
                 VStack {
                     Spacer()
                     if room.isGroup { company }
-                    if showTranscript && !chatMode {
+                    if showTranscript {
                         HStack {
                             transcript
                             Spacer(minLength: 0)
@@ -189,8 +178,7 @@ struct ContentView: View {
                         .padding(.trailing, 260)
                     }
                     // A meter for a microphone that is down would be a lie.
-                    if chatMode { EmptyView() }
-                    else if pet.running && showMeter { meter.padding(.bottom, 22) }
+                    if pet.running && showMeter { meter.padding(.bottom, 22) }
                     else { Color.clear.frame(height: 36).padding(.bottom, 22) }
                 }
             }
@@ -201,14 +189,15 @@ struct ContentView: View {
             .onTapGesture { chromeShown.toggle() }
             .overlay(alignment: .bottomTrailing) { if chromeShown { controls.transition(.opacity) } }
             .overlay(alignment: .topLeading) { if chromeShown { legend.transition(.opacity) } }
+            .overlay(alignment: .topTrailing) { modeToggle }
             .animation(.easeOut(duration: 0.2), value: chromeShown)
-            .animation(.easeOut(duration: 0.25), value: chatMode)
         }
         .ignoresSafeArea()
         // A page she was asked to show. The desk already decided how it can be
         // shown, so this only draws it.
         .sheet(item: $live.page) { PageSheet(page: $0) { live.page = nil } }
         .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet, live: live) }
+        .fullScreenCover(isPresented: $showChat) { ChatScreen { showChat = false } }
         .onChange(of: pet.heard) { _, t in say(t, mine: true); obey(t) }
         .onChange(of: pet.line) { _, t in say(t, mine: false) }
         .animation(.easeInOut(duration: 0.25), value: pet.thinking)
@@ -260,16 +249,34 @@ struct ContentView: View {
                     room.listenHere()
                 }
             }
-            // Typed chat, the same thread as the web's (2026-09-23).
-            iconButton(chatMode ? "keyboard.fill" : "keyboard", tint: chatMode ? glow : off) {
-                chatMode.toggle()
-            }
             iconButton("slider.horizontal.3", tint: off) {
                 showSettings = true
             }
         }
         .padding(.trailing, 26)
         .padding(.bottom, 26)
+    }
+
+    /// Voice | Chat: the one switch between her two screens, the same place and
+    /// look as the web's and as the chat page's own (Oscar, 2026-09-23).
+    private var modeToggle: some View {
+        let cyan = Color(red: 0.27, green: 0.90, blue: 0.97)
+        return HStack(spacing: 0) {
+            Text("VOICE")
+                .foregroundStyle(Color(red: 0.02, green: 0.09, blue: 0.10))
+                .padding(.horizontal, 16).frame(height: 38)
+                .background(cyan)
+            Button { showChat = true } label: {
+                Text("CHAT").foregroundStyle(cyan)
+                    .padding(.horizontal, 16).frame(height: 38)
+            }
+        }
+        .font(.system(size: 13, weight: .bold, design: .monospaced))
+        .tracking(2.2)
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(cyan.opacity(0.55)))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .padding(.top, 24)
+        .padding(.trailing, 26)
     }
 
     private func iconButton(_ symbol: String, tint: Color,
@@ -520,129 +527,40 @@ struct ChatBubble: View {
     }
 }
 
-/// Typing to her, over her own screen. The thread is the desk's (the web chat
-/// shows the same one); an answer is a whole Hermes turn, so it takes seconds.
-struct ChatPanel: View {
-    let voice: Color
-    let mineColor: Color
+/// The typed chat, full screen and edge to edge: lain's terminal page with no
+/// iOS bar over it, so it reads as the app's other screen. Its own "face"
+/// button posts `close` to the `arisu` handler, which returns to her.
+struct ChatScreen: UIViewRepresentable {
     let close: () -> Void
 
-    @State private var lines: [ChatLine] = []
-    @State private var draft = ""
-    @State private var waiting = false
-    @State private var failure: String?
-    @State private var keyboard: CGFloat = 0
-    @FocusState private var focused: Bool
-    private let brain = Brain()
+    func makeCoordinator() -> Coordinator { Coordinator(close: close) }
 
-    private var canSend: Bool {
-        !waiting && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    func makeUIView(context: Context) -> WKWebView {
+        let config = WKWebViewConfiguration()
+        config.userContentController.add(context.coordinator, name: "arisu")
+        let web = WKWebView(frame: .zero, configuration: config)
+        // Her own black while the page loads, not a white flash.
+        web.isOpaque = false
+        web.backgroundColor = .black
+        web.scrollView.backgroundColor = .black
+        web.scrollView.contentInsetAdjustmentBehavior = .never
+        if let url = URL(string: "chat.html?app=1", relativeTo: Brain.base) {
+            web.load(URLRequest(url: url))
+        }
+        return web
     }
 
-    var body: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Spacer()
-                Button(action: close) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(Color.white.opacity(0.5))
-                        .frame(width: 44, height: 44)
-                        .shadow(color: .black.opacity(0.85), radius: 4)
-                }
-            }
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 8) {
-                        ForEach(lines) { l in
-                            ChatBubble(text: l.text, mine: l.mine, voice: voice,
-                                       mineColor: mineColor, solid: true)
-                                .id(l.id)
-                        }
-                        if waiting {
-                            ChatBubble(text: "…", mine: false, voice: voice,
-                                       mineColor: mineColor, solid: true)
-                                .id(-1.0)
-                        }
-                        if let failure {
-                            Text(failure)
-                                .font(.system(size: 15))
-                                .foregroundStyle(Color(red: 1, green: 0.42, blue: 0.48))
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-                .scrollDismissesKeyboard(.interactively)
-                .onChange(of: lines) { _, _ in scroll(proxy) }
-                .onChange(of: waiting) { _, _ in scroll(proxy) }
-                .onChange(of: keyboard) { _, _ in scroll(proxy) }
-            }
-            HStack(spacing: 10) {
-                TextField("", text: $draft,
-                          prompt: Text("Type to Arisu").foregroundStyle(Color.white.opacity(0.35)))
-                    .font(.system(size: 19, weight: .medium))
-                    .foregroundStyle(mineColor)
-                    .tint(mineColor)
-                    .focused($focused)
-                    .submitLabel(.send)
-                    .onSubmit(send)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .fill(Color.black.opacity(0.62)))
-                    .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(mineColor.opacity(0.35)))
-                Button(action: send) {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 40))
-                        .foregroundStyle(canSend ? mineColor : Color.white.opacity(0.25))
-                }
-                .disabled(!canSend)
-            }
-        }
-        .frame(maxWidth: 620)
-        // The screen ignores the keyboard (the hologram must not squash), so
-        // the panel lifts itself above it.
-        .padding(.bottom, keyboard)
-        .onReceive(NotificationCenter.default.publisher(
-            for: UIResponder.keyboardWillChangeFrameNotification)) { note in
-            guard let end = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect
-            else { return }
-            let screen = UIScreen.main.bounds.height
-            withAnimation(.easeOut(duration: 0.25)) {
-                keyboard = max(0, screen - end.minY)
-            }
-        }
-        // A tap in the panel is for the panel, not the screen's show/hide.
-        .contentShape(Rectangle())
-        .onTapGesture { focused = true }
-        .task {
-            if let got = try? await brain.chatHistory() { lines = Array(got.suffix(60)) }
-            focused = true
-        }
+    func updateUIView(_ web: WKWebView, context: Context) {}
+
+    static func dismantleUIView(_ web: WKWebView, coordinator: Coordinator) {
+        web.configuration.userContentController.removeScriptMessageHandler(forName: "arisu")
     }
 
-    private func scroll(_ proxy: ScrollViewProxy) {
-        withAnimation(.easeOut(duration: 0.2)) {
-            proxy.scrollTo(waiting ? -1.0 : lines.last?.id, anchor: .bottom)
-        }
-    }
-
-    private func send() {
-        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !waiting else { return }
-        draft = ""
-        failure = nil
-        lines.append(ChatLine(t: Date().timeIntervalSince1970 * 1000, who: "you", text: text))
-        waiting = true
-        Task {
-            do {
-                let answer = try await brain.chat(text)
-                lines.append(ChatLine(t: Date().timeIntervalSince1970 * 1000, who: "her", text: answer))
-            } catch {
-                failure = error.localizedDescription
-            }
-            waiting = false
+    final class Coordinator: NSObject, WKScriptMessageHandler {
+        let close: () -> Void
+        init(close: @escaping () -> Void) { self.close = close }
+        func userContentController(_ c: WKUserContentController, didReceive m: WKScriptMessage) {
+            if (m.body as? String) == "close" { close() }
         }
     }
 }
