@@ -249,16 +249,7 @@ struct ContentView: View {
             }
             // Hold-to-talk and mute removed (Oscar, 2026-09-23). Neither is
             // saved across launches, so nothing is left switched on.
-            // Alone or with the others. Solo is one screen with one
-            // microphone, which is what this has always been; group hands the
-            // room to the desk, which decides whose microphone is live and who
-            // is allowed to be talking. Room-wide rather than per screen: half
-            // a house in group mode is the open-microphone failure it exists
-            // to prevent.
-            iconButton(room.isGroup ? "person.2.fill" : "person.fill",
-                       tint: room.isGroup ? glow : off) {
-                room.set(mode: room.isGroup ? "solo" : "group")
-            }
+            // Group button removed (Oscar, 2026-09-23); the room stays solo.
             // Which device is listening. Shown as soon as there is anyone
             // else to hand it to, rather than only in a group: hiding it until
             // the mode is switched means the one control he needs to fix a
@@ -385,7 +376,6 @@ struct ContentView: View {
     private func obey(_ text: String) {
         switch VoiceCommand(text) {
         case .transcript(let on)?: showTranscript = on
-        case .group(let on)?: room.set(mode: on ? "group" : "solo")
         case .settings(let open)?: showSettings = open
         case nil: break
         }
@@ -678,7 +668,7 @@ struct WebPage: UIViewRepresentable {
 /// A spoken button press, from his transcribed line. Explicit phrases only, so
 /// talking *about* the transcript does not flip it.
 enum VoiceCommand: Equatable {
-    case transcript(Bool), group(Bool), settings(Bool)
+    case transcript(Bool), settings(Bool)
 
     init?(_ line: String) {
         let t = line.lowercased()
@@ -689,8 +679,6 @@ enum VoiceCommand: Equatable {
         else if has(off + ".{0,12}" + chat) { self = .transcript(false) }
         else if has(on + ".{0,12}\\bsettings\\b") { self = .settings(true) }
         else if has(off + ".{0,12}\\bsettings\\b") { self = .settings(false) }
-        else if has(#"\bgroup (mode|conversation)\b"#) { self = .group(true) }
-        else if has(#"\bsolo (mode|conversation)\b"#) { self = .group(false) }
         else { return nil }
     }
 }
