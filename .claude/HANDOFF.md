@@ -6,20 +6,24 @@ git history.*
 
 ## This session (chat and apps, 2026-09-23) -- separate from the shopping thread below
 
-- **Typed chat** with her: web `lain/arisu/chat.html` (terminal look, lain skin,
-  no glow) and **iPad chat mode** built into the main screen (keyboard button;
-  her face dimmed behind the app's own bubbles). Both use `GET/POST /arisu/chat`:
-  its own Hermes session (40 turns, low reasoning), seeded from the desk log
-  `/var/lib/lain/arisu-chat.jsonl` on every new session. 6 test lines of mine
-  are in that log (lain-owned, I cannot delete them; they roll out of the seed).
-- **Apps:** mute and hold-to-talk buttons gone (web + iPad), mute voice command
-  gone; アリス icon on both (web needs re-adding to Home Screen); web opens on
-  the last face picked on the device; manifest for full-screen Home Screen launch.
-- **lain phone app (`lain/mobile.html`): Arisu is the first tab and it opens on
-  her**, in a frame kept alive across tabs, allowed mic/autoplay/wake lock.
-  Untested on his phone: a voice call inside that frame.
-- **iPad build with chat mode is installed** (2026-09-23 21:36, launched OK).
-  Not yet seen on screen by anyone.
+- **Two screens, one app, a Voice | Chat toggle** (icons: waveform / `>_`, top
+  right) on web and iPad. Voice = her face. Chat = `lain/arisu/chat.html`, a
+  terminal page: lain masthead (ARISUへようこそ！ · present day · present time, no
+  glow), icon buttons, a real visible textarea (the hidden-textarea trick did
+  not raise the iPad keyboard -- fix live, not yet confirmed on the device).
+  iPad shows chat.html full screen (`ChatScreen`, no iOS bar); its Voice half
+  posts `close` to the `arisu` WKScriptMessageHandler.
+- Chat backend: `GET/POST /arisu/chat`, own Hermes session (40 turns, low
+  reasoning), seeded from `/var/lib/lain/arisu-chat.jsonl`. Test lines of mine
+  ("ping", 3ED6FF...) are in that log; lain-owned, cannot delete.
+- **Removed on request:** mute, hold-to-talk, group button (+ their voice
+  commands), meter, the in-screen keyboard chat mode (tried and rolled back).
+- **Web gained the iPad's** 60 s idle hang-up and "something to tell you,
+  double-tap" for queued lines (polls only while visible; reads empty the queue).
+- **lain phone app is separate again** (Arisu tab tried, made lain slow, removed).
+- アリス icon on both apps; web remembers the last face per device.
+- Parked on 09-23: history/sessions/new-conversation feature (quoted, he chose
+  the terminal chat instead).
 
 ## State
 
