@@ -40,7 +40,7 @@ SMOOTH = ('UpperArmCore', 'ForearmCore', 'ElbowJoint', 'WristJoint', 'ShoulderJo
           'WhiteHousing', 'KneeCap')
 # V20: the shoulder joints read as big black balls; they shrink about their
 # own centre (skinned, so the vertices move, not the node).
-SHRINK = {'ShoulderJoint': 0.72}
+SHRINK = {'ShoulderJoint': 0.5}             # V22: smaller again, sheet caps
 SMOOTH_ANGLE = 50                            # degrees; sharper edges stay sharp
 # V17: the sheet's headband, 1 cm over her hair, ear unit to ear unit.
 BAND = dict(clear=0.010, width=0.024, thick=0.010, end_x=0.142, end_y=1.470, z=-0.008)
@@ -108,6 +108,8 @@ CALM = r'(UpperLeg|LowerLeg|Hips|Spine)'   # V20: + Spine, the waist harness
 CROTCH = dict(top=0.012, bottom=0.05, y=(0.73, 0.86))
 # V18: the sheet's graphite knee, all the way round the leg, bind-pose metres.
 KNEE_Y = (0.475, 0.545)
+# V22: the sheet's high graphite collar: suit above this height, near the neck.
+COLLAR = dict(y=1.215, half_width=0.065)
 
 
 def put(j, views, i, arr):
@@ -258,6 +260,9 @@ def graphite_mask(j, views, suit, size):
             f = np.clip((y1 - pos[:, 1]) / (y1 - y0), 0, 1)
             half = CROTCH['top'] + (CROTCH['bottom'] - CROTCH['top']) * f
             on = (np.abs(pos[:, 0]) < half) & (pos[:, 1] > y0) & (pos[:, 1] < y1) & (pos[:, 2] > -0.02)
+            for t in tri[on[tri].all(1)]:
+                d.polygon([tuple(uv[v]) for v in t], fill=255)
+            on = (pos[:, 1] > COLLAR['y']) & (np.abs(pos[:, 0]) < COLLAR['half_width'])
             for t in tri[on[tri].all(1)]:
                 d.polygon([tuple(uv[v]) for v in t], fill=255)
             on = (pos[:, 1] > KNEE_Y[0]) & (pos[:, 1] < KNEE_Y[1])
