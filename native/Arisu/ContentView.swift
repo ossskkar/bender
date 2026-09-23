@@ -25,6 +25,8 @@ struct ContentView: View {
     /// The moving bars at the bottom, on or off (Settings > Face).
     @AppStorage("arisu.meter") private var showMeter = true
     @State private var showSettings = false
+    /// The typed chat with her (lain's arisu/chat.html), in a sheet.
+    @State private var showChat = false
     /// The recent lines of both of them, oldest first, as chat bubbles.
     @State private var messages: [Bubble] = []
     /// Legend and buttons start hidden; a tap on the screen shows them, the
@@ -192,6 +194,7 @@ struct ContentView: View {
         // shown, so this only draws it.
         .sheet(item: $live.page) { PageSheet(page: $0) { live.page = nil } }
         .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet, live: live) }
+        .sheet(isPresented: $showChat) { ChatSheet { showChat = false } }
         .onChange(of: pet.heard) { _, t in say(t, mine: true); obey(t) }
         .onChange(of: pet.line) { _, t in say(t, mine: false) }
         .animation(.easeInOut(duration: 0.25), value: pet.thinking)
@@ -258,6 +261,10 @@ struct ContentView: View {
                            tint: room.isListener ? listener : off) {
                     room.listenHere()
                 }
+            }
+            // Typed chat, the same page and thread as the web's (2026-09-23).
+            iconButton("terminal", tint: off) {
+                showChat = true
             }
             iconButton("slider.horizontal.3", tint: off) {
                 showSettings = true
@@ -533,6 +540,25 @@ struct PageSheet: View {
         }
         .padding(32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// The chat page from the desk, full height. `app=1` hides the page's own
+/// "back to the face" link, which inside this sheet would load the face into it.
+struct ChatSheet: View {
+    let close: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            WebPage(url: URL(string: "chat.html?app=1", relativeTo: Brain.base))
+                .ignoresSafeArea(edges: .bottom)
+                .navigationTitle("Chat")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Close", action: close) }
+                }
+        }
+        .preferredColorScheme(.dark)
     }
 }
 
