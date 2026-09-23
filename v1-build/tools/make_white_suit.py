@@ -38,6 +38,9 @@ EAR_DOWN = 0.032                             # V5 sat above the ears
 SLIM = {'UpperArmCore': 0.82, 'ForearmCore': 0.82, 'ElbowJoint': 0.86, 'WristJoint': 0.9}
 SMOOTH = ('UpperArmCore', 'ForearmCore', 'ElbowJoint', 'WristJoint', 'ShoulderJoint',
           'WhiteHousing', 'KneeCap')
+# V20: the shoulder joints read as big black balls; they shrink about their
+# own centre (skinned, so the vertices move, not the node).
+SHRINK = {'ShoulderJoint': 0.72}
 SMOOTH_ANGLE = 50                            # degrees; sharper edges stay sharp
 # V17: the sheet's headband, 1 cm over her hair, ear unit to ear unit.
 BAND = dict(clear=0.010, width=0.024, thick=0.010, end_x=0.142, end_y=1.470, z=-0.008)
@@ -99,7 +102,7 @@ GRAPHITE_REGIONS = [
     (r'(Spine|Chest|Hips)', 0.62),                       # side panels
 ]
 # V16: the sheet's legs are clean white; the VRoid harness pattern there fades.
-CALM = r'(UpperLeg|LowerLeg|Hips)'
+CALM = r'(UpperLeg|LowerLeg|Hips|Spine)'   # V20: + Spine, the waist harness
 # V16: the graphite panel between the legs, in bind-pose metres: a V, narrow
 # below the navel and widening to the inner thighs.
 CROTCH = dict(top=0.012, bottom=0.05, y=(0.73, 0.86))
@@ -261,7 +264,10 @@ def graphite_mask(j, views, suit, size):
             for t in tri[on[tri].all(1)]:
                 d.polygon([tuple(uv[v]) for v in t], fill=255)
     calm = np.asarray(calm.filter(ImageFilter.GaussianBlur(12))) / 255.0
-    return np.asarray(im.filter(ImageFilter.MaxFilter(5))) > 0, calm
+    # V20: a soft edge instead of a hard one, so the triangle steps of the
+    # painted bands blur out.
+    soft = im.filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.GaussianBlur(3))
+    return np.asarray(soft) / 255.0, calm
 
 
 def white_suit(png, gloves=None, mark=True, calm=None):
@@ -284,14 +290,14 @@ def white_suit(png, gloves=None, mark=True, calm=None):
     # The two small islands at the top of the atlas are the gloves: graphite,
     # as on the sheet, with their seams a little lighter.
     if gloves is None:
-        gloves = np.zeros(L.shape, bool)
+        gloves = np.zeros(L.shape)
     lab, _ = ndimage.label(a[..., 3] > 8)
     sizes = ndimage.sum(np.ones_like(L), lab, range(1, lab.max() + 1))
     big = 1 + int(np.argmax(sizes))
     islands = ((lab > 0) & (lab != big)) if mark else np.zeros(L.shape, bool)
-    glove = (islands | gloves)[..., None]
+    glove = np.maximum(islands, gloves)[..., None]
     dark = GRAPHITE * (0.9 + 0.2 * (base / 60).clip(0, 1))[..., None] + 40 * line
-    rgb = np.where(glove, dark, rgb)
+    rgb = rgb * (1 - glove) + dark * glove
     a[..., :3] = rgb
     im = Image.fromarray(a.astype(np.uint8), 'RGBA')
     # The power mark: an open grey ring with a red stroke through its gap.
@@ -350,6 +356,16 @@ def main(src, dst):
                 n['scale'] = [sc[0] * f, sc[1], sc[2] * f]
         if any(k in name for k in SMOOTH):
             smooth_normals(j, views, n['mesh'])
+    for n in j['nodes']:
+        for k, f in SHRINK.items():
+            if k in n.get('name', '') and 'mesh' in n:
+                for p in j['meshes'][n['mesh']]['primitives']:
+                    P = accessor(j, views, p['attributes']['POSITION'])
+                    c = P.mean(0)
+                    P = c + (P - c) * f
+                    put(j, views, p['attributes']['POSITION'], P)
+                    acc = j['accessors'][p['attributes']['POSITION']]
+                    acc['min'], acc['max'] = P.min(0).tolist(), P.max(0).tolist()
     add_headband(j, views, white)
 
     suit = next(i for i, m in enumerate(mats) if SUIT in m['name'])
