@@ -16,6 +16,10 @@ from reshape import trs
 
 Y0 = 1.30          # metres: where the stretch starts (shoulder level)
 K = 1.45           # 1.015 m hair tips -> ~0.89 m, the sheet's hip line
+# The sheet's fringe parts on her left and sweeps to her right (viewer's
+# left); hers was a centre part. Front hair
+# moves sideways, more toward the tips, fading out at the side locks.
+SWEEP = dict(top=1.535, k=0.22, front_z=0.03, side_x=(0.05, 0.085))
 HIPS_COLLIDER = dict(offset=[0.0, 0.02, -0.03], radius=0.13)
 
 
@@ -56,9 +60,18 @@ def main(src, dst):
     for q, b in enumerate(skin['joints']):
         ibm[q] = np.linalg.inv(world(b)).T
     put(j, views, skin['inverseBindMatrices'], ibm.reshape(-1))
+    def sweep(P):
+        P = P.copy()
+        t = np.clip(SWEEP['top'] - P[:, 1], 0, None)
+        front = np.clip((P[:, 2] - SWEEP['front_z']) / 0.02, 0, 1)
+        lo, hi = SWEEP['side_x']
+        centre = 1 - np.clip((np.abs(P[:, 0]) - lo) / (hi - lo), 0, 1)
+        P[:, 0] += SWEEP['k'] * t * front * centre
+        return P
+
     for p in j['meshes'][mesh_node['mesh']]['primitives']:
         a = p['attributes']['POSITION']
-        P = warp(accessor(j, views, a))
+        P = sweep(warp(accessor(j, views, a)))
         put(j, views, a, P)
         j['accessors'][a]['min'], j['accessors'][a]['max'] = P.min(0).tolist(), P.max(0).tolist()
     # Other skins that share a hair joint must agree on its inverse bind.
