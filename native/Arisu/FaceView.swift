@@ -77,6 +77,7 @@ struct FaceView: UIViewRepresentable {
         ("Arisu3D V21", "arisu_v21_proportions"),
         ("Arisu3D V22", "arisu_v22_collar"),
         ("Arisu3D V23", "arisu_v23_long_hair"),
+        ("Arisu3D V24", "arisu_v24_slim_arms"),
     ]
     /// Every sample lain ships, mirroring `ALL_MODELS` in `arisu/index.html`.
     static let models = ["Haru", "Hiyori", "Mao", "Rice", "Natori", "Ren", "Mark", "Wanko"]

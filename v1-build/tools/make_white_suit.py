@@ -30,12 +30,13 @@ MARK = (1024, 600)
 # three pieces scale together about the housing, which moves out a little so
 # the bigger shell clears her hair.
 EAR = 'ARISU_V5_Head_'
-EAR_SCALE = 1.45
+EAR_SCALE = 1.30                             # V24: hug the head more (was 1.45)
 EAR_OUT = 0.004
 EAR_DOWN = 0.032                             # V5 sat above the ears
 # V17: the arms were thicker than the sheet's and faceted. Their cores and
 # joints slim across the bone (x/z), and their normals are smoothed.
-SLIM = {'UpperArmCore': 0.82, 'ForearmCore': 0.82, 'ElbowJoint': 0.86, 'WristJoint': 0.9}
+# V24: slimmer again -- the sheet's arms are sleeves, not tubes.
+SLIM = {'UpperArmCore': 0.68, 'ForearmCore': 0.64, 'ElbowJoint': 0.72, 'WristJoint': 0.76}
 SMOOTH = ('UpperArmCore', 'ForearmCore', 'ElbowJoint', 'WristJoint', 'ShoulderJoint',
           'WhiteHousing', 'KneeCap')
 # V20: the shoulder joints read as big black balls; they shrink about their
@@ -99,7 +100,7 @@ def accessor(j, views, i):
 GRAPHITE_REGIONS = [
     (r'(Hand|Thumb|Index|Middle|Ring|Little)', None),   # gloves
     (r'Neck', None),                                     # high collar
-    (r'(Spine|Chest|Hips)', 0.62),                       # side panels
+    (r'(Spine|Chest|Hips)', 0.45),                       # side panels (V24: wider)
 ]
 # V16: the sheet's legs are clean white; the VRoid harness pattern there fades.
 CALM = r'(UpperLeg|LowerLeg|Hips|Spine)'   # V20: + Spine, the waist harness
@@ -112,6 +113,8 @@ KNEE_Y = (0.475, 0.545)
 COLLAR = dict(y=1.215, half_width=0.065)
 # V23: the sheet's back view has a graphite seat: back-facing suit, hip height.
 SEAT = dict(y=(0.74, 0.93), back=-0.35)
+# V24: the sheet's graphite obliques, from under the bust to the hips, front.
+OBLIQUE = dict(y=(0.80, 1.07), inner_x=0.055)
 
 
 def put(j, views, i, arr):
@@ -265,6 +268,10 @@ def graphite_mask(j, views, suit, size):
             on = (np.abs(pos[:, 0]) < half) & (pos[:, 1] > y0) & (pos[:, 1] < y1) & (pos[:, 2] > -0.02)
             for t in tri[on[tri].all(1)]:
                 d.polygon([tuple(uv[v]) for v in t], fill=255)
+            on = ((pos[:, 1] > OBLIQUE['y'][0]) & (pos[:, 1] < OBLIQUE['y'][1])
+                  & (np.abs(pos[:, 0]) > OBLIQUE['inner_x']) & (nrm[:, 2] > 0))
+            for t in tri[on[tri].all(1)]:
+                d.polygon([tuple(uv[v]) for v in t], fill=255)
             on = (pos[:, 1] > SEAT['y'][0]) & (pos[:, 1] < SEAT['y'][1]) & (nrm[:, 2] < SEAT['back'])
             for t in tri[on[tri].all(1)]:
                 d.polygon([tuple(uv[v]) for v in t], fill=255)
@@ -361,6 +368,11 @@ def main(src, dst):
         name = n.get('name', '')
         if 'mesh' not in n:
             continue
+        # V24: the upper-arm sleeve reaches up to the shoulder cap (it began
+        # 5 cm below it): longer along the bone, centre moved up.
+        if 'UpperArmCore' in name:
+            n['scale'] = [n.get('scale', [1, 1, 1])[0], 1.28, n.get('scale', [1, 1, 1])[2]]
+            n['translation'] = [n['translation'][0], 0.104, n['translation'][2]]
         for k, f in SLIM.items():
             if k in name:
                 sc = n.get('scale', [1, 1, 1])
