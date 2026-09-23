@@ -200,6 +200,18 @@ final class Brain {
         return try JSONDecoder().decode(Persona.self, from: data)
     }
 
+    /// One line of a voice call for the desk's record (lain /arisu/voice), so
+    /// the conversation history has the iPad's calls in full -- his lines
+    /// (`heard`), hers (`answer`) and the call's edges (`call`). Fire and
+    /// forget: a lost line is not worth holding up the call (2026-09-24).
+    func logVoice(_ text: String, kind: String) {
+        var r = URLRequest(url: Brain.base.appendingPathComponent("voice"))
+        r.httpMethod = "POST"
+        r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        r.httpBody = try? JSONSerialization.data(withJSONObject: ["text": text, "kind": kind])
+        session.dataTask(with: r).resume()
+    }
+
     /// Everyone on the desk, and who is on it now.
     func cast() async throws -> Cast {
         let (data, resp) = try await session.data(

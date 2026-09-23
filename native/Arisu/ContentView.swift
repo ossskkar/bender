@@ -198,8 +198,9 @@ struct ContentView: View {
         .sheet(item: $live.page) { PageSheet(page: $0) { live.page = nil } }
         .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet, live: live) }
         .fullScreenCover(isPresented: $showChat) { ChatScreen { showChat = false } }
-        .onChange(of: pet.heard) { _, t in say(t, mine: true); obey(t) }
-        .onChange(of: pet.line) { _, t in say(t, mine: false) }
+        .onChange(of: pet.heard) { _, t in say(t, mine: true); obey(t); record(t, "heard") }
+        .onChange(of: pet.line) { _, t in say(t, mine: false); record(t, "answer") }
+        .onChange(of: pet.running) { _, on in record(on ? "call started" : "call ended", "call") }
         .animation(.easeInOut(duration: 0.25), value: pet.thinking)
         .animation(.easeInOut(duration: 0.25), value: live.thinking)
         .animation(.easeInOut(duration: 0.25), value: pet.running)
@@ -387,6 +388,14 @@ struct ContentView: View {
         case .settings(let open)?: showSettings = open
         case nil: break
         }
+    }
+
+    private let brain = Brain()
+
+    /// Into the desk's voice log, which the conversation history reads.
+    private func record(_ text: String, _ kind: String) {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !t.isEmpty { brain.logVoice(t, kind: kind) }
     }
 
     private func say(_ text: String, mine: Bool) {
