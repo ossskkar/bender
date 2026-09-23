@@ -233,15 +233,8 @@ struct ContentView: View {
                        tint: pet.running ? glow : off) {
                 pet.toggleRunning()
             }
-            talkButton
-            // The room, private, without hanging up. A slashed mic is the one
-            // glyph that means this everywhere, and it is the only control here
-            // that is louder off than on -- muted is a state you must not
-            // forget you are in, so it takes the recording red.
-            iconButton(live.muted ? "mic.slash.fill" : "mic.fill",
-                       tint: live.muted ? recording : off) {
-                live.muted.toggle()
-            }
+            // Hold-to-talk and mute removed (Oscar, 2026-09-23). Neither is
+            // saved across launches, so nothing is left switched on.
             // Alone or with the others. Solo is one screen with one
             // microphone, which is what this has always been; group hands the
             // room to the desk, which decides whose microphone is live and who
@@ -272,41 +265,6 @@ struct ContentView: View {
         }
         .padding(.trailing, 26)
         .padding(.bottom, 26)
-    }
-
-    /// Hold to say something long.
-    ///
-    /// Two states in one control, because they are the same idea: off, the mic
-    /// is open and she answers when she thinks he has finished; on, nothing
-    /// reaches her until this is held, and letting go ends the turn. A tap
-    /// switches modes, a press-and-hold is the turn itself.
-    ///
-    /// A record dot rather than a microphone, because a microphone glyph is
-    /// what the *other* button already means -- whether she can hear the room
-    /// at all. This one is about capturing one thing he chooses to say, which
-    /// is what a record button has meant on every device he has ever owned.
-    private var talkButton: some View {
-        let armed = live.turnMode
-        let symbol = armed ? "record.circle.fill" : "record.circle"
-        let tint: Color = live.pushing ? recording : (armed ? glow : off)
-        return Image(systemName: symbol)
-            .font(.system(size: 34, weight: .medium))
-            .foregroundStyle(tint)
-            // No capsule, no edge -- his call, 2026-09-09. The glyphs sit on
-            // the hologram's own black, and a shadow does the separating work
-            // the border used to, without drawing a second shape around every
-            // icon.
-            .frame(width: 52, height: 46)
-            .padding(10)
-            .shadow(color: .black.opacity(0.85), radius: 5)
-            .contentShape(Rectangle())
-            .scaleEffect(live.pushing ? 1.12 : 1)
-            .onTapGesture { live.turnMode.toggle() }
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { _ in if armed { live.startTurn() } }
-                    .onEnded { _ in live.endTurn() })
-            .animation(.easeOut(duration: 0.12), value: live.pushing)
     }
 
     private func iconButton(_ symbol: String, tint: Color,
@@ -427,7 +385,6 @@ struct ContentView: View {
         switch VoiceCommand(text) {
         case .transcript(let on)?: showTranscript = on
         case .group(let on)?: room.set(mode: on ? "group" : "solo")
-        case .mute?: live.muted = true
         case .settings(let open)?: showSettings = open
         case nil: break
         }
@@ -583,7 +540,7 @@ struct WebPage: UIViewRepresentable {
 /// A spoken button press, from his transcribed line. Explicit phrases only, so
 /// talking *about* the transcript does not flip it.
 enum VoiceCommand: Equatable {
-    case transcript(Bool), group(Bool), mute, settings(Bool)
+    case transcript(Bool), group(Bool), settings(Bool)
 
     init?(_ line: String) {
         let t = line.lowercased()
@@ -596,7 +553,6 @@ enum VoiceCommand: Equatable {
         else if has(off + ".{0,12}\\bsettings\\b") { self = .settings(false) }
         else if has(#"\bgroup (mode|conversation)\b"#) { self = .group(true) }
         else if has(#"\bsolo (mode|conversation)\b"#) { self = .group(false) }
-        else if has(#"\bmute\b"#) { self = .mute }
         else { return nil }
     }
 }
