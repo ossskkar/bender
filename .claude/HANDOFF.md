@@ -4,9 +4,27 @@
 to the conversation" and "Arisu appears as a 3D model…"). Earlier detail is in
 git history.*
 
+## This session (chat and apps, 2026-09-23) -- separate from the shopping thread below
+
+- **Typed chat** with her: web `lain/arisu/chat.html` (terminal look, lain skin,
+  no glow) and **iPad chat mode** built into the main screen (keyboard button;
+  her face dimmed behind the app's own bubbles). Both use `GET/POST /arisu/chat`:
+  its own Hermes session (40 turns, low reasoning), seeded from the desk log
+  `/var/lib/lain/arisu-chat.jsonl` on every new session. 6 test lines of mine
+  are in that log (lain-owned, I cannot delete them; they roll out of the seed).
+- **Apps:** mute and hold-to-talk buttons gone (web + iPad), mute voice command
+  gone; アリス icon on both (web needs re-adding to Home Screen); web opens on
+  the last face picked on the device; manifest for full-screen Home Screen launch.
+- **lain phone app (`lain/mobile.html`): Arisu is the first tab and it opens on
+  her**, in a frame kept alive across tabs, allowed mic/autoplay/wake lock.
+  Untested on his phone: a voice call inside that frame.
+- **iPad build with chat mode is built but NOT installed** -- the iPad went
+  unavailable; a background loop was installing it when it came back.
+  If not: `xcrun devicectl device install app --device 085B9100-31D5-5A2D-B44C-82D143A30ACA <DerivedData>/Arisu.app`.
+
 ## State
 
-- **Nothing in this repo changed this session.** No commits but this handoff.
+- (shopping thread) Nothing in this repo changed in that session.
 - **Character shopping (new thread).** Oscar asked for a model to buy for
   Arisu and rejected four shortlists. The brief settled through the
   rejections: a **cool cyber or robot adult woman, anime style, fully
