@@ -18,9 +18,8 @@ git history.*
 - **lain phone app (`lain/mobile.html`): Arisu is the first tab and it opens on
   her**, in a frame kept alive across tabs, allowed mic/autoplay/wake lock.
   Untested on his phone: a voice call inside that frame.
-- **iPad build with chat mode is built but NOT installed** -- the iPad went
-  unavailable; a background loop was installing it when it came back.
-  If not: `xcrun devicectl device install app --device 085B9100-31D5-5A2D-B44C-82D143A30ACA <DerivedData>/Arisu.app`.
+- **iPad build with chat mode is installed** (2026-09-23 21:36, launched OK).
+  Not yet seen on screen by anyone.
 
 ## State
 
