@@ -114,17 +114,20 @@ GRAPHITE_REGIONS = [
 CALM = r'(UpperLeg|LowerLeg|Hips|Spine)'   # V20: + Spine, the waist harness
 # V16: the graphite panel between the legs, in bind-pose metres: a V, narrow
 # below the navel and widening to the inner thighs.
-CROTCH = dict(top=0.012, bottom=0.05, y=(0.73, 0.86))
+CROTCH = dict(top=0.016, bottom=0.075, y=(0.70, 0.87))   # V27: the sheet's brief is bigger
+# V27: graphite down the outside of the hips and upper thighs.
+HIP_STRIPE = dict(y=(0.66, 0.90), side=0.62)
 # V18: the sheet's graphite knee, all the way round the leg, bind-pose metres.
 KNEE_Y = (0.475, 0.545)
 # V22: the sheet's high graphite collar: suit above this height, near the neck.
 COLLAR = dict(y=1.215, half_width=0.065)
-CYAN_DOT = dict(y=1.205, px=9)                   # just under the collar line
+CYAN_DOT = dict(y=1.205, r=0.0075)               # just under the collar line
 CYAN = np.array([62, 214, 255], float)       # sheet: accent cyan #3ED6FF
 # V23: the sheet's back view has a graphite seat: back-facing suit, hip height.
 SEAT = dict(y=(0.74, 0.93), back=-0.35)
 # V24: the sheet's graphite obliques, from under the bust to the hips, front.
-OBLIQUE = dict(y=(0.80, 1.07), inner_x=0.055)
+# V27: the inner edge curves like the sheet's -- narrowest white at the waist.
+OBLIQUE = dict(y=(0.84, 1.07), inner_x=0.052, waist_y=0.965, curve=3.0)
 
 
 def put(j, views, i, arr):
@@ -239,16 +242,50 @@ def add_headband(j, views, material):
     j['nodes'][head].setdefault('children', []).append(len(j['nodes']) - 1)
 
 
+def smooth(x, e0, e1):
+    t = np.clip((x - e0) / (e1 - e0), 0, 1)
+    return t * t * (3 - 2 * t)
+
+
+def rasterize(uv, tri, attrs, size):
+    """Interpolate per-vertex attributes across each triangle, in texture space."""
+    out = np.zeros((size, size, attrs.shape[1]), np.float32)
+    cov = np.zeros((size, size), bool)
+    for a, b, c in tri:
+        pa, pb, pc = uv[a], uv[b], uv[c]
+        x0 = max(int(np.floor(min(pa[0], pb[0], pc[0]))), 0)
+        x1 = min(int(np.ceil(max(pa[0], pb[0], pc[0]))), size - 1)
+        y0 = max(int(np.floor(min(pa[1], pb[1], pc[1]))), 0)
+        y1 = min(int(np.ceil(max(pa[1], pb[1], pc[1]))), size - 1)
+        if x1 < x0 or y1 < y0:
+            continue
+        den = (pb[1] - pc[1]) * (pa[0] - pc[0]) + (pc[0] - pb[0]) * (pa[1] - pc[1])
+        if abs(den) < 1e-12:
+            continue
+        xs, ys = np.meshgrid(np.arange(x0, x1 + 1) + 0.5, np.arange(y0, y1 + 1) + 0.5)
+        w0 = ((pb[1] - pc[1]) * (xs - pc[0]) + (pc[0] - pb[0]) * (ys - pc[1])) / den
+        w1 = ((pc[1] - pa[1]) * (xs - pc[0]) + (pa[0] - pc[0]) * (ys - pc[1])) / den
+        w2 = 1 - w0 - w1
+        inside = (w0 >= -0.02) & (w1 >= -0.02) & (w2 >= -0.02)
+        if not inside.any():
+            continue
+        vals = w0[..., None] * attrs[a] + w1[..., None] * attrs[b] + w2[..., None] * attrs[c]
+        out[y0:y1 + 1, x0:x1 + 1][inside] = vals[inside]
+        cov[y0:y1 + 1, x0:x1 + 1][inside] = True
+    return out, cov
+
+
 def graphite_mask(j, views, suit, size):
-    """Texture pixels of the suit that the sheet shows in graphite."""
+    """The suit's graphite panels, cyan light and calm zone, per texture pixel.
+
+    V27: the mesh is rasterised into texture space (position, normal and bone
+    weights per pixel), so each panel is a smooth condition on the surface and
+    its edge follows a curve, not the steps of whole triangles."""
     names = [n.get('name', '') for n in j['nodes']]
-    im = Image.new('L', (size, size), 0)
-    d = ImageDraw.Draw(im)
-    calm = Image.new('L', (size, size), 0)
-    dc = ImageDraw.Draw(calm)
-    light = Image.new('L', (size, size), 0)
-    dl = ImageDraw.Draw(light)
-    for ni, node in enumerate(j['nodes']):
+    groups = [GRAPHITE_REGIONS[0][0], GRAPHITE_REGIONS[1][0], GRAPHITE_REGIONS[2][0], CALM]
+    G = np.zeros((size, size, 10), np.float32)
+    cov = np.zeros((size, size), bool)
+    for node in j['nodes']:
         if 'mesh' not in node or 'skin' not in node:
             continue
         joints = j['skins'][node['skin']]['joints']
@@ -259,53 +296,47 @@ def graphite_mask(j, views, suit, size):
             uv = accessor(j, views, at['TEXCOORD_0']) * size
             J = accessor(j, views, at['JOINTS_0']).astype(int)
             W = accessor(j, views, at['WEIGHTS_0'])
-            nrm = accessor(j, views, at['NORMAL'])
-            nx = np.abs(nrm[:, 0])
-            pos = accessor(j, views, at['POSITION'])
+            ws = [(W * np.array([bool(re.search(g, names[x])) for x in joints])[J]).sum(1)
+                  for g in groups]
+            attrs = np.c_[accessor(j, views, at['POSITION']), accessor(j, views, at['NORMAL']),
+                          np.array(ws).T]
             tri = accessor(j, views, p['indices']).astype(int).reshape(-1, 3)
-            for pattern, side in GRAPHITE_REGIONS:
-                bone = np.array([bool(re.search(pattern, names[x])) for x in joints])
-                on = (W * bone[J]).sum(1) > 0.5
-                if side is not None:
-                    on &= nx > side
-                for t in tri[on[tri].all(1)]:
-                    d.polygon([tuple(uv[v]) for v in t], fill=255)
-            bone = np.array([bool(re.search(CALM, names[x])) for x in joints])
-            on = (W * bone[J]).sum(1) > 0.5
-            for t in tri[on[tri].all(1)]:
-                dc.polygon([tuple(uv[v]) for v in t], fill=255)
-            y0, y1 = CROTCH['y']
-            f = np.clip((y1 - pos[:, 1]) / (y1 - y0), 0, 1)
-            half = CROTCH['top'] + (CROTCH['bottom'] - CROTCH['top']) * f
-            on = (np.abs(pos[:, 0]) < half) & (pos[:, 1] > y0) & (pos[:, 1] < y1) & (pos[:, 2] > -0.02)
-            for t in tri[on[tri].all(1)]:
-                d.polygon([tuple(uv[v]) for v in t], fill=255)
-            on = ((pos[:, 1] > OBLIQUE['y'][0]) & (pos[:, 1] < OBLIQUE['y'][1])
-                  & (np.abs(pos[:, 0]) > OBLIQUE['inner_x']) & (nrm[:, 2] > 0))
-            for t in tri[on[tri].all(1)]:
-                d.polygon([tuple(uv[v]) for v in t], fill=255)
-            on = (pos[:, 1] > SEAT['y'][0]) & (pos[:, 1] < SEAT['y'][1]) & (nrm[:, 2] < SEAT['back'])
-            for t in tri[on[tri].all(1)]:
-                d.polygon([tuple(uv[v]) for v in t], fill=255)
-            # V25: the cyan light under the collar, front centre.
-            far = np.linalg.norm(pos[:, :2] - [0, CYAN_DOT['y']], axis=1) + 9 * (nrm[:, 2] < 0.5)
-            v = int(np.argmin(far))
-            if far[v] < 0.02:
-                u0, v0 = uv[v]
-                dl.ellipse((u0 - CYAN_DOT['px'], v0 - CYAN_DOT['px'],
-                            u0 + CYAN_DOT['px'], v0 + CYAN_DOT['px']), fill=255)
-            on = (pos[:, 1] > COLLAR['y']) & (np.abs(pos[:, 0]) < COLLAR['half_width'])
-            for t in tri[on[tri].all(1)]:
-                d.polygon([tuple(uv[v]) for v in t], fill=255)
-            on = (pos[:, 1] > KNEE_Y[0]) & (pos[:, 1] < KNEE_Y[1])
-            for t in tri[on[tri].all(1)]:
-                d.polygon([tuple(uv[v]) for v in t], fill=255)
-    calm = np.asarray(calm.filter(ImageFilter.GaussianBlur(12))) / 255.0
-    # V20: a soft edge instead of a hard one, so the triangle steps of the
-    # painted bands blur out.
-    soft = im.filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.GaussianBlur(3))
-    light = np.asarray(light.filter(ImageFilter.GaussianBlur(2))) / 255.0
-    return np.asarray(soft) / 255.0, calm, light
+            g, c = rasterize(uv, tri, attrs, size)
+            G[c] = g[c]
+            cov |= c
+    x, y, z = G[..., 0], G[..., 1], G[..., 2]
+    nx, nz = G[..., 3], G[..., 5]
+    hand, neck, torso, calmw = G[..., 6], G[..., 7], G[..., 8], G[..., 9]
+    e = 0.004                                          # edge softness, metres
+    band = lambda v, lo, hi: smooth(v, lo - e, lo + e) * smooth(v, hi + e, hi - e)
+    y0, y1 = CROTCH['y']
+    half = CROTCH['top'] + (CROTCH['bottom'] - CROTCH['top']) * np.clip((y1 - y) / (y1 - y0), 0, 1)
+    parts = [
+        smooth(hand, 0.4, 0.6),
+        smooth(neck, 0.4, 0.6),
+        smooth(torso, 0.4, 0.6) * smooth(np.abs(nx), GRAPHITE_REGIONS[2][1] - 0.05,
+                                         GRAPHITE_REGIONS[2][1] + 0.05),
+        smooth(half - np.abs(x), -e / 2, e / 2) * band(y, y0, y1) * smooth(z, -0.03, -0.01),
+        band(y, *OBLIQUE['y']) * smooth(np.abs(x) - OBLIQUE['inner_x']
+                                        - OBLIQUE['curve'] * (y - OBLIQUE['waist_y']) ** 2, -e, e)
+        * smooth(nz, -0.05, 0.05),
+        band(y, *SEAT['y']) * smooth(-nz, -SEAT['back'] - 0.05, -SEAT['back'] + 0.05),
+        smooth(y, COLLAR['y'] - e, COLLAR['y'] + e)
+        * smooth(COLLAR['half_width'] - np.abs(x), -e, e),
+        band(y, *KNEE_Y),
+        band(y, *HIP_STRIPE['y']) * smooth(np.abs(nx), HIP_STRIPE['side'] - 0.06, HIP_STRIPE['side'] + 0.06),
+    ]
+    dark = np.max(parts, axis=0) * cov
+    d = np.sqrt(x ** 2 + (y - CYAN_DOT['y']) ** 2)
+    light = smooth(CYAN_DOT['r'] - d, -0.0012, 0.0012) * smooth(nz, 0.4, 0.6) * cov
+    # Pixels no triangle covers (atlas padding) take their neighbours' value, so
+    # texture filtering at a UV seam does not pull in the wrong colour.
+    def pad(m):
+        grown = np.asarray(Image.fromarray((m * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(7))) / 255.0
+        return np.where(cov, m, grown)
+    calm = np.asarray(Image.fromarray((smooth(calmw, 0.3, 0.7) * cov * 255).astype(np.uint8))
+                      .filter(ImageFilter.GaussianBlur(12))) / 255.0
+    return pad(dark), calm, pad(light)
 
 
 def white_suit(png, gloves=None, mark=True, calm=None, light=None):
