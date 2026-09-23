@@ -50,6 +50,14 @@ WHITE = np.array([247, 248, 250], float)     # sheet: primary white #F7F8FA
 GRAPHITE = np.array([46, 46, 51], float)     # sheet: graphite #2E2E33
 # The sheet's seams are faint grey lines, not graphite (V15).
 SEAM = np.array([128, 134, 146], float)
+# V26: the sheet's face -- blue-grey brows, darker lashes and liner, grey irises.
+# name fragment -> (target mean colour, how much of the original tint to keep)
+FACE_TINT = {
+    'FaceBrow': (np.array([58, 70, 96], float), 0.0),
+    'FaceEyeline': (np.array([30, 32, 44], float), 0.0),
+    'FaceEyelash': (np.array([30, 32, 44], float), 0.0),
+    'EyeIris': (np.array([104, 118, 140], float), 0.35),
+}
 HAIR = np.array([80, 102, 134], float)       # sheet #5B7CA6, less the renderer's lift
 
 
@@ -430,6 +438,19 @@ def main(src, dst):
     simg = j['images'][j['textures'][mats[shoes]['pbrMetallicRoughness']['baseColorTexture']['index']]['source']]
     views[simg['bufferView']] = white_suit(views[simg['bufferView']], mark=False)
     mats[shoes]['extensions']['VRMC_materials_mtoon']['shadeColorFactor'] = [0.78, 0.80, 0.86]
+
+    for frag, (target, keep) in FACE_TINT.items():
+        mi = next(i for i, m in enumerate(mats) if frag in m['name'])
+        im_ = j['images'][j['textures'][mats[mi]['pbrMetallicRoughness']['baseColorTexture']['index']]['source']]
+        f = np.asarray(Image.open(io.BytesIO(views[im_['bufferView']])).convert('RGBA')).astype(float)
+        on = f[..., 3] > 8
+        rgb = f[..., :3]
+        mean = rgb[on].mean(0)
+        lum = rgb.mean(-1, keepdims=True) / max(mean.mean(), 1)
+        f[..., :3] = np.clip(keep * rgb + (1 - keep) * target * lum, 0, 255)
+        buf = io.BytesIO()
+        Image.fromarray(f.astype(np.uint8), 'RGBA').save(buf, 'PNG', optimize=True)
+        views[im_['bufferView']] = buf.getvalue()
 
     # V15: her hair lifted to the sheet's blue-grey, strand shading kept.
     hair = next(i for i, m in enumerate(mats) if m['name'].startswith('N00_000_Hair_00'))
