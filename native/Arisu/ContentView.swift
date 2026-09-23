@@ -194,7 +194,7 @@ struct ContentView: View {
         // shown, so this only draws it.
         .sheet(item: $live.page) { PageSheet(page: $0) { live.page = nil } }
         .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet, live: live) }
-        .sheet(isPresented: $showChat) { ChatSheet { showChat = false } }
+        .fullScreenCover(isPresented: $showChat) { ChatSheet { showChat = false } }
         .onChange(of: pet.heard) { _, t in say(t, mine: true); obey(t) }
         .onChange(of: pet.line) { _, t in say(t, mine: false) }
         .animation(.easeInOut(duration: 0.25), value: pet.thinking)
@@ -500,7 +500,7 @@ struct PageSheet: View {
     }
 }
 
-/// The chat page from the desk, full height. `app=1` hides the page's own
+/// The chat page from the desk, full screen (Oscar: not a pop-up). `app=1` hides the page's own
 /// "back to the face" link, which inside this sheet would load the face into it.
 struct ChatSheet: View {
     let close: () -> Void
