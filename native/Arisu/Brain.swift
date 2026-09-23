@@ -123,6 +123,17 @@ struct CommandInbox: Decodable {
 /// architect, over Tailscale. The brain is unchanged from the web version --
 /// same `/arisu/listen`, same JSON -- so everything Arisu knows how to do
 /// (planner, board, habits, diary, the lot) works here on day one.
+struct ChatLine: Decodable, Identifiable, Equatable {
+    let t: Double
+    let who: String
+    let text: String
+    var id: Double { t }
+    var mine: Bool { who == "you" }
+}
+private struct ChatThread: Decodable { let messages: [ChatLine] }
+private struct ChatAnswer: Decodable { let answer: String?; let error: String? }
+struct ChatError: LocalizedError { let message: String; var errorDescription: String? { message } }
+
 final class Brain {
     static let base = URL(string: "https://architect-server.tailaa64e9.ts.net:8443/arisu/")!
 
@@ -198,6 +209,33 @@ final class Brain {
             throw URLError(.badServerResponse)
         }
         return try JSONDecoder().decode(Persona.self, from: data)
+    }
+
+    /// The typed chat's thread, oldest first -- the same one the web chat shows
+    /// (lain /arisu/chat, kept on the desk).
+    func chatHistory() async throws -> [ChatLine] {
+        let (data, resp) = try await session.data(
+            from: Brain.base.appendingPathComponent("chat"))
+        guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(ChatThread.self, from: data).messages
+    }
+
+    /// One typed line to her; the answer is a whole Hermes turn in the chat's
+    /// own session, so it takes seconds.
+    func chat(_ text: String) async throws -> String {
+        var r = URLRequest(url: Brain.base.appendingPathComponent("chat"))
+        r.httpMethod = "POST"
+        r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        r.httpBody = try JSONSerialization.data(withJSONObject: ["text": text])
+        let (data, resp) = try await session.data(for: r)
+        let got = try? JSONDecoder().decode(ChatAnswer.self, from: data)
+        guard let http = resp as? HTTPURLResponse, http.statusCode == 200,
+              let answer = got?.answer else {
+            throw ChatError(message: got?.error ?? "The desk did not answer.")
+        }
+        return answer
     }
 
     /// Everyone on the desk, and who is on it now.
