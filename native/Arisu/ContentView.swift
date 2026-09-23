@@ -29,6 +29,8 @@ struct ContentView: View {
     /// (arisu/chat.html) full screen over her. Voice and chat are two
     /// separate UIs in one app (Oscar, 2026-09-23).
     @State private var showChat = false
+    /// Open the chat screen on its history list rather than the live thread.
+    @State private var chatOnHistory = false
     /// The recent lines of both of them, oldest first, as chat bubbles.
     @State private var messages: [Bubble] = []
     /// Legend and buttons start hidden; a tap on the screen shows them, the
@@ -197,7 +199,9 @@ struct ContentView: View {
         // shown, so this only draws it.
         .sheet(item: $live.page) { PageSheet(page: $0) { live.page = nil } }
         .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet, live: live) }
-        .fullScreenCover(isPresented: $showChat) { ChatScreen { showChat = false } }
+        .fullScreenCover(isPresented: $showChat) {
+            ChatScreen(query: chatOnHistory ? "app=1&view=history" : "app=1") { showChat = false }
+        }
         .onChange(of: pet.heard) { _, t in say(t, mine: true); obey(t); record(t, "heard") }
         .onChange(of: pet.line) { _, t in say(t, mine: false); record(t, "answer") }
         .onChange(of: pet.running) { _, on in record(on ? "call started" : "call ended", "call") }
@@ -262,13 +266,50 @@ struct ContentView: View {
     /// look as the web's and as the chat page's own (Oscar, 2026-09-23).
     private var modeToggle: some View {
         let cyan = Color(red: 0.27, green: 0.90, blue: 0.97)
-        return HStack(spacing: 0) {
+        return HStack(spacing: 10) {
+            // History and a new conversation, as on the chat page (2026-09-24).
+            squareButton("clock", "History") { chatOnHistory = true; showChat = true }
+            squareButton("plus", "New conversation") { newVoiceConversation() }
+            toggleBody(cyan)
+        }
+        .padding(.top, 24)
+        .padding(.trailing, 26)
+    }
+
+    private func squareButton(_ symbol: String, _ label: String,
+                              action: @escaping () -> Void) -> some View {
+        let cyan = Color(red: 0.27, green: 0.90, blue: 0.97)
+        return Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(cyan)
+                .frame(width: 50, height: 38)
+                .background(Color.black.opacity(0.35))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(cyan.opacity(0.35)))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .accessibilityLabel(label)
+    }
+
+    /// A new voice conversation: her mind (Hermes) starts clean on the desk,
+    /// and a call in progress is ended and begun again.
+    private func newVoiceConversation() {
+        var r = URLRequest(url: Brain.base.appendingPathComponent("voice/new"))
+        r.httpMethod = "POST"
+        URLSession.shared.dataTask(with: r).resume()
+        messages.removeAll()
+        if pet.running { pet.toggleRunning() }
+        pet.toggleRunning()
+    }
+
+    private func toggleBody(_ cyan: Color) -> some View {
+        HStack(spacing: 0) {
             Image(systemName: "waveform")
                 .foregroundStyle(Color(red: 0.02, green: 0.09, blue: 0.10))
                 .frame(width: 54, height: 38)
                 .background(cyan)
                 .accessibilityLabel("Voice")
-            Button { showChat = true } label: {
+            Button { chatOnHistory = false; showChat = true } label: {
                 Image(systemName: "terminal").foregroundStyle(cyan)
                     .frame(width: 54, height: 38)
             }
@@ -277,8 +318,6 @@ struct ContentView: View {
         .font(.system(size: 19, weight: .semibold))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(cyan.opacity(0.55)))
         .clipShape(RoundedRectangle(cornerRadius: 8))
-        .padding(.top, 24)
-        .padding(.trailing, 26)
     }
 
     private func iconButton(_ symbol: String, tint: Color,
@@ -541,6 +580,7 @@ struct ChatBubble: View {
 /// iOS bar over it, so it reads as the app's other screen. Its own "face"
 /// button posts `close` to the `arisu` handler, which returns to her.
 struct ChatScreen: UIViewRepresentable {
+    var query = "app=1"
     let close: () -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(close: close) }
@@ -555,7 +595,7 @@ struct ChatScreen: UIViewRepresentable {
         web.backgroundColor = .black
         web.scrollView.backgroundColor = .black
         web.scrollView.contentInsetAdjustmentBehavior = .never
-        if let url = URL(string: "chat.html?app=1", relativeTo: Brain.base) {
+        if let url = URL(string: "chat.html?" + query, relativeTo: Brain.base) {
             web.load(URLRequest(url: url))
         }
         return web
