@@ -111,6 +111,8 @@ CROTCH = dict(top=0.012, bottom=0.05, y=(0.73, 0.86))
 KNEE_Y = (0.475, 0.545)
 # V22: the sheet's high graphite collar: suit above this height, near the neck.
 COLLAR = dict(y=1.215, half_width=0.065)
+CYAN_DOT = dict(y=1.205, px=9)                   # just under the collar line
+CYAN = np.array([62, 214, 255], float)       # sheet: accent cyan #3ED6FF
 # V23: the sheet's back view has a graphite seat: back-facing suit, hip height.
 SEAT = dict(y=(0.74, 0.93), back=-0.35)
 # V24: the sheet's graphite obliques, from under the bust to the hips, front.
@@ -236,6 +238,8 @@ def graphite_mask(j, views, suit, size):
     d = ImageDraw.Draw(im)
     calm = Image.new('L', (size, size), 0)
     dc = ImageDraw.Draw(calm)
+    light = Image.new('L', (size, size), 0)
+    dl = ImageDraw.Draw(light)
     for ni, node in enumerate(j['nodes']):
         if 'mesh' not in node or 'skin' not in node:
             continue
@@ -275,6 +279,13 @@ def graphite_mask(j, views, suit, size):
             on = (pos[:, 1] > SEAT['y'][0]) & (pos[:, 1] < SEAT['y'][1]) & (nrm[:, 2] < SEAT['back'])
             for t in tri[on[tri].all(1)]:
                 d.polygon([tuple(uv[v]) for v in t], fill=255)
+            # V25: the cyan light under the collar, front centre.
+            far = np.linalg.norm(pos[:, :2] - [0, CYAN_DOT['y']], axis=1) + 9 * (nrm[:, 2] < 0.5)
+            v = int(np.argmin(far))
+            if far[v] < 0.02:
+                u0, v0 = uv[v]
+                dl.ellipse((u0 - CYAN_DOT['px'], v0 - CYAN_DOT['px'],
+                            u0 + CYAN_DOT['px'], v0 + CYAN_DOT['px']), fill=255)
             on = (pos[:, 1] > COLLAR['y']) & (np.abs(pos[:, 0]) < COLLAR['half_width'])
             for t in tri[on[tri].all(1)]:
                 d.polygon([tuple(uv[v]) for v in t], fill=255)
@@ -285,10 +296,11 @@ def graphite_mask(j, views, suit, size):
     # V20: a soft edge instead of a hard one, so the triangle steps of the
     # painted bands blur out.
     soft = im.filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.GaussianBlur(3))
-    return np.asarray(soft) / 255.0, calm
+    light = np.asarray(light.filter(ImageFilter.GaussianBlur(2))) / 255.0
+    return np.asarray(soft) / 255.0, calm, light
 
 
-def white_suit(png, gloves=None, mark=True, calm=None):
+def white_suit(png, gloves=None, mark=True, calm=None, light=None):
     im = Image.open(io.BytesIO(png)).convert('RGBA')
     a = np.asarray(im).astype(float)
     L = a[..., :3].mean(-1)
@@ -302,7 +314,7 @@ def white_suit(png, gloves=None, mark=True, calm=None):
     # surroundings, lighter or darker -- become graphite lines.
     line = np.clip((np.abs(detail) - 5) / 14, 0, 1)
     if calm is not None:
-        line = line * (1 - 0.8 * calm)
+        line = line * (1 - 0.95 * calm)             # V25: 0.8 left a trace
     line = line[..., None]
     rgb = rgb * (1 - line) + SEAM * line
     # The two small islands at the top of the atlas are the gloves: graphite,
@@ -316,6 +328,8 @@ def white_suit(png, gloves=None, mark=True, calm=None):
     glove = np.maximum(islands, gloves)[..., None]
     dark = GRAPHITE * (0.9 + 0.2 * (base / 60).clip(0, 1))[..., None] + 40 * line
     rgb = rgb * (1 - glove) + dark * glove
+    if light is not None:
+        rgb = rgb * (1 - light[..., None]) + CYAN * light[..., None]
     a[..., :3] = rgb
     im = Image.fromarray(a.astype(np.uint8), 'RGBA')
     # The power mark: an open grey ring with a red stroke through its gap.
@@ -395,8 +409,8 @@ def main(src, dst):
     tex = mats[suit]['pbrMetallicRoughness']['baseColorTexture']['index']
     img = j['images'][j['textures'][tex]['source']]
     size = Image.open(io.BytesIO(views[img['bufferView']])).size[0]
-    dark, calm = graphite_mask(j, views, suit, size)
-    views[img['bufferView']] = white_suit(views[img['bufferView']], dark, calm=calm)
+    dark, calm, light = graphite_mask(j, views, suit, size)
+    views[img['bufferView']] = white_suit(views[img['bufferView']], dark, calm=calm, light=light)
     # MToon's shade colour is multiplied under the lit colour; a white suit
     # needs a light shade or its unlit side reads as grey plastic.
     mt = mats[suit].get('extensions', {}).get('VRMC_materials_mtoon')
