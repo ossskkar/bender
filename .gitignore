@@ -19,3 +19,4 @@ __pycache__/
 # The neon sprite set is 36MB of 1024x1536 frames. Regenerate it with
 # flatface/make_sprites.py (~25 min on the Mac) rather than carrying it.
 flatface/sprites-neon/
+flatface/sprites-ayame/
