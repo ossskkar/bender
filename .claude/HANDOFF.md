@@ -20,6 +20,13 @@ cyber model.*
   Web has the iPad's 60 s idle hang-up and the queued-line offer. lain phone
   app is separate from Arisu again.
 
+## Portrait animation: REJECTED (2026-09-24)
+
+Oscar on `flatface/arisu_poc.mp4`: **"This is very bad."** The track is
+stopped; the journey is back in the Backlog column with that verdict. Do not
+build the face page or iterate on the clip unless he asks. The record below is
+kept for reference only.
+
 ## State — what works now
 
 A third face track, **animating the flat portrait itself**. Nothing is
