@@ -1,66 +1,73 @@
 # HANDOFF — Arisu (2026-09-24)
 
-*Progress lives in the lain Backlog (project Arisu). Earlier detail: git log.*
+*Progress lives in the lain Backlog, journey "I see Arisu's own portrait blink
+and speak". The VRM and character-shopping threads are untouched and recorded
+there too; the shopping hunt is still open.*
 
-## State
+## State — what works
 
-- **Two screens, one app** (web `lain/arisu/` + iPad native): Voice (her 3D
-  face, V30 default = `lain/arisu/vrm/arisu.vrm`) and Chat (`lain/arisu/chat.html`,
-  terminal look, lain masthead "ARISUへようこそ！ · present day · present time",
-  no glow). Same top-right row on both: history (clock), + new conversation,
-  Voice|Chat toggle (waveform / `>_`). iPad shows chat.html full screen
-  (`ChatScreen`, `?app=1`); its Voice half posts `close` to the `arisu` handler.
-- **Chat backend:** `GET/POST /arisu/chat`, own Hermes session (40 turns, low
-  reasoning), seeded from the current conversation in `/var/lib/lain/arisu-chat.jsonl`.
-- **History (live, verified):** `lain/server/history.py` + `GET /arisu/history[?id=]`,
-  `POST /arisu/chat/new`, `POST /arisu/voice/new` (resets voice Hermes bridges).
-  Web page and iPad log voice lines + `call` start/end markers; voice log keeps
-  200k lines. 53 conversations listed; a 45-line voice transcript renders.
-  Skill: `lain/.claude/skills/arisu-history`.
-- **iPad build** with all of the above installed 2026-09-24 (arisu 1fcfcbd);
-  launches refused while locked. Not yet seen on the device by anyone.
-  Chat keyboard verified in the iPad simulator.
-- **Removed on request:** mute, hold-to-talk, group button (+ voice commands),
-  meter, in-screen chat mode. Web has the iPad's 60 s idle hang-up and the
-  "something to tell you, double-tap" offer for queued lines.
-- **lain phone app** is separate from Arisu (merge tried, too slow, reverted).
-- **Portrait animation (flatface): REJECTED** by Oscar 09-24 ("This is very
-  bad"). Journey back in Backlog with that review. Do not resume unless asked.
-  `flatface/make_poc.py` + `make_sprites.py` carry uncommitted edits from that
-  session -- not this one's, left as found.
-- **VRM:** V12-V30 built by `v1-build/tools/build.sh` (per version in
-  `lain/arisu/vrm/MODEL.md`); he judged it far from the sheet. Buying or
-  commissioning a model is undecided; his last word was **no** to the nit02
-  cyber model (candidates in the Backlog step on the bought character).
+A third face track: **animate a flat portrait as it is**. Every frame is a
+LivePortrait warp of the original image, so the artwork is preserved. Nothing
+neural runs at display time.
+
+- `flatface/make_sprites.py` — renders the sprite set offline on CPU: mouth
+  ladder (5), gaze (4), smile, smile_big, curious, concerned, mouth_wide,
+  mouth_round, blink_half, blink_shut. ~1 min a sprite, ~25 min a set.
+  `--only` adds to an existing set instead of wiping it.
+- `flatface/make_poc.py` — composites at 25fps, mouth driven by the wav's
+  loudness (the same signal `arisu-lipsync.js` gives from her voice).
+  `--style hologram` puts the `faces/renderer.js` signal-face look on top.
+- `flatface/test_flatface.py` — 4 asserts, passing.
+- **Five portraits sampled**, clips in `flatface/`: `arisu_poc.mp4` (Yamato),
+  `arisu_neon_poc.mp4`, `arisu_ayame_poc.mp4`, `arisu_wired_poc.mp4`,
+  `arisu_ghost_poc.mp4`. Ayame is the best of them.
+- LivePortrait lives at `~/tools/LivePortrait`: own venv, CPU torch 2.2.2,
+  2GB weights.
 
 ## Decisions & open questions
 
-- Voice and chat are separate UIs switched by the toggle (he chose this over an
-  in-screen chat mode). "Clear" replaced by + (history makes hiding pointless).
-- Old conversations split by gaps (chat 6 h, voice 10 min); old iPad calls
-  only have the Hermes paraphrase, labelled in the transcript.
-- + was never pressed on live (would move his thread into history). Untested.
-- Open: which face Arisu keeps (VRM vs a bought/commissioned model).
+- **Blinking is per-portrait.** Four of five close their lids through
+  LivePortrait. Only the Yamato art cannot — its very large flat iris makes
+  the eye retargeting smear a rainbow — and there `make_poc.py` squashes the
+  lids geometrically instead. Render `blink_shut` and look; it takes a minute.
+- **Eye positions are measured, not detected.** `faces/<id>.json` carries
+  eyeL/eyeR plus `eyeBox`. Three attempts at deriving them automatically were
+  thrown away (a gaze diff finds the iris, not the eye; a shut-eye probe
+  smears over the cheek).
+- **Sprite sets are gitignored** — 36MB each at 1024x1536. Regenerate them.
+- **Open, his call:** which portrait Arisu is built from, and whether to
+  restyle (e-ink/pixel) rather than keep the painting. Restyling does not
+  reduce the work but hides the mouth mush, iris smear and box seams.
+  `faces/renderer.js` already has both an e-ink mode and the hologram raster.
+- **Not built on purpose:** the lain face page and expression-per-reply. He
+  asked for proofs first.
 
 ## Next steps
 
-1. Oscar checks the iPad: toggle, history, +, chat keyboard.
-2. If + misbehaves: `curl -s -X POST https://architect-server.tailaa64e9.ts.net:8443/arisu/chat/new`
-   then `curl -s https://architect-server.tailaa64e9.ts.net:8443/arisu/chat`.
-3. Face: wait for his decision on buying/commissioning a model.
+1. **One portrait never reached the disk** — the white/lilac-haired horned
+   android he asked for twice. Ask him to save it into `~/Downloads`, then:
+   `cd ~/tools/LivePortrait && .venv/bin/python <flatface>/make_sprites.py
+   --source <img> --out <flatface>/sprites-<name>`, measure her eyes into
+   `faces/<name>.json`, then `make_poc.py`.
+2. `arisu_ghost_hologram.mp4` was still rendering when this was written; it is
+   a detached process and should be on disk. Send it to him.
+3. Get his pick of portrait and style, then build the face page in
+   `lain/arisu/`, loading `live2d/arisu-lipsync.js`.
 
 ## Gotchas
 
-- Deploy lain: push origin + architect, then
-  `ssh architect 'git -C lain pull --ff-only && sudo -n systemctl restart lain.service'`.
-- iPad: `xcodebuild ... -destination 'generic/platform=iOS' -allowProvisioningUpdates`,
-  then `xcrun devicectl device install app --device 085B9100-31D5-5A2D-B44C-82D143A30ACA <app>`.
-- Simulator: tap coords are device points (1032 wide); it wedges -- `xcrun simctl shutdown all`.
-- `/arisu/commands` pops on read: never poll it in a test.
-- Edit HTML with exact start/end markers and diff element ids before deploying
-  (a loose cut once deleted the controls and settings for ~2 min).
-- This handoff is shared by parallel sessions; merge, don't clobber.
+- Render with `--flag_force_cpu` and `flag_use_half_precision=False`; CPU
+  torch has no fp16 layer_norm.
+- Odd image heights need ffmpeg's pad filter for yuv420p.
+- Pose boxes use a threshold relative to that pose's own peak: two renders of
+  the same face differ slightly everywhere.
+- The hologram filter needs a flat-fill term of 0.60, not the renderer's 0.20
+  — at 0.20 a cel-shaded face is almost invisible.
 
 ## Resume
 
-"Read arisu/.claude/HANDOFF.md and continue with what Oscar says about the iPad."
+Read this file, then ask Oscar which portrait and which style Arisu gets.
+
+    cd /Users/oscar/Documents/claude-projects/arisu/flatface
+    python3 make_poc.py --sprites sprites-ayame \
+      --face-json ../faces/arisu-ayame.json --audio sample-voice.wav --out x.mp4
