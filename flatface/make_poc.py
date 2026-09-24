@@ -45,22 +45,20 @@ def feathered(box, size):
 
 
 def eye_boxes(size, face_json):
-    """The two eye boxes, from the landmarks that already exist for this face.
+    """The two eye boxes, from the landmarks measured for this portrait.
 
-    faces/<id>.json carries eyeL/eyeR as fractions of the frame, measured off
-    the artwork by hand for the hologram renderer (see faces/build.py). Reusing
-    them beats re-deriving the eyes from a diff, which picks up her scars.
+    faces/<id>.json already carries eyeL/eyeR as fractions of the frame for the
+    hologram renderer, so this reuses them and adds eyeBox: how wide and tall the
+    blink box is, in the same fractions. Three attempts at finding the eyes
+    automatically are in the Backlog -- a gaze diff finds the iris but not the
+    eye, and a shut-eye probe smears over half the cheek. Measuring two points
+    per portrait, once, is smaller and it is right.
     """
     f = json.load(open(face_json))
     w, h = size
-    # Half-extents that cover the eye itself and stop below the eyebrow: the brow
-    # must stay out of the box or a blink drags it down over the lid.
-    bw, bh = 0.088 * w, 0.045 * h
-    out = []
-    for key in ("eyeL", "eyeR"):
-        cx, cy = f[key]
-        out.append([int(cx * w - bw), int(cy * h - bh), int(2 * bw), int(2 * bh)])
-    return out
+    bw, bh = [c * s / 2 for c, s in zip(f.get("eyeBox", [0.176, 0.09]), (w, h))]
+    return [[int(f[k][0] * w - bw), int(f[k][1] * h - bh), int(2 * bw), int(2 * bh)]
+            for k in ("eyeL", "eyeR")]
 
 
 def blink(img, boxes, k):
@@ -114,7 +112,7 @@ class Compositor:
         return blink(out, self.eyes, lids)
 
 
-def script(env, n_frames):
+def script(env, n_frames, have_blink_sprites=False):
     """(base, [overlays]) per frame. The sequence Oscar asked to see."""
     mouths = ["mouth0", "mouth1", "mouth2", "mouth3", "mouth4"]
     blinks = [0.9, 3.6, 5.6, 7.4, 9.1]          # seconds a blink starts
@@ -127,13 +125,16 @@ def script(env, n_frames):
         if 2.8 <= t < 3.9:   base = "curious"
         if 9.3 <= t:         base = "smile"
         # A blink is four frames at 25fps: down, shut, and two coming back up.
-        # It never reaches 0 -- a fully squashed eye is where the seams show, and
-        # at 40ms nobody sees the difference.
         lids = 1.0
         for b in blinks:
             f = (t - b) * FPS
             if 0 <= f < 4:
-                lids = [0.55, 0.12, 0.30, 0.70][int(f)]
+                if have_blink_sprites:
+                    ov.append(["blink_half", "blink_shut", "blink_shut", "blink_half"][int(f)])
+                else:
+                    # Geometric fallback never reaches 0: a fully squashed eye is
+                    # where the seams show, and at 40ms nobody sees it.
+                    lids = [0.55, 0.12, 0.30, 0.70][int(f)]
         k = int(t * FPS - SPEECH_AT * FPS)
         if 0 <= k < len(env):
             ov.append(mouths[min(4, int(env[k] * 4.6))])  # 4.6: measured on a real say(1) clip, spreads the ladder instead of pinning it open
@@ -146,15 +147,15 @@ if __name__ == "__main__":
     a.add_argument("--sprites", default="sprites")
     a.add_argument("--audio", required=True)
     a.add_argument("--out", default="arisu_poc.mp4")
-    a.add_argument("--face-json", dest="face_json",
-                   default=os.path.join(os.path.dirname(__file__), "..", "faces", "arisu.json"))
+    a.add_argument("--face-json", dest="face_json", required=True,
+                   help="faces/<id>.json -- where her eyes are in this portrait")
     args = a.parse_args()
 
     env = envelope(args.audio)
     total = int((SPEECH_AT + len(env) / FPS + 1.2) * FPS)
     c = Compositor(args.sprites, args.face_json)
     tmp = tempfile.mkdtemp()
-    for i, (base, ov, lids) in enumerate(script(env, total)):
+    for i, (base, ov, lids) in enumerate(script(env, total, "blink_shut" in c.img)):
         c.frame(base, ov, lids).save(os.path.join(tmp, f"f{i:04d}.png"))
     subprocess.run([
         "ffmpeg", "-y", "-framerate", str(FPS), "-i", os.path.join(tmp, "f%04d.png"),

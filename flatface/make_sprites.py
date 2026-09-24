@@ -134,10 +134,14 @@ def poses(p):
     m["mouth_wide"]  = dict(lip=0.3, wide=12.)
     m["mouth_round"] = dict(lip=0.35, round_=12.)
     m["neutral"]     = dict()
-    # No blink poses. LivePortrait's eye retargeting was tried on this portrait
-    # and rejected: on anime eyes it smears the iris into a rainbow rather than
-    # lowering a lid (sprites/blink_shut.png is kept as the evidence). Blinks are
-    # done geometrically in make_poc.py instead.
+    # Whether these are usable depends on the artwork, so render them and look.
+    # On flat cel art (the Yamato portrait) LivePortrait cannot close an eye at
+    # all -- it smears the iris into a rainbow, and make_poc.py falls back to
+    # closing the lids geometrically. On painted art with real lashes (the neon
+    # portrait) it closes them properly, and these are much the better blink.
+    # Never ask for 0.0: the last of the travel is where the artifacts are.
+    m["blink_half"]  = dict(eye=0.28)
+    m["blink_shut"]  = dict(eye=0.12)
     m["gaze_left"]   = dict(gaze_x=-12.)
     m["gaze_right"]  = dict(gaze_x=12.)
     m["gaze_up"]     = dict(gaze_y=8.)
@@ -169,6 +173,9 @@ if __name__ == "__main__":
     cv2.imwrite(os.path.join(args.out, "neutral.png"), base[:, :, ::-1])
     manifest = {"source_eye_ratio": p.eye0, "source_lip_ratio": p.lip0,
                 "size": [int(base.shape[1]), int(base.shape[0])], "poses": {}}
+    old = os.path.join(args.out, "poses.json")
+    if args.only and os.path.exists(old):
+        manifest = json.load(open(old))     # --only adds to a set, never wipes it
     for name, kw in todo.items():
         if name == "neutral":
             manifest["poses"][name] = {"params": kw, "box": None}
