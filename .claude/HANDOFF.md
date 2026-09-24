@@ -35,10 +35,13 @@ neural runs at display time.
   thrown away (a gaze diff finds the iris, not the eye; a shut-eye probe
   smears over the cheek).
 - **Sprite sets are gitignored** — 36MB each at 1024x1536. Regenerate them.
-- **Open, his call:** which portrait Arisu is built from, and whether to
-  restyle (e-ink/pixel) rather than keep the painting. Restyling does not
-  reduce the work but hides the mouth mush, iris smear and box seams.
-  `faces/renderer.js` already has both an e-ink mode and the hologram raster.
+- **The hologram style stays, as the lightweight option.** Judged good on
+  `arisu_ghost_hologram.mp4`: the dither and glow hide the mouth mush, iris
+  smear and box seam, and the frames are far cheaper to ship. So it is the
+  version for Safari on the work iPhones, with the plain painted style for the
+  iPad and desktop — a filter over frames already rendered, not a second
+  pipeline. E-ink is the same idea and exists in `faces/renderer.js`, unbuilt.
+- **Open, his call:** which portrait Arisu is built from.
 - **Not built on purpose:** the lain face page and expression-per-reply. He
   asked for proofs first.
 
