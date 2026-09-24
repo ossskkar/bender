@@ -1,74 +1,63 @@
-# HANDOFF — Arisu (2026-09-24)
+# HANDOFF — Arisu (2026-09-25)
 
 *Progress lives in the lain Backlog, journey "I see Arisu's own portrait blink
-and speak". The VRM and character-shopping threads are untouched and recorded
-there too; the shopping hunt is still open.*
+and speak". The VRM thread is untouched; the character-shopping hunt is closed
+for now — he chose to animate portraits he already has.*
 
 ## State — what works
 
-A third face track: **animate a flat portrait as it is**. Every frame is a
-LivePortrait warp of the original image, so the artwork is preserved. Nothing
-neural runs at display time.
+**The flat portrait is her face in the app, live on architect.** Three sets,
+switchable from Settings:
 
-- `flatface/make_sprites.py` — renders the sprite set offline on CPU: mouth
-  ladder (5), gaze (4), smile, smile_big, curious, concerned, mouth_wide,
-  mouth_round, blink_half, blink_shut. ~1 min a sprite, ~25 min a set.
-  `--only` adds to an existing set instead of wiping it.
-- `flatface/make_poc.py` — composites at 25fps, mouth driven by the wav's
-  loudness (the same signal `arisu-lipsync.js` gives from her voice).
-  `--style hologram` puts the `faces/renderer.js` signal-face look on top.
-- `flatface/test_flatface.py` — 4 asserts, passing.
-- **Five portraits sampled**, clips in `flatface/`: `arisu_poc.mp4` (Yamato),
-  `arisu_neon_poc.mp4`, `arisu_ayame_poc.mp4`, `arisu_wired_poc.mp4`,
-  `arisu_ghost_poc.mp4`. Ayame is the best of them.
-- LivePortrait lives at `~/tools/LivePortrait`: own venv, CPU torch 2.2.2,
-  2GB weights.
+- `lain/arisu/flat.html` — the renderer. Base pose, mouth box swapped by the
+  amplitude `arisu-lipsync.js` gives from her voice, eye boxes swapped for a
+  blink, plus blinks (every 2.4–6 s) and glances (5–10 s) it runs itself.
+  Exposes the same `window.avatar` the signal face does: `setState`,
+  `setAmplitude`. Nothing else in `index.html` changed but the routing.
+- `arisu/flatface/export_web.py` — 41 MB sprite set → ~1.8 MB of half-size
+  JPEGs with the boxes scaled. Output goes to `lain/arisu/flat/<set>/`.
+- Sets: **ayame** (pink 03 SYNTH UNIT), **proto** (blue bob, PROTO-05),
+  **horn** (white/lilac horned android). Portraits in `arisu/faces/portraits/`,
+  landmarks in `arisu/faces/arisu-<set>.json`.
+- `arisu/vrmtest/index.html` — drop a `.vrm` on it and it reports spec, tris,
+  materials, whether the visemes and blink the browser needs are in the file,
+  licence and fps. Written while deciding against buying a 3D model; kept
+  because `lain/arisu/vrm/` holds thirty.
 
 ## Decisions & open questions
 
-- **Blinking is per-portrait.** Four of five close their lids through
-  LivePortrait. Only the Yamato art cannot — its very large flat iris makes
-  the eye retargeting smear a rainbow — and there `make_poc.py` squashes the
-  lids geometrically instead. Render `blink_shut` and look; it takes a minute.
-- **Eye positions are measured, not detected.** `faces/<id>.json` carries
-  eyeL/eyeR plus `eyeBox`. Three attempts at deriving them automatically were
-  thrown away (a gaze diff finds the iris, not the eye; a shut-eye probe
-  smears over the cheek).
-- **Sprite sets are gitignored** — 36MB each at 1024x1536. Regenerate them.
-- **The hologram style stays, as the lightweight option.** Judged good on
-  `arisu_ghost_hologram.mp4`: the dither and glow hide the mouth mush, iris
-  smear and box seam, and the frames are far cheaper to ship. So it is the
-  version for Safari on the work iPhones, with the plain painted style for the
-  iPad and desktop — a filter over frames already rendered, not a second
-  pipeline. E-ink is the same idea and exists in `faces/renderer.js`, unbuilt.
-- **Open, his call:** which portrait Arisu is built from.
-- **Not built on purpose:** the lain face page and expression-per-reply. He
-  asked for proofs first.
+- **A set is carried as the model `flat:<set>`.** That reuses the saved-choice
+  plumbing, the character record and links; the prefix is all that names the
+  renderer. `?face=flat&set=horn` still works.
+- **3D was ruled out** (2026-09-25). BOOTH's VRChat avatars ship Unity
+  packages, not VRM: "Peke" lists its VRM as experimental, "Visarie" has none.
+  If it ever comes back: VRoid Hub, or VRoid Studio for free.
+- **Buying art was ruled out too.** The recommendation stands if he changes his
+  mind: a 立ち絵 with layered PSD and 表情差分, ¥500–1500 — layers beat
+  LivePortrait warps and skip the render entirely.
+- **Open:** which set is her default. Ayame is what a bare `?face=flat` gives.
+- **Asked and not built:** head turn and hair movement (see the Backlog step),
+  the hologram style for the phones, expression-per-reply.
 
 ## Next steps
 
-1. **One portrait never reached the disk** — the white/lilac-haired horned
-   android he asked for twice. Ask him to save it into `~/Downloads`, then:
-   `cd ~/tools/LivePortrait && .venv/bin/python <flatface>/make_sprites.py
-   --source <img> --out <flatface>/sprites-<name>`, measure her eyes into
-   `faces/<name>.json`, then `make_poc.py`.
-2. Get his pick of portrait and style, then build the face page in
-   `lain/arisu/`, loading `live2d/arisu-lipsync.js`.
+1. Ask him which set is the default, then make it the fallback in
+   `index.html` (`if (FACE === 'flat' && !SET) SET = 'ayame'`).
+2. Head turn, if he wants it: render yaw sprites per set, and decide between a
+   mouth ladder per angle or turning only while silent.
 
 ## Gotchas
 
-- Render with `--flag_force_cpu` and `flag_use_half_precision=False`; CPU
-  torch has no fp16 layer_norm.
-- Odd image heights need ffmpeg's pad filter for yuv420p.
-- Pose boxes use a threshold relative to that pose's own peak: two renders of
-  the same face differ slightly everywhere.
-- The hologram filter needs a flat-fill term of 0.60, not the renderer's 0.20
-  — at 0.20 a cel-shaded face is almost invisible.
+- **Her mouth moves less on `horn`** — thin closed lips, so the lip warp is
+  subtle. Measured: the mouth box only darkens 156 → 150 across the ladder,
+  against a full lip-to-interior change on ayame.
+- Render with `--flag_force_cpu`; a set is ~7 min, `--only a,b` adds to a set.
+- Eye landmarks are measured by hand per portrait, in fractions of the frame.
+  Three attempts at deriving them automatically were thrown away.
+- Sprite sets are gitignored (~40 MB); the exported JPEGs are committed.
+- The browser pane throttles `requestAnimationFrame` when it is hidden, so a
+  canvas read taken twice in a row looks frozen. Sample over a second.
 
 ## Resume
 
-Read this file, then ask Oscar which portrait and which style Arisu gets.
-
-    cd /Users/oscar/Documents/claude-projects/arisu/flatface
-    python3 make_poc.py --sprites sprites-ayame \
-      --face-json ../faces/arisu-ayame.json --audio sample-voice.wav --out x.mp4
+Read this file, then ask Oscar which portrait is her default.
