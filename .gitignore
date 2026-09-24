@@ -20,3 +20,4 @@ __pycache__/
 # flatface/make_sprites.py (~25 min on the Mac) rather than carrying it.
 flatface/sprites-neon/
 flatface/sprites-ayame/
+flatface/sprites-wired/
