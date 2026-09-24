@@ -112,6 +112,33 @@ class Compositor:
         return blink(out, self.eyes, lids)
 
 
+def hologram(img):
+    """The signal-face look from faces/renderer.js, as a filter on a finished frame.
+
+    Same idea as the renderer: contours emit and flat fill only glows faintly, so
+    she reads as a volume rather than a poster. Red and blue are sampled either
+    side of green for the chromatic split, and the projection is interlaced in a
+    three-line cycle. Constants lifted from rasterHologram so the clip and the
+    live renderer are the same character.
+    """
+    g = np.asarray(img.convert("L"), np.float32) / 255.0
+    soft = np.asarray(Image.fromarray((g * 255).astype(np.uint8))
+                      .filter(ImageFilter.GaussianBlur(1.4)), np.float32) / 255.0
+    edge = np.clip(np.abs(g - soft) * 12.0, 0, 1)         # contours
+    v = np.clip(edge * 1.05 + g * 0.60, 0, 1)   # 0.60, not the renderer 0.20: flat cel fill emits almost nothing at 0.20
+    vr = np.roll(v, -1, axis=1)                            # chromatic split
+    vb = np.roll(v, 1, axis=1)
+    rows = np.array([1.0, 0.66, 0.42])[np.arange(v.shape[0]) % 3][:, None]
+    out = np.stack([vr * rows * 120, v * rows * 235, vb * rows * 255], axis=2)
+    a = np.clip(np.maximum(np.maximum(v, vr), vb), 0, 1)[:, :, None]
+    out = out * (0.25 + a * 0.75)                          # over black
+    lit = Image.fromarray(np.clip(out, 0, 255).astype(np.uint8))
+    bloom = lit.filter(ImageFilter.GaussianBlur(3))
+    return Image.fromarray(np.clip(
+        np.asarray(lit, np.float32) + np.asarray(bloom, np.float32) * 0.55,
+        0, 255).astype(np.uint8))
+
+
 def script(env, n_frames, have_blink_sprites=False):
     """(base, [overlays]) per frame. The sequence Oscar asked to see."""
     mouths = ["mouth0", "mouth1", "mouth2", "mouth3", "mouth4"]
@@ -147,6 +174,7 @@ if __name__ == "__main__":
     a.add_argument("--sprites", default="sprites")
     a.add_argument("--audio", required=True)
     a.add_argument("--out", default="arisu_poc.mp4")
+    a.add_argument("--style", choices=("plain", "hologram"), default="plain")
     a.add_argument("--face-json", dest="face_json", required=True,
                    help="faces/<id>.json -- where her eyes are in this portrait")
     args = a.parse_args()
@@ -156,7 +184,10 @@ if __name__ == "__main__":
     c = Compositor(args.sprites, args.face_json)
     tmp = tempfile.mkdtemp()
     for i, (base, ov, lids) in enumerate(script(env, total, "blink_shut" in c.img)):
-        c.frame(base, ov, lids).save(os.path.join(tmp, f"f{i:04d}.png"))
+        f = c.frame(base, ov, lids)
+        if args.style == "hologram":
+            f = hologram(f)
+        f.save(os.path.join(tmp, f"f{i:04d}.png"))
     subprocess.run([
         "ffmpeg", "-y", "-framerate", str(FPS), "-i", os.path.join(tmp, "f%04d.png"),
         "-itsoffset", str(SPEECH_AT), "-i", args.audio,
