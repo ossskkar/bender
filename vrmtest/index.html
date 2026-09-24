@@ -1,0 +1,118 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>VRM check</title>
+<style>
+  body{margin:0;background:#111;color:#ddd;font:14px/1.5 ui-monospace,monospace}
+  #drop{position:fixed;inset:0;display:grid;place-items:center;font-size:18px;pointer-events:none}
+  #out{position:fixed;top:0;left:0;padding:12px;background:#000c;max-width:46ch;white-space:pre-wrap}
+  .ok{color:#7c7}.bad{color:#e77}
+  canvas{display:block}
+</style>
+<div id="drop">drop a .vrm file here</div>
+<pre id="out"></pre>
+<script type="importmap">
+{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+  "@pixiv/three-vrm":"https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.4.0/lib/three-vrm.module.min.js"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {VRMLoaderPlugin, VRMUtils} from '@pixiv/three-vrm';
+
+const out = document.getElementById('out');
+const log = (t, ok) => out.innerHTML += `<span class="${ok===undefined?'':ok?'ok':'bad'}">${t}</span>\n`;
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(devicePixelRatio);
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(30, innerWidth/innerHeight, 0.1, 20);
+camera.position.set(0, 1.35, 1.1);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 1.3, 0);
+scene.add(new THREE.DirectionalLight(0xffffff, 2.5).translateZ(1).translateY(2));
+scene.add(new THREE.AmbientLight(0xffffff, 1));
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+const loader = new GLTFLoader();
+loader.register(p => new VRMLoaderPlugin(p));
+
+let vrm = null;
+const VISEMES = ['aa','ih','ou','ee','oh'];
+
+async function load(url) {
+  out.innerHTML = '';
+  if (vrm) { scene.remove(vrm.scene); VRMUtils.deepDispose(vrm.scene); vrm = null; }
+  const g = await loader.loadAsync(url);
+  vrm = g.userData.vrm;
+  if (!vrm) return log('not a VRM file', false);
+  VRMUtils.combineSkeletons(vrm.scene);
+  VRMUtils.rotateVRM0(vrm);                // VRM0 faces -z; no-op on VRM1
+  scene.add(vrm.scene);
+
+  const head = vrm.humanoid?.getNormalizedBoneNode('head');
+  if (head) {
+    vrm.scene.updateWorldMatrix(true, true);
+    const p = head.getWorldPosition(new THREE.Vector3());
+    controls.target.copy(p);
+    camera.position.set(p.x, p.y, p.z + 0.9);
+    controls.update();
+  }
+
+  let tris = 0, mats = new Set();
+  vrm.scene.traverse(o => {
+    if (!o.isMesh) return;
+    tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3;
+    [].concat(o.material).forEach(m => mats.add(m.uuid));
+  });
+  const names = vrm.expressionManager
+    ? vrm.expressionManager.expressions.map(e => e.expressionName) : [];
+
+  log(`spec ${vrm.meta.metaVersion === '1' ? 'VRM 1.0' : 'VRM 0.x'}   ${vrm.meta.name ?? ''}`);
+  log(`${Math.round(tris).toLocaleString()} tris   ${mats.size} materials`, tris <= 40000 && mats.size <= 8);
+  const missing = VISEMES.filter(v => !names.includes(v));
+  log(`visemes ${missing.length ? 'MISSING ' + missing.join(',') : 'aa ih ou ee oh all present'}`, !missing.length);
+  log(`blink ${names.includes('blink') ? 'yes' : 'MISSING'}`, names.includes('blink'));
+  log(`emotions ${['happy','angry','sad','relaxed'].filter(n => names.includes(n)).join(' ') || 'none'}`);
+  log(`springbones ${vrm.springBoneManager?.joints.size ?? 0}`);
+  log(`\nlicence: ${vrm.meta.licenseUrl ?? vrm.meta.licenseName ?? '(none in file)'}`);
+  log(`avatar permission: ${vrm.meta.allowedUserName ?? vrm.meta.avatarPermission ?? '?'}`);
+  log(`\nexpressions: ${names.join(' ') || 'none'}`);
+  log(`\ntalking — watch the mouth and eyes`);
+}
+
+addEventListener('dragover', e => e.preventDefault());
+addEventListener('drop', e => {
+  e.preventDefault();
+  const f = e.dataTransfer.files[0];
+  if (f) { document.getElementById('drop').remove(); load(URL.createObjectURL(f)); }
+});
+
+const src = new URLSearchParams(location.search).get('src');
+if (src) { document.getElementById('drop').remove(); load(src); }
+
+const clock = new THREE.Clock();
+let fps = 0, frames = 0, t0 = performance.now();
+renderer.setAnimationLoop(() => {
+  const dt = clock.getDelta(), t = clock.elapsedTime;
+  if (vrm) {
+    const em = vrm.expressionManager;
+    if (em) {
+      em.setValue('aa', Math.max(0, Math.sin(t * 9)) * 0.8);          // fake speech
+      em.setValue('blink', (t % 4) > 3.85 ? 1 : 0);
+    }
+    vrm.update(dt);
+  }
+  renderer.render(scene, camera);
+  if (++frames === 60) { fps = Math.round(60000 / (performance.now() - t0)); frames = 0; t0 = performance.now();
+    document.title = fps + ' fps'; }
+});
+</script>
