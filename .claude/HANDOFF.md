@@ -49,9 +49,7 @@ neural runs at display time.
    `cd ~/tools/LivePortrait && .venv/bin/python <flatface>/make_sprites.py
    --source <img> --out <flatface>/sprites-<name>`, measure her eyes into
    `faces/<name>.json`, then `make_poc.py`.
-2. `arisu_ghost_hologram.mp4` was still rendering when this was written; it is
-   a detached process and should be on disk. Send it to him.
-3. Get his pick of portrait and style, then build the face page in
+2. Get his pick of portrait and style, then build the face page in
    `lain/arisu/`, loading `live2d/arisu-lipsync.js`.
 
 ## Gotchas
