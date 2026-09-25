@@ -206,6 +206,11 @@ final class Pet: ObservableObject {
     /// arrival after something was queued says it.
     func arrive() async {
         guard !running else { return }
+        // Who she is, before anything wakes her. The cast was only fetched in
+        // `begin`, so a screen sitting idle drew the fallback face rather than
+        // the one the desk holds -- the desk said `flat:horn` and the iPad
+        // showed her 3D model until somebody started a conversation.
+        await refreshCast()
         let cmds = await brain.commands(character: room.character)
         if !cmds.isEmpty && !running { begin(saying: cmds) }
     }

@@ -99,8 +99,22 @@ struct FaceView: UIViewRepresentable {
     }
 
     private static func url(for face: String, live2d: Bool, model saved: String) -> URL? {
-        let chosen = allModels.contains(saved) ? saved : live2dModel[face]
-        guard live2d, let model = chosen else { return portrait(for: face) }
+        // A painted portrait, animated: the desk carries it as the model
+        // `flat:<set>` and serves `flat.html`, which answers the same two
+        // calls as every other face. Without this the app did not recognise
+        // the saved model at all and quietly fell back to her 3D one -- the
+        // desk said `flat:horn` and the iPad still showed the VRM.
+        guard live2d else { return portrait(for: face) }
+        if saved.hasPrefix("flat:") {
+            let set = String(saved.dropFirst(5))
+            var parts = URLComponents(url: Brain.base.appendingPathComponent("flat.html"),
+                                      resolvingAgainstBaseURL: false)
+            parts?.queryItems = [URLQueryItem(name: "set", value: set.isEmpty ? "horn" : set)]
+            return parts?.url ?? portrait(for: face)
+        }
+        guard let model = allModels.contains(saved) ? saved : live2dModel[face] else {
+            return portrait(for: face)
+        }
         // Arisu3D is the 3D page (lain's arisu/vrm), which answers the same
         // avatar and ArisuScene calls as the Live2D page.
         let file = arisu3D.first { $0.name == model }?.file
