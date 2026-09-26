@@ -1,87 +1,84 @@
-# HANDOFF — Arisu (2026-09-25)
+# HANDOFF — Arisu (2026-09-26)
 
-*Progress lives in the lain Backlog, journey "I see Arisu's own portrait blink
-and speak". The VRM thread is untouched; character-shopping stays closed — he
-chose to animate portraits he already has.*
+*Progress lives in the lain Backlog, project Arisu. Three journeys moved this
+session; two are new and sit in **review** waiting for Oscar's verdict on the
+real iPad.*
 
 ## State — what works
 
-**The flat portrait is her face in the app, live on architect.** Three sets,
-switchable from Settings, **horn is now the default** (chosen 2026-09-25).
+**The app overhaul shipped** (`arisu` d552d2f, `lain` 6530c67 + the viewport
+fix). Verified in the iPad Pro 13" simulator against the live desk and the
+live Mac.
 
-- `lain/arisu/flat.html` — the renderer. Base pose, mouth box swapped by the
-  amplitude `arisu-lipsync.js` gives from her voice, eye boxes swapped for a
-  blink, plus blinks (2.4–6 s) and glances (5–10 s) it runs itself. Exposes
-  `setState`, `setAmplitude` and now **`setExpression`**.
-- **Expression per reply shipped 2026-09-25.** `cues.js` gained
-  `expressionFor(text)`: trouble beats a question beats delight beats plain
-  warmth, anything unread stays neutral. `index.html` feeds it the
-  `response.output_audio_transcript.delta` stream, so her face follows the line
-  *while* she says it. The expression is worn only while `speaking` and dropped
-  the moment she stops.
-- `arisu/flatface/export_web.py` — 41 MB sprite set → ~1.8 MB of half-size
-  JPEGs. Output goes to `lain/arisu/flat/<set>/`.
-- Sets: **horn** (white/lilac horned android, default), **ayame** (pink 03
-  SYNTH UNIT), **proto** (blue bob). Portraits in `arisu/faces/portraits/`,
-  landmarks in `arisu/faces/arisu-<set>.json`.
-- `arisu/vrmtest/index.html` — drop a `.vrm` on it, it reports spec, tris,
-  visemes, blink, licence, fps. Kept because `lain/arisu/vrm/` holds thirty.
-
-**The iPad app draws the portrait too, since 2026-09-25 (`d0e7c51`).** Two bugs
-made it keep showing her 3D model whatever the desk said:
-- `FaceView` had never heard of the painted portraits. They are carried as the
-  model `flat:<set>`, and an unrecognised model fell through to the character's
-  default Live2D one, so `flat:horn` drew Arisu3D. It loads `flat.html?set=`
-  from the desk now — the same page the web client frames.
-- **The cast was only fetched in `begin()`**, so a screen sitting idle had never
-  asked who she is: the face on launch was a guess and stayed one until somebody
-  started a conversation. `arrive()` asks now.
-- Verified in the iPad simulator against the live desk (launch, no conversation,
-  horned portrait on screen), then built and installed on the iPad itself.
-- **The free build expires every 7 days**; `xcodebuild -destination 'id=<udid>'
-  -allowProvisioningUpdates` then `xcrun devicectl device install app` renews it
-  over the network — no cable. A freshly signed certificate has to be trusted on
-  the device once, by hand, before it will launch.
+- **One top row, always visible.** The four voice-only buttons (subtitles,
+  conversation, listen-here, settings) left the bottom-right corner and the tap
+  that hid them; they are square buttons beside deck / history / new / the
+  Voice|Chat switch. Her masthead sits at the same height on **both** screens —
+  in Swift on the voice screen, and moved out of the scrolling log into `#top`
+  on the chat page. The legend dropped to `padding(.top, 82)` to clear it.
+- **The chat keyboard is fixed.** `paint()` set `input.disabled = busy`, which
+  blurs the field; a blurred field in a WKWebView cannot be focused back by
+  script, and the `input.focus()` calls that followed left it the active element
+  so the next real tap did nothing. The field is never disabled now, the
+  scripted focus calls are gone, and a `pointerdown` on the prompt row focuses
+  it inside the gesture. `interactive-widget=resizes-content` keeps the masthead
+  on screen when the keyboard is up.
+- **Bubbles or terminal**, one setting (`arisu.bubbles`) obeyed by her subtitles
+  and by the chat page, which is told through `?style=`.
+- **Two faces.** `arisu3D` (22 entries) and six Live2D samples are gone; Haru
+  and Mao remain, Haru hers by default. An unknown saved model falls back to the
+  character's default, not to the portrait.
+- **Where she stands**: two sliders, on the device (`arisu.faceX/Y`).
+- **The deck is new** — `arisu/deck/`, and it is where the macropad went. The
+  Mac runs `deck.py` (that project's executor verbatim, harvested with `ast`)
+  on `127.0.0.1:8887`, which the Mac's **existing** `tailscale serve :8443`
+  rule already proxied to. The iPad draws its 36 buttons grouped, presses them,
+  and adds/edits/removes them. `POST /deck/run` takes an **id and never an
+  action**. `./deck.py selftest` passes.
 
 ## Decisions & open questions
 
-- **A set is carried as the model `flat:<set>`.** `?face=flat&set=horn` works.
-- **Expression is read from her words, not tagged by the brain.** Tagging would
-  be more accurate but it is a prompt change every turn and a leaked tag would
-  break "nothing internal gets spoken aloud". Revisit only if the word list
-  feels wrong in use.
-- **3D and buying art both ruled out** (2026-09-25). If 3D returns: VRoid Hub
-  or VRoid Studio, not BOOTH (Unity packages, not VRM).
-- **Open:** whether the expressions actually read right — Oscar had not spoken
-  to her yet when this was written. That is the next thing to ask him.
-- **Asked and not built:** head turn and hair movement, the hologram style for
-  the phones, the ink/posterize pass on the open mouth.
+- **Port 8887, not a new serve rule.** The rule existed and pointed at a dead
+  port, so the deck needed no change to his machine. Written up in the
+  workspace `CLAUDE.md` and in the `deploy-lain` skill, both of which still
+  called 8887 dead.
+- **`MacropadType.app` keeps its name.** It is the bundle that holds
+  Accessibility; renaming means granting it again. Seven of 36 buttons are
+  `keys` and call it.
+- **Not verified, and only he can:** the software keyboard physically rising on
+  the iPad (the simulator has a hardware keyboard attached, so only focus could
+  be proven), and the native *terminal* subtitle style, which needs a live voice
+  conversation to draw anything.
+- **Left alone:** `lain` had `server/server.py`, `server/tap.py`,
+  `tests/test_tap.py` dirty and an untracked `systems/systems 2.html` before
+  this session. None of it was mine; none of it was committed. The stray
+  `systems 2.html` is a version-suffixed file someone should collapse.
 
 ## Next steps
 
-1. Ask Oscar whether the expressions read right in a real conversation. If the
-   word list misfires, widen the regexes in `lain/arisu/cues.js` — not a model.
-2. Hologram style by device for the iPhones (Backlog step 9): swap the filter
-   at runtime rather than baking a second set of sprites.
-3. Head turn, if he wants it: render yaw sprites per set, and decide between a
-   mouth ladder per angle or turning only while silent.
+1. **His:** load the deck's launchd agent, or the grid goes grey when the
+   held-open process dies.
+   `cp /Users/oscar/Documents/claude-projects/arisu/deck/com.oscar.arisu-deck.plist ~/Library/LaunchAgents/ && launchctl load -w ~/Library/LaunchAgents/com.oscar.arisu-deck.plist`
+2. **His:** rebuild onto the iPad and confirm the keyboard, then the two review
+   journeys can be ticked done.
+   `cd /Users/oscar/Documents/claude-projects/arisu/native && xcodebuild -project Arisu.xcodeproj -scheme Arisu -destination 'id=085B9100-31D5-5A2D-B44C-82D143A30ACA' -allowProvisioningUpdates build`
+3. Unload the old macropad launchd agents once he is happy; they still hold
+   8791-8793.
 
 ## Gotchas
 
-- **The expression reads in the eyes and brows only while she is audibly
-  speaking** — the mouth box is pasted over the base, so lipsync owns her
-  mouth. It lands fully in the gaps between words.
-- **Her mouth moves less on `horn`** — thin closed lips, the mouth box only
-  darkens 156 → 150 across the ladder, against a full change on ayame. This is
-  the default set, so it is the one he will see.
-- Render with `--flag_force_cpu`; a set is ~7 min, `--only a,b` adds to a set.
-- Eye landmarks are measured by hand per portrait. Three attempts at deriving
-  them automatically were thrown away.
-- Sprite sets are gitignored (~40 MB); the exported JPEGs are committed.
-- Deploy with the `deploy-lain` skill — both remotes, or they drift.
-- The browser pane throttles rAF when hidden; sample a canvas over a second.
+- **The build expires every 7 days** and the iPad (iPadOS 26.6.2, iPad8,11)
+  cannot be jailbroken — TrollStore stopped at iOS 17.0. Checked 2026-09-26.
+  The only expiry-free routes are €99/year or Safari over the tailnet.
+- **Live2D takes ~10s to render** in the simulator. A blank hologram right
+  after launch is not a bug; wait before diagnosing.
+- The deck's `press` helper writes to `~/Library/Logs/macropad/type.out`. That
+  directory must survive the macropad's removal.
+- `xcodebuild -destination 'platform=iOS Simulator,name=...'` fails on the M5
+  iPads here; use `-destination 'id=<udid>'`.
+- Deploy lain with the `deploy-lain` skill — both remotes.
 
 ## Resume
 
-Read this file, then ask Oscar whether Arisu's expressions read right when he
-talked to her.
+Read `.claude/HANDOFF.md` and the Arisu project in the lain Backlog, then ask
+Oscar whether the chat keyboard comes up on the real iPad.
