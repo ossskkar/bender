@@ -61,33 +61,13 @@ struct FaceView: UIViewRepresentable {
     /// Which Live2D sample each character wears by default. Mirrors the first
     /// entry of `LIVE2D_MODELS` in lain's `arisu/index.html`; a character with
     /// no model keeps its portrait.
-    private static let live2dModel = ["arisu": "Arisu3D", "chopper": "Natori"]
-    /// Every version of her own 3D model is a face of its own, name to file
-    /// stem in lain's arisu/vrm/. Mirrors `ARISU_3D` in `arisu/index.html`;
-    /// Arisu3D is arisu.vrm, always a copy of the latest version (2026-09-23).
-    static let arisu3D: [(name: String, file: String)] = [
-        ("Arisu3D", "arisu"), ("Arisu3D V5", "arisu_v5_visual_pass"),
-        ("Arisu3D V11", "arisu_v11_material_refine"), ("Arisu3D V12", "arisu_v12_white_suit"),
-        ("Arisu3D V13", "arisu_v13_headset"), ("Arisu3D V14", "arisu_v14_white_arms"),
-        ("Arisu3D V15", "arisu_v15_soft_seams"), ("Arisu3D V16", "arisu_v16_clean_legs"),
-        ("Arisu3D V17", "arisu_v17_headband"),
-        ("Arisu3D V18", "arisu_v18_round_knees"),
-        ("Arisu3D V19", "arisu_v19_clean_outline"),
-        ("Arisu3D V20", "arisu_v20_soft_edges"),
-        ("Arisu3D V21", "arisu_v21_proportions"),
-        ("Arisu3D V22", "arisu_v22_collar"),
-        ("Arisu3D V23", "arisu_v23_long_hair"),
-        ("Arisu3D V24", "arisu_v24_slim_arms"),
-        ("Arisu3D V25", "arisu_v25_cyan_light"),
-        ("Arisu3D V26", "arisu_v26_face_tones"),
-        ("Arisu3D V27", "arisu_v27_smooth_panels"),
-        ("Arisu3D V28", "arisu_v28_hip_plates"),
-        ("Arisu3D V29", "arisu_v29_side_fringe"),
-        ("Arisu3D V30", "arisu_v30_lighter"),
-    ]
-    /// Every sample lain ships, mirroring `ALL_MODELS` in `arisu/index.html`.
-    static let models = ["Haru", "Hiyori", "Mao", "Rice", "Natori", "Ren", "Mark", "Wanko"]
-        + arisu3D.map(\.name)
+    private static let live2dModel = ["arisu": "Haru", "chopper": "Mao"]
+    /// The two samples she wears. Six other Live2D samples and every version
+    /// of her 3D model were dropped (Oscar, 2026-09-26) -- the 3D thread was
+    /// already closed, and a picker of thirty faces he never chose was most of
+    /// what made the Face screen unreadable. Mirrors `ALL_MODELS` in lain's
+    /// `arisu/index.html`.
+    static let models = ["Haru", "Mao"]
     private static let allModels = Set(models)
 
     /// The page for a character, or the fallback. `arisu` is the fallback
@@ -112,19 +92,15 @@ struct FaceView: UIViewRepresentable {
             parts?.queryItems = [URLQueryItem(name: "set", value: set.isEmpty ? "horn" : set)]
             return parts?.url ?? portrait(for: face)
         }
+        // A model this build no longer knows -- one of the retired 3D versions,
+        // or a sample that went with them -- lands on the character's default
+        // rather than the portrait, so dropping them cannot leave her faceless.
         guard let model = allModels.contains(saved) ? saved : live2dModel[face] else {
             return portrait(for: face)
         }
-        // Arisu3D is the 3D page (lain's arisu/vrm), which answers the same
-        // avatar and ArisuScene calls as the Live2D page.
-        let file = arisu3D.first { $0.name == model }?.file
-        let is3D = file != nil
-        var parts = URLComponents(url: Brain.base.appendingPathComponent(
-                                      is3D ? "vrm/index.html" : "live2d/index.html"),
+        var parts = URLComponents(url: Brain.base.appendingPathComponent("live2d/index.html"),
                                   resolvingAgainstBaseURL: false)
-        parts?.queryItems = [is3D ? URLQueryItem(name: "file", value: file)
-                                  : URLQueryItem(name: "model", value: model)]
-        if is3D { parts?.queryItems?.append(URLQueryItem(name: "v", value: "93c916b")) }
+        parts?.queryItems = [URLQueryItem(name: "model", value: model)]
         return parts?.url ?? portrait(for: face)
     }
 

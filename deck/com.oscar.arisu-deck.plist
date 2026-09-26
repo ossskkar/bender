@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.oscar.arisu-deck</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/python3.11</string>
+    <string>/Users/oscar/Documents/claude-projects/arisu/deck/deck.py</string>
+    <string>serve</string>
+    <string>--quiet</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/Users/oscar/Library/Logs/arisu-deck.log</string>
+  <key>StandardErrorPath</key><string>/Users/oscar/Library/Logs/arisu-deck.log</string>
+</dict>
+</plist>

@@ -1,0 +1,405 @@
+{
+  "_comment": "Arisu's deck: the buttons the iPad presses on the Mac. Seeded from the retired macropad's bindings (2026-09-26). Port 8887 because the Mac's existing `tailscale serve :8443` already proxies there -- it pointed at a dead port, so the iPad reaches the deck with no new serve rule.",
+  "port": 8887,
+  "buttons": [
+    {
+      "id": "claude-code.k1",
+      "group": "claude-code",
+      "label": "handoff",
+      "icon": "⇥",
+      "action": {
+        "type": "compound",
+        "steps": [
+          {
+            "type": "text",
+            "text": "/handoff",
+            "paste": true
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          }
+        ]
+      }
+    },
+    {
+      "id": "claude-code.k2",
+      "group": "claude-code",
+      "label": "clear",
+      "icon": "✳",
+      "action": {
+        "type": "compound",
+        "steps": [
+          {
+            "type": "text",
+            "text": "/clear",
+            "paste": true
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          }
+        ]
+      }
+    },
+    {
+      "id": "claude-code.k3",
+      "group": "claude-code",
+      "label": "continue",
+      "icon": "▶",
+      "action": {
+        "type": "compound",
+        "steps": [
+          {
+            "type": "text",
+            "text": "continue",
+            "paste": true
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          }
+        ]
+      }
+    },
+    {
+      "id": "claude-code.k4",
+      "group": "claude-code",
+      "label": "submit",
+      "icon": "⏎",
+      "action": {
+        "type": "keys",
+        "keys": "return"
+      }
+    },
+    {
+      "id": "claude-code.k5",
+      "group": "claude-code",
+      "label": "screenshot",
+      "icon": "📷",
+      "action": {
+        "type": "compound",
+        "steps": [
+          {
+            "type": "shell",
+            "cmd": "screencapture -i -c"
+          },
+          {
+            "type": "keys",
+            "keys": "cmd+v"
+          }
+        ]
+      }
+    },
+    {
+      "id": "claude-code.k6",
+      "group": "claude-code",
+      "label": "Terminal",
+      "icon": "▮",
+      "action": {
+        "type": "applescript",
+        "script": "tell application \"Terminal\" to activate"
+      }
+    },
+    {
+      "id": "mac.k1",
+      "group": "mac",
+      "label": "Lock screen",
+      "icon": "🔒",
+      "action": {
+        "type": "keys",
+        "keys": "ctrl+cmd+q"
+      }
+    },
+    {
+      "id": "mac.k2",
+      "group": "mac",
+      "label": "Sleep screen",
+      "icon": "☾",
+      "action": {
+        "type": "shell",
+        "cmd": "pmset displaysleepnow"
+      }
+    },
+    {
+      "id": "mac.k3",
+      "group": "mac",
+      "label": "Screenshot",
+      "icon": "▣",
+      "action": {
+        "type": "shell",
+        "cmd": "screencapture -i -c"
+      }
+    },
+    {
+      "id": "mac.k4",
+      "group": "mac",
+      "label": "Downloads",
+      "icon": "⇩",
+      "action": {
+        "type": "shell",
+        "cmd": "open ~/Downloads"
+      }
+    },
+    {
+      "id": "mac.k5",
+      "group": "mac",
+      "label": "Empty trash",
+      "icon": "🗑",
+      "action": {
+        "type": "applescript",
+        "script": "tell application \"Finder\"\n  empty trash\n  return \"trash emptied\"\nend tell"
+      }
+    },
+    {
+      "id": "mac.k6",
+      "group": "mac",
+      "label": "Terminal",
+      "icon": "▮",
+      "action": {
+        "type": "applescript",
+        "script": "tell application \"Terminal\" to activate"
+      }
+    },
+    {
+      "id": "lain.k1",
+      "group": "lain",
+      "label": "Dashboard",
+      "icon": "◈",
+      "action": {
+        "type": "open",
+        "url": "https://architect-server.tailaa64e9.ts.net:8443/"
+      }
+    },
+    {
+      "id": "lain.k2",
+      "group": "lain",
+      "label": "Systems",
+      "icon": "▦",
+      "action": {
+        "type": "open",
+        "url": "https://architect-server.tailaa64e9.ts.net:8443/systems/systems.html"
+      }
+    },
+    {
+      "id": "lain.k3",
+      "group": "lain",
+      "label": "Backlog",
+      "icon": "▤",
+      "action": {
+        "type": "open",
+        "url": "https://architect-server.tailaa64e9.ts.net:8443/#backlog"
+      }
+    },
+    {
+      "id": "lain.k4",
+      "group": "lain",
+      "label": "Processes",
+      "icon": "◉",
+      "action": {
+        "type": "open",
+        "url": "https://architect-server.tailaa64e9.ts.net:8443/#ops"
+      }
+    },
+    {
+      "id": "lain.k5",
+      "group": "lain",
+      "label": "Health",
+      "icon": "🩺",
+      "action": {
+        "type": "open",
+        "url": "https://architect-server.tailaa64e9.ts.net:8443/systems/health.html"
+      }
+    },
+    {
+      "id": "lain.k6",
+      "group": "lain",
+      "label": "Diary",
+      "icon": "📝",
+      "action": {
+        "type": "open",
+        "url": "https://architect-server.tailaa64e9.ts.net:8443/systems/diary.html"
+      }
+    },
+    {
+      "id": "hermes.k1",
+      "group": "hermes",
+      "label": "Chat",
+      "icon": "💬",
+      "action": {
+        "type": "applescript",
+        "script": "tell application \"Terminal\"\n  activate\n  do script \"ssh -t architect '~/.local/bin/hermes chat'\"\nend tell"
+      }
+    },
+    {
+      "id": "hermes.k2",
+      "group": "hermes",
+      "label": "Status",
+      "icon": "◉",
+      "action": {
+        "type": "shell",
+        "cmd": "ssh -o ConnectTimeout=8 architect '~/.local/bin/hermes status'"
+      }
+    },
+    {
+      "id": "hermes.k3",
+      "group": "hermes",
+      "label": "Logs",
+      "icon": "📜",
+      "action": {
+        "type": "applescript",
+        "script": "tell application \"Terminal\"\n  activate\n  do script \"ssh -t architect '~/.local/bin/hermes logs -f'\"\nend tell"
+      }
+    },
+    {
+      "id": "hermes.k4",
+      "group": "hermes",
+      "label": "Restart",
+      "icon": "⟳",
+      "action": {
+        "type": "shell",
+        "cmd": "ssh -o ConnectTimeout=8 architect '~/.local/bin/hermes gateway restart'"
+      }
+    },
+    {
+      "id": "hermes.k5",
+      "group": "hermes",
+      "label": "Gateway",
+      "icon": "⇄",
+      "action": {
+        "type": "shell",
+        "cmd": "ssh -o ConnectTimeout=8 architect '~/.local/bin/hermes gateway status'"
+      }
+    },
+    {
+      "id": "hermes.k6",
+      "group": "hermes",
+      "label": "Doctor",
+      "icon": "🩺",
+      "action": {
+        "type": "shell",
+        "cmd": "ssh -o ConnectTimeout=8 architect '~/.local/bin/hermes doctor'"
+      }
+    },
+    {
+      "id": "spotify.k1",
+      "group": "spotify",
+      "label": "Play/Pause",
+      "icon": "⏯",
+      "action": {
+        "type": "applescript",
+        "script": "tell application \"Spotify\" to playpause"
+      }
+    },
+    {
+      "id": "spotify.k2",
+      "group": "spotify",
+      "label": "Previous",
+      "icon": "⏮",
+      "action": {
+        "type": "applescript",
+        "script": "tell application \"Spotify\" to previous track"
+      }
+    },
+    {
+      "id": "spotify.k3",
+      "group": "spotify",
+      "label": "Next",
+      "icon": "⏭",
+      "action": {
+        "type": "applescript",
+        "script": "tell application \"Spotify\" to next track"
+      }
+    },
+    {
+      "id": "spotify.k4",
+      "group": "spotify",
+      "label": "Shuffle",
+      "icon": "🔀",
+      "action": {
+        "type": "applescript",
+        "script": "tell application \"Spotify\" to set shuffling to not shuffling"
+      }
+    },
+    {
+      "id": "spotify.k5",
+      "group": "spotify",
+      "label": "Repeat",
+      "icon": "🔁",
+      "action": {
+        "type": "applescript",
+        "script": "tell application \"Spotify\" to set repeating to not repeating"
+      }
+    },
+    {
+      "id": "spotify.k6",
+      "group": "spotify",
+      "label": "Vol -6 / +6",
+      "icon": "🔊",
+      "action": {
+        "type": "applescript",
+        "script": "set v to output volume of (get volume settings)\nif v > 0 then\n  set volume output volume (v - 6)\nelse\n  set volume output volume 55\nend if"
+      }
+    },
+    {
+      "id": "chrome.k1",
+      "group": "chrome",
+      "label": "New tab",
+      "icon": "⊕",
+      "action": {
+        "type": "keys",
+        "keys": "cmd+t"
+      }
+    },
+    {
+      "id": "chrome.k2",
+      "group": "chrome",
+      "label": "Close tab",
+      "icon": "⊗",
+      "action": {
+        "type": "keys",
+        "keys": "cmd+w"
+      }
+    },
+    {
+      "id": "chrome.k3",
+      "group": "chrome",
+      "label": "Reopen tab",
+      "icon": "↩",
+      "action": {
+        "type": "keys",
+        "keys": "cmd+shift+t"
+      }
+    },
+    {
+      "id": "chrome.k4",
+      "group": "chrome",
+      "label": "Reload",
+      "icon": "⟳",
+      "action": {
+        "type": "keys",
+        "keys": "cmd+r"
+      }
+    },
+    {
+      "id": "chrome.k5",
+      "group": "chrome",
+      "label": "Address bar",
+      "icon": "🔗",
+      "action": {
+        "type": "keys",
+        "keys": "cmd+l"
+      }
+    },
+    {
+      "id": "chrome.k6",
+      "group": "chrome",
+      "label": "Back",
+      "icon": "←",
+      "action": {
+        "type": "keys",
+        "keys": "cmd+["
+      }
+    }
+  ]
+}

@@ -36,6 +36,11 @@ struct SettingsSheet: View {
     /// this screen, not of the character, so it lives on the device.
     @AppStorage("arisu.live2d") private var live2dFace = true
     @AppStorage("arisu.meter") private var showMeter = true
+    /// Bubbles or terminal lines, for her subtitles and the typed chat alike.
+    @AppStorage("arisu.bubbles") private var bubbles = true
+    /// Where she stands on the screen, in points from the middle.
+    @AppStorage("arisu.faceX") private var faceX = 0.0
+    @AppStorage("arisu.faceY") private var faceY = 0.0
 
     private let brain = Brain()
     private let accent = Color(red: 0.27, green: 0.90, blue: 0.97)
@@ -101,6 +106,24 @@ struct SettingsSheet: View {
                        + "The model is saved to the character, so the web page "
                        + "shows the same one. If the desk cannot be reached, "
                        + "the portrait comes back.")
+            }
+
+            positionSection
+
+            Section {
+                Picker("Messages", selection: $bubbles) {
+                    Text("Bubbles").tag(true)
+                    Text("Terminal").tag(false)
+                }
+                .pickerStyle(.segmented)
+                .font(.system(size: 19))
+            } header: {
+                header("Messages")
+            } footer: {
+                footer("How both screens draw the conversation -- her subtitles "
+                       + "over her face, and the typed chat. Bubbles are hers "
+                       + "on the left and yours on the right; terminal is one "
+                       + "line each, as the chat page has always drawn it.")
             }
 
             if live2dFace { glowSection }
@@ -187,8 +210,8 @@ struct SettingsSheet: View {
     /// shows, served by the desk. The character's choice is saved there.
     private var modelGrid: some View {
         let current = FaceView.models.contains(pet.model) ? pet.model
-            : (pet.face == "chopper" ? "Natori" : "Haru")
-        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4),
+            : (pet.face == "chopper" ? "Mao" : "Haru")
+        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
                          spacing: 10) {
             ForEach(FaceView.models, id: \.self) { m in
                 Button { pickModel(m) } label: {
@@ -218,6 +241,38 @@ struct SettingsSheet: View {
             _ = try? await brain.setPersona(["model": m])
             await pet.refreshCast()
         }
+    }
+
+    /// Where she stands on the screen. Kept on the device, not on the
+    /// character: her face is a square tile in the middle of whatever screen
+    /// is showing it, and the iPad on the desk and a phone on a shelf want
+    /// different answers (Oscar, 2026-09-26).
+    private var positionSection: some View {
+        Section {
+            positionDial("Left / right", $faceX)
+            positionDial("Up / down", $faceY)
+            Button("Put her back in the middle") { faceX = 0; faceY = 0 }
+                .font(.system(size: 19))
+        } header: {
+            header("Where she stands")
+        } footer: {
+            footer("Moves her on the screen. The light and the ground stay "
+                   + "where they are.")
+        }
+    }
+
+    private func positionDial(_ title: String, _ value: Binding<Double>) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title).font(.system(size: 19, weight: .medium))
+                Spacer()
+                Text(String(Int(value.wrappedValue)))
+                    .font(.system(size: 15, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.4))
+            }
+            Slider(value: value, in: -400...400, step: 4)
+        }
+        .padding(.vertical, 6)
     }
 
     /// The spotlight behind the model. The light moves under his thumb, and

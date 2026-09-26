@@ -24,7 +24,18 @@ struct ContentView: View {
     @AppStorage("arisu.live2d") private var live2dFace = true
     /// The moving bars at the bottom, on or off (Settings > Face).
     @AppStorage("arisu.meter") private var showMeter = true
+    /// Bubbles or terminal lines, for her subtitles here and for the typed
+    /// chat alike (Oscar, 2026-09-26). One preference, both screens: the chat
+    /// page is told which to draw through its query string.
+    @AppStorage("arisu.bubbles") private var bubbles = true
+    /// Where she stands. Screen geometry differs per device and the face is a
+    /// square tile in the middle of it, so this is a preference of the device
+    /// rather than of the character.
+    @AppStorage("arisu.faceX") private var faceX = 0.0
+    @AppStorage("arisu.faceY") private var faceY = 0.0
     @State private var showSettings = false
+    /// The deck: his Mac's buttons, on the iPad.
+    @State private var showDeck = false
     /// The typed chat: its own screen, the terminal page lain serves
     /// (arisu/chat.html) full screen over her. Voice and chat are two
     /// separate UIs in one app (Oscar, 2026-09-23).
@@ -121,7 +132,8 @@ struct ContentView: View {
         }
         .shadow(color: .black.opacity(0.85), radius: 4)
         .padding(.leading, 26)
-        .padding(.top, 30)
+        // Clear of the masthead, which owns the top-left corner now.
+        .padding(.top, 82)
         .animation(.easeInOut(duration: 0.25), value: phase)
         .allowsHitTesting(false)
     }
@@ -189,9 +201,8 @@ struct ContentView: View {
             // Double tap: the conversation on or off. Single tap: the chrome.
             .onTapGesture(count: 2) { pet.toggleRunning() }
             .onTapGesture { chromeShown.toggle() }
-            .overlay(alignment: .bottomTrailing) { if chromeShown { controls.transition(.opacity) } }
             .overlay(alignment: .topLeading) { if chromeShown { legend.transition(.opacity) } }
-            .overlay(alignment: .topTrailing) { modeToggle }
+            .overlay(alignment: .top) { topBar }
             .animation(.easeOut(duration: 0.2), value: chromeShown)
         }
         .ignoresSafeArea()
@@ -200,8 +211,10 @@ struct ContentView: View {
         .sheet(item: $live.page) { PageSheet(page: $0) { live.page = nil } }
         .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet, live: live) }
         .fullScreenCover(isPresented: $showChat) {
-            ChatScreen(query: chatOnHistory ? "app=1&view=history" : "app=1") { showChat = false }
+            ChatScreen(query: (chatOnHistory ? "app=1&view=history" : "app=1")
+                       + "&style=" + (bubbles ? "bubble" : "terminal")) { showChat = false }
         }
+        .fullScreenCover(isPresented: $showDeck) { DeckScreen { showDeck = false } }
         .onChange(of: pet.heard) { _, t in say(t, mine: true); obey(t); record(t, "heard") }
         .onChange(of: pet.line) { _, t in say(t, mine: false); record(t, "answer") }
         .onChange(of: pet.running) { _, on in record(on ? "call started" : "call ended", "call") }
@@ -219,73 +232,80 @@ struct ContentView: View {
     /// the loudest thing on screen the thing that was doing nothing.
     private let off = Color.white.opacity(0.3)
 
-    /// The workbench controls, stacked up the right edge. Three times the size
-    /// they were, because he reaches for them from across the desk and one of
-    /// them is held rather than tapped -- a 28pt target for push-to-talk is a
-    /// target you miss mid-sentence.
+    /// Her name over the room, at the height of the buttons and in the chat
+    /// page's own words, so the two screens carry the same masthead at the same
+    /// level (Oscar, 2026-09-26). It used to exist only on the chat page, which
+    /// made switching mode feel like leaving the app.
+    private var masthead: some View {
+        let cyan = Color(red: 0.27, green: 0.90, blue: 0.97)
+        return VStack(alignment: .leading, spacing: 2) {
+            Text("Arisuへようこそ！")
+                .font(.system(size: 20, weight: .semibold, design: .monospaced))
+                .foregroundStyle(cyan)
+            Text("present day · present time")
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .foregroundStyle(cyan.opacity(0.45))
+        }
+        .shadow(color: .black.opacity(0.85), radius: 4)
+        .allowsHitTesting(false)
+    }
+
+    /// Everything that is always on screen, in one row at the top: the
+    /// masthead, then the voice-only buttons, then the ones both screens share.
     ///
-    /// The model picker is gone. It cycled mini, full and whisper, and two of
-    /// those are no longer choices anyone makes: the desk decides which
-    /// realtime model to spend on at mint time, and whisper is the old path.
-    private var controls: some View {
-        VStack(spacing: 16) {
-            iconButton(showTranscript ? "text.bubble.fill" : "text.bubble",
-                       tint: showTranscript ? glow : off) {
+    /// The voice-only four used to be a stack of 52pt icons in the
+    /// bottom-right corner, behind a tap that showed and hid them. Two
+    /// problems with that: he had to remember the screen was hiding controls at
+    /// all, and they looked nothing like the buttons an inch away at the top.
+    /// They are the same square button in the same row now (Oscar, 2026-09-26).
+    private var topBar: some View {
+        let cyan = Color(red: 0.27, green: 0.90, blue: 0.97)
+        return HStack(alignment: .top, spacing: 10) {
+            masthead
+            Spacer(minLength: 12)
+            // Voice only.
+            squareButton(showTranscript ? "text.bubble.fill" : "text.bubble",
+                         "Subtitles", tint: showTranscript ? glow : off) {
                 showTranscript.toggle()
             }
-            // Conversation, not transport: this is whether the two of them are
-            // talking at all. A voice in a circle rather than a pause bar --
-            // his choice, 2026-09-09, and the right one: speech bubbles read
-            // as messages, and nothing here is typed.
-            iconButton(pet.running ? "waveform.circle.fill" : "waveform.circle",
-                       tint: pet.running ? glow : off) {
+            squareButton(pet.running ? "waveform.circle.fill" : "waveform.circle",
+                         "Conversation", tint: pet.running ? glow : off) {
                 pet.toggleRunning()
             }
-            // Hold-to-talk and mute removed (Oscar, 2026-09-23). Neither is
-            // saved across launches, so nothing is left switched on.
-            // Group button removed (Oscar, 2026-09-23); the room stays solo.
-            // Which device is listening. Shown as soon as there is anyone
-            // else to hand it to, rather than only in a group: hiding it until
-            // the mode is switched means the one control he needs to fix a
-            // room appears only after the room is already wrong.
+            // Which device is listening. Shown as soon as there is anyone else
+            // to hand it to rather than only in a group: hiding it until the
+            // mode is switched means the one control he needs to fix a room
+            // appears only after the room is already wrong.
             if room.members.count > 1 {
-                iconButton(room.isListener ? "ear.fill" : "ear",
-                           tint: room.isListener ? listener : off) {
+                squareButton(room.isListener ? "ear.fill" : "ear",
+                             "Listen here", tint: room.isListener ? listener : off) {
                     room.listenHere()
                 }
             }
-            iconButton("slider.horizontal.3", tint: off) {
+            squareButton("slider.horizontal.3", "Settings", tint: off) {
                 showSettings = true
             }
-        }
-        .padding(.trailing, 26)
-        .padding(.bottom, 26)
-    }
-
-    /// Voice | Chat: the one switch between her two screens, the same place and
-    /// look as the web's and as the chat page's own (Oscar, 2026-09-23).
-    private var modeToggle: some View {
-        let cyan = Color(red: 0.27, green: 0.90, blue: 0.97)
-        return HStack(spacing: 10) {
-            // History and a new conversation, as on the chat page (2026-09-24).
+            // Shared by both screens.
+            squareButton("square.grid.3x3.fill", "Deck") { showDeck = true }
             squareButton("clock", "History") { chatOnHistory = true; showChat = true }
             squareButton("plus", "New conversation") { newVoiceConversation() }
             toggleBody(cyan)
         }
         .padding(.top, 24)
-        .padding(.trailing, 26)
+        .padding(.horizontal, 26)
     }
 
-    private func squareButton(_ symbol: String, _ label: String,
+    private func squareButton(_ symbol: String, _ label: String, tint: Color? = nil,
                               action: @escaping () -> Void) -> some View {
         let cyan = Color(red: 0.27, green: 0.90, blue: 0.97)
+        let ink = tint ?? cyan
         return Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 19, weight: .semibold))
-                .foregroundStyle(cyan)
+                .foregroundStyle(ink)
                 .frame(width: 50, height: 38)
                 .background(Color.black.opacity(0.35))
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(cyan.opacity(0.35)))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(ink.opacity(0.35)))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .accessibilityLabel(label)
@@ -360,6 +380,7 @@ struct ContentView: View {
                  glow: [phaseRGB.0, phaseRGB.1, phaseRGB.2]
                      .map { String(Int($0 * 255)) }.joined(separator: ","),
                  tune: pet.glow)
+            .offset(x: faceX, y: faceY)
             .allowsHitTesting(false)
     }
 
@@ -405,9 +426,15 @@ struct ContentView: View {
     /// The conversation as chat bubbles: his on the right, hers on the left,
     /// the last four lines, older ones fading (Oscar, 2026-09-16).
     private var transcript: some View {
-        VStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: bubbles ? 8 : 4) {
             ForEach(Array(messages.enumerated()), id: \.element.id) { i, m in
-                ChatBubble(text: m.text, mine: m.mine, voice: voice, mineColor: mineColor)
+                Group {
+                    if bubbles {
+                        ChatBubble(text: m.text, mine: m.mine, voice: voice, mineColor: mineColor)
+                    } else {
+                        TerminalLine(text: m.text, mine: m.mine, voice: voice)
+                    }
+                }
                 .opacity(0.4 + 0.6 * Double(i + 1) / Double(messages.count))
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -573,6 +600,25 @@ struct ChatBubble: View {
                 .textSelection(.enabled)
             if !mine { Spacer(minLength: 80) }
         }
+    }
+}
+
+/// One line of the conversation as the chat page's terminal draws it: his
+/// prefixed with a prompt in cyan, hers under a bold `arisu:` in white. The
+/// alternative to `ChatBubble`, chosen in Settings and carried into the chat
+/// page as `?style=` so both screens agree (Oscar, 2026-09-26).
+struct TerminalLine: View {
+    let text: String
+    let mine: Bool
+    let voice: Color
+
+    var body: some View {
+        Text(mine ? "> " + text : text)
+            .font(.system(size: 17, weight: mine ? .semibold : .regular, design: .monospaced))
+            .foregroundStyle(mine ? voice : Color.white)
+            .shadow(color: .black.opacity(0.85), radius: 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .textSelection(.enabled)
     }
 }
 
