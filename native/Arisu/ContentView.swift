@@ -35,7 +35,10 @@ struct ContentView: View {
     @AppStorage("arisu.faceY") private var faceY = 0.0
     @State private var showSettings = false
     /// The deck: his Mac's buttons, on the iPad.
-    @State private var showDeck = false
+    /// The deck rail, on the right of both modes. Up by default and kept across
+    /// launches: it was a full screen he had to open until 2026-09-27, which
+    /// meant leaving the conversation to press a button on his Mac.
+    @AppStorage("arisu.deck") private var deckShown = true
     /// The typed chat: its own screen, the terminal page lain serves
     /// (arisu/chat.html) full screen over her. Voice and chat are two
     /// separate UIs in one app (Oscar, 2026-09-23).
@@ -162,6 +165,52 @@ struct ContentView: View {
     }
 
     var body: some View {
+        HStack(spacing: 0) {
+            conversation
+                .overlay(alignment: .topLeading) { if chromeShown { legend.transition(.opacity) } }
+                .overlay(alignment: .top) { topBar }
+                .animation(.easeOut(duration: 0.2), value: chromeShown)
+            if deckShown {
+                // The one piece of her state that reads in both modes: the room's
+                // glow is behind the typed thread, so the seam carries it.
+                Rectangle().fill(phaseColor.opacity(0.5)).frame(width: 2)
+                    .animation(.easeInOut(duration: 0.35), value: phaseColor)
+                DeckRail()
+            }
+        }
+        .background(Color.black)
+        .ignoresSafeArea()
+        // A page she was asked to show. The desk already decided how it can be
+        // shown, so this only draws it.
+        .sheet(item: $live.page) { PageSheet(page: $0) { live.page = nil } }
+        .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet, live: live) }
+        .onChange(of: pet.heard) { _, t in say(t, mine: true); obey(t); record(t, "heard") }
+        .onChange(of: pet.line) { _, t in say(t, mine: false); record(t, "answer") }
+        .onChange(of: pet.running) { _, on in record(on ? "call started" : "call ended", "call") }
+        .animation(.easeInOut(duration: 0.25), value: pet.thinking)
+        .animation(.easeInOut(duration: 0.25), value: live.thinking)
+        .animation(.easeInOut(duration: 0.25), value: pet.running)
+        .onAppear {
+            Task { await pet.arrive() }
+            withAnimation(.linear(duration: 5.6).repeatForever(autoreverses: false)) { sweep = true }
+        }
+    }
+
+    /// Reading or talking, in the same place. Switching is which of these is
+    /// drawn -- not a screen that covers the other one, which is what made
+    /// changing mode feel like leaving the app (Oscar, 2026-09-27). The page
+    /// draws no chrome of its own here: the row along the top is the app's.
+    @ViewBuilder private var conversation: some View {
+        if showChat {
+            ChatScreen(query: "app=1&chrome=0"
+                       + (chatOnHistory ? "&view=history" : "")
+                       + "&style=" + (bubbles ? "bubble" : "terminal")) { showChat = false }
+        } else {
+            hologram
+        }
+    }
+
+    private var hologram: some View {
         GeometryReader { geo in
             // The face is a square tile, so in landscape it can only ever cover
             // the middle. The ground it sits on has to reach the edges by
@@ -189,7 +238,7 @@ struct ContentView: View {
                             Spacer(minLength: 0)
                         }
                         .padding(.leading, 34)
-                        .padding(.trailing, 260)
+                        .padding(.trailing, 24)
                     }
                     // A meter for a microphone that is down would be a lie.
                     if pet.running && showMeter { meter.padding(.bottom, 22) }
@@ -201,29 +250,6 @@ struct ContentView: View {
             // Double tap: the conversation on or off. Single tap: the chrome.
             .onTapGesture(count: 2) { pet.toggleRunning() }
             .onTapGesture { chromeShown.toggle() }
-            .overlay(alignment: .topLeading) { if chromeShown { legend.transition(.opacity) } }
-            .overlay(alignment: .top) { topBar }
-            .animation(.easeOut(duration: 0.2), value: chromeShown)
-        }
-        .ignoresSafeArea()
-        // A page she was asked to show. The desk already decided how it can be
-        // shown, so this only draws it.
-        .sheet(item: $live.page) { PageSheet(page: $0) { live.page = nil } }
-        .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet, live: live) }
-        .fullScreenCover(isPresented: $showChat) {
-            ChatScreen(query: (chatOnHistory ? "app=1&view=history" : "app=1")
-                       + "&style=" + (bubbles ? "bubble" : "terminal")) { showChat = false }
-        }
-        .fullScreenCover(isPresented: $showDeck) { DeckScreen { showDeck = false } }
-        .onChange(of: pet.heard) { _, t in say(t, mine: true); obey(t); record(t, "heard") }
-        .onChange(of: pet.line) { _, t in say(t, mine: false); record(t, "answer") }
-        .onChange(of: pet.running) { _, on in record(on ? "call started" : "call ended", "call") }
-        .animation(.easeInOut(duration: 0.25), value: pet.thinking)
-        .animation(.easeInOut(duration: 0.25), value: live.thinking)
-        .animation(.easeInOut(duration: 0.25), value: pet.running)
-        .onAppear {
-            Task { await pet.arrive() }
-            withAnimation(.linear(duration: 5.6).repeatForever(autoreverses: false)) { sweep = true }
         }
     }
 
@@ -263,14 +289,28 @@ struct ContentView: View {
         return HStack(alignment: .top, spacing: 10) {
             masthead
             Spacer(minLength: 12)
-            // Voice only.
-            squareButton(showTranscript ? "text.bubble.fill" : "text.bubble",
-                         "Subtitles", tint: showTranscript ? glow : off) {
-                showTranscript.toggle()
+            // Her subtitles are a thing about the room, so they are offered
+            // where there is a room to read them over.
+            if !showChat {
+                squareButton(showTranscript ? "text.bubble.fill" : "text.bubble",
+                             "Subtitles", tint: showTranscript ? glow : off) {
+                    showTranscript.toggle()
+                }
             }
             squareButton(pet.running ? "waveform.circle.fill" : "waveform.circle",
                          "Conversation", tint: pet.running ? glow : off) {
                 pet.toggleRunning()
+            }
+            // Is the microphone hot. Its own control since 2026-09-27, because
+            // "mode" is no longer a screen he leaves: typing while she is
+            // listening is legal now, and so is shutting the room up without
+            // ending the conversation. Off when there is no conversation to
+            // mute rather than hidden -- a control that comes and goes is one
+            // he has to hunt for.
+            squareButton(live.muted || !pet.running ? "mic.slash" : "mic.fill",
+                         "Microphone",
+                         tint: pet.running && !live.muted ? listener : off) {
+                if pet.running { live.muted.toggle() }
             }
             // Which device is listening. Shown as soon as there is anyone else
             // to hand it to rather than only in a group: hiding it until the
@@ -286,7 +326,8 @@ struct ContentView: View {
                 showSettings = true
             }
             // Shared by both screens.
-            squareButton("square.grid.3x3.fill", "Deck") { showDeck = true }
+            squareButton("square.grid.3x3.fill", "Deck",
+                         tint: deckShown ? glow : off) { deckShown.toggle() }
             squareButton("clock", "History") { chatOnHistory = true; showChat = true }
             squareButton("plus", "New conversation") { newVoiceConversation() }
             toggleBody(cyan)
@@ -324,35 +365,24 @@ struct ContentView: View {
 
     private func toggleBody(_ cyan: Color) -> some View {
         HStack(spacing: 0) {
-            Image(systemName: "waveform")
-                .foregroundStyle(Color(red: 0.02, green: 0.09, blue: 0.10))
-                .frame(width: 54, height: 38)
-                .background(cyan)
-                .accessibilityLabel("Voice")
-            Button { chatOnHistory = false; showChat = true } label: {
-                Image(systemName: "terminal").foregroundStyle(cyan)
+            Button { showChat = false } label: {
+                Image(systemName: "waveform")
+                    .foregroundStyle(showChat ? cyan : Color(red: 0.02, green: 0.09, blue: 0.10))
                     .frame(width: 54, height: 38)
+                    .background(showChat ? Color.clear : cyan)
+            }
+            .accessibilityLabel("Voice")
+            Button { chatOnHistory = false; showChat = true } label: {
+                Image(systemName: "terminal")
+                    .foregroundStyle(showChat ? Color(red: 0.02, green: 0.09, blue: 0.10) : cyan)
+                    .frame(width: 54, height: 38)
+                    .background(showChat ? cyan : Color.clear)
             }
             .accessibilityLabel("Chat")
         }
         .font(.system(size: 19, weight: .semibold))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(cyan.opacity(0.55)))
         .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-
-    private func iconButton(_ symbol: String, tint: Color,
-                            action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 34, weight: .medium))
-                .foregroundStyle(tint)
-                .frame(width: 52, height: 46)
-                .padding(10)
-                // The only thing keeping a pale glyph legible over the pale
-                // part of her face, now that there is no capsule behind it.
-                .shadow(color: .black.opacity(0.85), radius: 5)
-                .contentShape(Rectangle())
-        }
     }
 
     /// The renderer's own vocabulary. `Phase` already says all of it except

@@ -101,7 +101,16 @@ struct DeckButton: Codable, Equatable, Identifiable {
     @Published var running: String?
     @Published var said: (id: String, ok: Bool, detail: String)?
 
-    private let session = URLSession(configuration: .default)
+    /// Eight seconds, not the sixty URLSession gives by default. The rail is on
+    /// screen the whole time now, so a Mac that accepts the connection and then
+    /// says nothing -- which is what a deck blocked on a macOS file-access
+    /// prompt looks like -- has to end as a message rather than a spinner that
+    /// never stops (2026-09-27).
+    private let session: URLSession = {
+        let c = URLSessionConfiguration.default
+        c.timeoutIntervalForRequest = 8
+        return URLSession(configuration: c)
+    }()
 
     var groups: [String] {
         var seen: [String] = []
