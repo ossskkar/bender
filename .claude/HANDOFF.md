@@ -1,84 +1,54 @@
-# HANDOFF — Arisu (2026-09-26)
+# Handoff — one conversation, one screen (2026-09-27)
 
-*Progress lives in the lain Backlog, project Arisu. Three journeys moved this
-session; two are new and sit in **review** waiting for Oscar's verdict on the
-real iPad.*
+Voice and chat were two Hermes sessions on two screens. They are one thread and
+one screen now. State and progress: Backlog project **Arisu**, journey
+*"I switch between typing and talking in one conversation"*.
 
-## State — what works
+## State
+- **One thread, live on architect.** Every Hermes session — spoken or typed —
+  is created seeded with the tail of the one conversation (`history.seed`
+  merges the chat log and the voice log on their clocks), and
+  `hermes.invalidate()` drops the sessions that did not produce the last line.
+  Proven end to end: typed "remember: amber" to `/arisu/chat`, asked through
+  `/arisu/tool` `think` (the voice path), got it back.
+  `voice_reset`/`chat_reset` → one `reset()`; "new conversation" is one thing.
+  lain suite 353 OK. Commits `baf6d94`, `5f2d60c`, `53666c2`, all deployed.
+- **One screen, built and checked in the iPad simulator.** `DeckScreen` →
+  `DeckRail` (196pt, right, both modes, one group at a time); the chat page is
+  a pane beside it loaded with `?chrome=0` so it draws no second masthead; the
+  microphone is its own button; the deck button toggles the rail and remembers
+  it. Commit `0516b4f` in `arisu` — **committed, not pushed** (its remote is
+  `ossskkar/bender` and the push was refused here).
+- **The Mac's deck answers nothing**, so the rail is empty. See below.
 
-**The app overhaul shipped** (`arisu` d552d2f, `lain` 6530c67 + the viewport
-fix). Verified in the iPad Pro 13" simulator against the live desk and the
-live Mac.
-
-- **One top row, always visible.** The four voice-only buttons (subtitles,
-  conversation, listen-here, settings) left the bottom-right corner and the tap
-  that hid them; they are square buttons beside deck / history / new / the
-  Voice|Chat switch. Her masthead sits at the same height on **both** screens —
-  in Swift on the voice screen, and moved out of the scrolling log into `#top`
-  on the chat page. The legend dropped to `padding(.top, 82)` to clear it.
-- **The chat keyboard is fixed.** `paint()` set `input.disabled = busy`, which
-  blurs the field; a blurred field in a WKWebView cannot be focused back by
-  script, and the `input.focus()` calls that followed left it the active element
-  so the next real tap did nothing. The field is never disabled now, the
-  scripted focus calls are gone, and a `pointerdown` on the prompt row focuses
-  it inside the gesture. `interactive-widget=resizes-content` keeps the masthead
-  on screen when the keyboard is up.
-- **Bubbles or terminal**, one setting (`arisu.bubbles`) obeyed by her subtitles
-  and by the chat page, which is told through `?style=`.
-- **Two faces.** `arisu3D` (22 entries) and six Live2D samples are gone; Haru
-  and Mao remain, Haru hers by default. An unknown saved model falls back to the
-  character's default, not to the portrait.
-- **Where she stands**: two sliders, on the device (`arisu.faceX/Y`).
-- **The deck is new** — `arisu/deck/`, and it is where the macropad went. The
-  Mac runs `deck.py` (that project's executor verbatim, harvested with `ast`)
-  on `127.0.0.1:8887`, which the Mac's **existing** `tailscale serve :8443`
-  rule already proxied to. The iPad draws its 36 buttons grouped, presses them,
-  and adds/edits/removes them. `POST /deck/run` takes an **id and never an
-  action**. `./deck.py selftest` passes.
-
-## Decisions & open questions
-
-- **Port 8887, not a new serve rule.** The rule existed and pointed at a dead
-  port, so the deck needed no change to his machine. Written up in the
-  workspace `CLAUDE.md` and in the `deploy-lain` skill, both of which still
-  called 8887 dead.
-- **`MacropadType.app` keeps its name.** It is the bundle that holds
-  Accessibility; renaming means granting it again. Seven of 36 buttons are
-  `keys` and call it.
-- **Not verified, and only he can:** the software keyboard physically rising on
-  the iPad (the simulator has a hardware keyboard attached, so only focus could
-  be proven), and the native *terminal* subtitle style, which needs a live voice
-  conversation to draw anything.
-- **Left alone:** `lain` had `server/server.py`, `server/tap.py`,
-  `tests/test_tap.py` dirty and an untracked `systems/systems 2.html` before
-  this session. None of it was mine; none of it was committed. The stray
-  `systems 2.html` is a version-suffixed file someone should collapse.
-
-## Next steps
-
-1. **His:** load the deck's launchd agent, or the grid goes grey when the
-   held-open process dies.
-   `cp /Users/oscar/Documents/claude-projects/arisu/deck/com.oscar.arisu-deck.plist ~/Library/LaunchAgents/ && launchctl load -w ~/Library/LaunchAgents/com.oscar.arisu-deck.plist`
-2. **His:** rebuild onto the iPad and confirm the keyboard, then the two review
-   journeys can be ticked done.
-   `cd /Users/oscar/Documents/claude-projects/arisu/native && xcodebuild -project Arisu.xcodeproj -scheme Arisu -destination 'id=085B9100-31D5-5A2D-B44C-82D143A30ACA' -allowProvisioningUpdates build`
-3. Unload the old macropad launchd agents once he is happy; they still hold
-   8791-8793.
+## Decisions
+- **The two transcript renderers stay.** Merging them was in the plan and was
+  dropped: subtitles over the room are read from the sofa, the chat page at
+  arm's length; one implementation makes one of them worse, and a webview over
+  the glow buys nothing the chat page does not already do in Safari.
+- **Not one shared Hermes session.** That would put the voice on the chat's
+  40-question thread; long threads were 58% of all input on 2026-09-17. The
+  seed pays once per `session.create` instead. If she loses the thread, raise
+  `hermes.SEED` (16) — never the turn cap.
+- Reasoning `low`, measured faster for typed, now applies to the voice too
+  (`LAIN_HERMES_REASONING`). Watch for shallower spoken answers.
 
 ## Gotchas
+- **A TCC-denied `open()` on macOS hangs; it does not fail.** The deck served
+  `/` in a millisecond and left every `/deck` waiting forever. Sampling the
+  process shows the handler thread parked in `__open`. Moving the store to
+  `~/.local/share/arisu-deck/buttons.json` did **not** fix it — the job has no
+  file-access consent at all. The repo's `buttons.json` is now the seed.
+- The lain backlog API has no `step_set_done` op over HTTP; `step_edit` with
+  `done:true` is the one that works.
 
-- **The build expires every 7 days** and the iPad (iPadOS 26.6.2, iPad8,11)
-  cannot be jailbroken — TrollStore stopped at iOS 17.0. Checked 2026-09-26.
-  The only expiry-free routes are €99/year or Safari over the tailnet.
-- **Live2D takes ~10s to render** in the simulator. A blank hologram right
-  after launch is not a bug; wait before diagnosing.
-- The deck's `press` helper writes to `~/Library/Logs/macropad/type.out`. That
-  directory must survive the macropad's removal.
-- `xcodebuild -destination 'platform=iOS Simulator,name=...'` fails on the M5
-  iPads here; use `-destination 'id=<udid>'`.
-- Deploy lain with the `deploy-lain` skill — both remotes.
+## Next steps
+1. Grant the deck's python file access — System Settings ▸ Privacy & Security,
+   for `/usr/local/bin/python3.11` — then
+   `launchctl kickstart -k gui/501/com.oscar.arisu-deck` and check
+   `curl -s http://127.0.0.1:8887/deck`.
+2. `cd ~/Documents/claude-projects/arisu && git push origin HEAD`.
+3. Run the app on the iPad from Xcode and use it for an evening.
 
 ## Resume
-
-Read `.claude/HANDOFF.md` and the Arisu project in the lain Backlog, then ask
-Oscar whether the chat keyboard comes up on the real iPad.
+Read this file and continue with the Backlog journey above.
