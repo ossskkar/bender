@@ -47,3 +47,23 @@ can press a button he already wrote but cannot run something new.
   result file. It exists because the macropad ran; do not delete it.
 - Python is pinned to `/usr/local/bin/python3.11` — `python3` on PATH here is
   an Xcode 3.7 from 2020.
+
+## The store, and the TCC hang (2026-09-27)
+
+`buttons.json` beside this file is the **seed**, not the live store. The live one
+is `~/.local/share/arisu-deck/buttons.json` (`ARISU_DECK_BUTTONS` overrides,
+`serve --buttons` wins over both), because launchd may not read `~/Documents`
+and a denied `open()` on macOS does not fail -- it hangs, forever, inside
+`open()`. The symptom is exact: `GET /` answers in a millisecond and
+`GET /deck` never answers at all, which on the iPad's rail is a spinner that
+never stops.
+
+**Moving the store was not enough.** Under launchd the same `open()` hangs on
+`~/.local/share` too, while the identical command run from a terminal answers
+instantly -- so the job has no file-access consent at all, not just none for
+Documents. That consent is a System Settings grant nobody but Oscar can give:
+Privacy & Security ▸ Files and Folders (or Full Disk Access) for
+`/usr/local/bin/python3.11`, then
+`launchctl kickstart -k gui/501/com.oscar.arisu-deck`.
+
+Until then the deck answers nothing and the iPad's rail says so after 8s.

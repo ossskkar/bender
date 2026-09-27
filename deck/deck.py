@@ -44,7 +44,19 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-BUTTONS = os.path.join(ROOT, "buttons.json")
+# The store lives outside ~/Documents, and this is not a preference (2026-09-27).
+# launchd is denied that directory by macOS TCC, and a denied open() here does
+# not fail -- it *hangs*, forever, inside open(). The deck answered "/" in a
+# millisecond and left every /deck request waiting until the client gave up,
+# which on the iPad's rail looked like a spinner that never stopped.
+#
+# `buttons.json` beside this file is the seed and the readable copy of the 36
+# bindings; nothing running under launchd may open it. Seed the store by hand:
+#   cp buttons.json ~/.local/share/arisu-deck/buttons.json
+# ARISU_DECK_BUTTONS overrides, and `serve --buttons` still wins over both.
+SEED = os.path.join(ROOT, "buttons.json")
+BUTTONS = os.environ.get("ARISU_DECK_BUTTONS") or os.path.expanduser(
+    "~/.local/share/arisu-deck/buttons.json")
 ACTION_TYPES = ("http", "shell", "applescript", "open", "notify", "text", "keys", "compound")
 SYSTEM_CA = "/etc/ssl/cert.pem"
 _ssl_context_cache = None
