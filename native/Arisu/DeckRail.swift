@@ -27,10 +27,11 @@ struct DeckRail: View {
     /// the deck he actually reaches for, and half is her.
     static let fraction = 0.5
 
-    /// His applications, on every tab, along the very bottom -- the lowest
-    /// thing in the rail because switching app is what he reaches for without
-    /// looking. Pressing one moves the Mac, and the rail follows the Mac, so
-    /// the right deck arrives on its own a moment later.
+    /// His applications, above the tabs: they are what *chooses* a tab, so
+    /// they read top-down -- application, then its deck, then its keys, with
+    /// the keys lowest because those are pressed most (Oscar, 2026-09-28).
+    /// Pressing one moves the Mac, and the rail follows the Mac, so the right
+    /// deck arrives on its own a moment later.
     private var appStrip: some View {
         VStack(alignment: .leading, spacing: 6) {
             Skin.caption("apps", Skin.ink)
@@ -88,9 +89,9 @@ struct DeckRail: View {
                 ProgressView().tint(cyan).padding(.bottom, 30).frame(maxWidth: .infinity)
             } else {
                 if let said = deck.said { answer(said) }
+                appStrip.padding(.bottom, 14)
                 groups
-                keys
-                appStrip.padding(.top, 14).padding(.bottom, 16)
+                keys.padding(.bottom, 18)
             }
         }
         // A swipe across the keys is the next application's deck. Six chips

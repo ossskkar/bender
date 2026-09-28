@@ -1,0 +1,1352 @@
+<!doctype html><meta charset="utf-8"><title>Arisu — voice visuals</title>
+<style>
+  :root{--void:#06050C;--cyan:#45E5F7;--mag:#FF3D8A;--ink:#7E8FB8;--wire:#23204A}
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--void);color:var(--ink);font:13px ui-monospace,Menlo,monospace;
+       padding:22px;display:flex;flex-direction:column;gap:18px;min-height:100vh}
+  h1{font-size:15px;letter-spacing:.3em;color:var(--mag);font-weight:700}
+  .bar{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .bar button{background:#ffffff0d;border:1px solid #ffffff22;color:var(--cyan);
+      font:600 12px ui-monospace,monospace;letter-spacing:.14em;padding:9px 14px;border-radius:10px;cursor:pointer}
+  .bar button.on{background:var(--cyan);color:#020408;border-color:var(--cyan)}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  figure{background:#ffffff08;border:1px solid #ffffff14;border-radius:10px;padding:12px;display:flex;
+         flex-direction:column;gap:8px;align-items:center}
+  figcaption{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink)}
+  canvas{width:100%;aspect-ratio:1;display:block}
+  .n{color:var(--cyan)}
+</style>
+<h1>Arisuへようこそ！ — voice visuals</h1>
+<div class="bar">
+  <span>state:</span>
+  <button data-p="auto" class="on">auto cycle</button>
+  <button data-p="idle">idle</button>
+  <button data-p="listening">listening</button>
+  <button data-p="thinking">thinking</button>
+  <button data-p="speaking">speaking</button>
+  <span id="now"></span>
+</div>
+<div class="grid" id="grid"></div>
+<script>
+const C={idle:[.50,.55,1],listening:[.30,1,.50],thinking:[1,.22,.78],speaking:[.27,.90,.97]};
+const PH=['idle','listening','thinking','speaking'];
+let pick='auto', phase='idle', t=0;
+const rgb=(c,a=1)=>`rgba(${c.map(v=>Math.round(v*255)).join(',')},${a})`;
+document.querySelectorAll('.bar button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.bar button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); pick=b.dataset.p;});
+
+// A stand-in for her: quiet when idle, bursty when he talks, steady when she does.
+function amp(){
+  if(phase==='idle') return .06+.02*Math.sin(t*.9);
+  if(phase==='listening') return .30+.28*Math.abs(Math.sin(t*3.1))*Math.abs(Math.sin(t*1.7+1));
+  if(phase==='thinking') return .18+.10*Math.sin(t*2.2);
+  return .45+.35*Math.abs(Math.sin(t*4.3))*(.6+.4*Math.sin(t*1.3));
+}
+
+const draws=[];
+function panel(name, fn){
+  const f=document.createElement('figure');
+  const cv=document.createElement('canvas'); const cap=document.createElement('figcaption');
+  cap.innerHTML='<span class="n">'+(draws.length+1)+'</span> '+name;
+  f.append(cv,cap); document.getElementById('grid').append(f);
+  draws.push({cv,fn});
+}
+
+// 1 — concentric rings, breathing outward
+panel('rings', (g,w,a,c)=>{
+  const R=w*.42;
+  for(let i=8;i>=1;i--){
+    const k=i/8, r=R*k*(1+a*.22*Math.sin(t*2-i*.5));
+    g.beginPath(); g.arc(0,0,r,0,7); g.fillStyle=rgb(c,.06+ .10*(1-k)+a*.12*(1-k)); g.fill();
+  }
+  g.beginPath(); g.arc(0,0,R*.14*(1+a),0,7); g.fillStyle=rgb(c,.9); g.fill();
+});
+
+// 2 — dotted sphere, deformed by her voice
+panel('dot sphere', (g,w,a,c)=>{
+  const R=w*.36;
+  for(let i=0;i<26;i++){
+    const lat=(i/25-.5)*Math.PI, cr=Math.cos(lat)*R;
+    for(let j=0;j<48;j++){
+      const lon=j/48*7 + t*.25;
+      const d=1+a*.25*Math.sin(lon*3+lat*4+t*3);
+      const x=Math.cos(lon)*cr*d, y=Math.sin(lat)*R*d, z=Math.sin(lon)*cr;
+      const o=(z/R+1)/2;
+      g.fillStyle=rgb(c,.08+.5*o*(.4+a));
+      g.fillRect(x,y,1.4,1.4);
+    }
+  }
+});
+
+// 3 — overlapping glass bubbles
+panel('bubbles', (g,w,a,c)=>{
+  const R=w*.30;
+  g.globalCompositeOperation='screen';
+  for(let i=0;i<5;i++){
+    const an=t*.5+i*1.26, off=R*(.12+a*.34);
+    const x=Math.cos(an)*off, y=Math.sin(an*1.3)*off;
+    const grd=g.createRadialGradient(x,y,R*.2,x,y,R);
+    const hue=i%2 ? c : [1,.24,.54];
+    grd.addColorStop(0,rgb(hue,.02)); grd.addColorStop(.75,rgb(hue,.22+a*.2));
+    grd.addColorStop(1,rgb(hue,0));
+    g.beginPath(); g.arc(x,y,R,0,7); g.fillStyle=grd; g.fill();
+  }
+  g.globalCompositeOperation='source-over';
+});
+
+// 4 — contour ripples, a ring drawn many times
+panel('contour', (g,w,a,c)=>{
+  const R=w*.30;
+  for(let k=0;k<14;k++){
+    g.beginPath();
+    for(let i=0;i<=120;i++){
+      const an=i/120*Math.PI*2;
+      const n=Math.sin(an*5+t*2+k*.35)*Math.sin(an*3-t*1.3)*a*R*.42;
+      const r=R+k*w*.011+n;
+      const x=Math.cos(an)*r, y=Math.sin(an)*r;
+      i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.closePath(); g.strokeStyle=rgb(c,.10+.5*(1-k/14)); g.lineWidth=1; g.stroke();
+  }
+});
+
+// 5 — neon halo, a lit ring with a soft core
+panel('halo', (g,w,a,c)=>{
+  const R=w*.30*(1+a*.12);
+  g.save();
+  g.shadowBlur=w*.10*(0.5+a); g.shadowColor=rgb(c,.9);
+  g.beginPath(); g.arc(0,0,R,0,7);
+  g.strokeStyle=rgb(c,.85); g.lineWidth=w*.018*(1+a*.9); g.stroke();
+  g.stroke();
+  g.restore();
+  const grd=g.createRadialGradient(0,0,0,0,0,R*1.5);
+  grd.addColorStop(0,rgb(c,.16+a*.2)); grd.addColorStop(1,rgb(c,0));
+  g.beginPath(); g.arc(0,0,R*1.5,0,7); g.fillStyle=grd; g.fill();
+});
+
+// 6 — bars around a circle, the meter made round
+panel('radial meter', (g,w,a,c)=>{
+  const R=w*.26, N=64;
+  for(let i=0;i<N;i++){
+    const an=i/N*Math.PI*2 - Math.PI/2;
+    const seed=Math.sin(i*12.9898)*43758.5453;
+    const h=w*.13*a*(.35+Math.abs(Math.sin(i*.4+t*3+ (seed%1))))+w*.012;
+    const x1=Math.cos(an)*R, y1=Math.sin(an)*R;
+    const x2=Math.cos(an)*(R+h), y2=Math.sin(an)*(R+h);
+    g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2);
+    g.strokeStyle=rgb(c,.35+.6*a); g.lineWidth=w*.008; g.lineCap='round'; g.stroke();
+  }
+  g.beginPath(); g.arc(0,0,R*.9,0,7); g.strokeStyle=rgb(c,.25); g.lineWidth=1; g.stroke();
+});
+
+// 7 — orbiting particles
+panel('orbit dust', (g,w,a,c)=>{
+  const R=w*.30;
+  for(let i=0;i<160;i++){
+    const seed=Math.abs(Math.sin(i*127.1)*43758.5453)%1;
+    const an=seed*7+t*(.2+seed*.5), r=R*(.5+seed*.75)*(1+a*.28*Math.sin(t*2+seed*9));
+    const x=Math.cos(an)*r, y=Math.sin(an)*r*.92;
+    g.beginPath(); g.arc(x,y,w*.004*(1+a*2.2),0,7); g.fillStyle=rgb(c,.2+.7*seed*(.3+a)); g.fill();
+  }
+});
+
+// 8 — vinyl grooves
+panel('grooves', (g,w,a,c)=>{
+  for(let k=0;k<30;k++){
+    const R=w*.07+k*w*.012;
+    g.beginPath();
+    for(let i=0;i<=90;i++){
+      const an=i/90*7, r=R+Math.sin(an*2+t*1.6+k*.2)*a*w*.018;
+      const x=Math.cos(an)*r, y=Math.sin(an)*r; i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.closePath(); g.strokeStyle=rgb(c,.07+.35*(1-k/30)*(.4+a)); g.lineWidth=1; g.stroke();
+  }
+});
+
+// 9 — lissajous ribbons
+panel('lissajous', (g,w,a,c)=>{
+  const R=w*.33;
+  for(let k=0;k<5;k++){
+    g.beginPath();
+    for(let i=0;i<=240;i++){
+      const u=i/240*Math.PI*2;
+      const x=Math.sin(u*(2+k*.1)+t*.5)*R*(.6+a*.5);
+      const y=Math.sin(u*3+t*.35+k*.6)*R*(.6+a*.5);
+      i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.strokeStyle=rgb(k%2?c:[1,.24,.54],.12+.4*(1-k/5)); g.lineWidth=1.2; g.stroke();
+  }
+});
+
+// 10 — polar waveform
+panel('polar wave', (g,w,a,c)=>{
+  const R=w*.28;
+  for(let k=0;k<3;k++){
+    g.beginPath();
+    for(let i=0;i<=200;i++){
+      const an=i/200*Math.PI*2;
+      const v=Math.sin(an*7+t*5-k)*Math.sin(an*3+t*1.1)+Math.sin(an*13-t*3)*.4;
+      const r=R+v*a*w*.16 + k*w*.02;
+      const x=Math.cos(an)*r, y=Math.sin(an)*r; i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.closePath(); g.strokeStyle=rgb(c,.7-k*.22); g.lineWidth=w*.006; g.stroke();
+  }
+});
+
+// 11 — liquid blob
+panel('liquid', (g,w,a,c)=>{
+  const R=w*.30;
+  g.beginPath();
+  for(let i=0;i<=180;i++){
+    const an=i/180*Math.PI*2;
+    const n=Math.sin(an*3+t*1.4)*.5+Math.sin(an*5-t*2.1)*.3+Math.sin(an*2+t*.7)*.4;
+    const r=R*(1+n*a*.45);
+    const x=Math.cos(an)*r, y=Math.sin(an)*r; i?g.lineTo(x,y):g.moveTo(x,y);
+  }
+  g.closePath();
+  const grd=g.createRadialGradient(0,0,R*.1,0,0,R*1.3);
+  grd.addColorStop(0,rgb(c,.55)); grd.addColorStop(1,rgb(c,.05));
+  g.fillStyle=grd; g.fill(); g.strokeStyle=rgb(c,.8); g.lineWidth=1.4; g.stroke();
+});
+
+// 12 — radar sweep
+panel('radar', (g,w,a,c)=>{
+  const R=w*.34;
+  for(let k=1;k<=4;k++){
+    g.beginPath(); g.arc(0,0,R*k/4,0,7); g.strokeStyle=rgb(c,.14); g.lineWidth=1; g.stroke();
+  }
+  const an=t*1.6;
+  const grd=g.createConicGradient ? g.createConicGradient(an,0,0) : null;
+  if(grd){ grd.addColorStop(0,rgb(c,.45+a*.4)); grd.addColorStop(.18,rgb(c,0)); grd.addColorStop(1,rgb(c,0));
+    g.beginPath(); g.arc(0,0,R,0,7); g.fillStyle=grd; g.fill(); }
+  g.beginPath(); g.moveTo(0,0); g.lineTo(Math.cos(an)*R,Math.sin(an)*R);
+  g.strokeStyle=rgb(c,.9); g.lineWidth=1.5; g.stroke();
+  for(let i=0;i<7;i++){
+    const s=Math.abs(Math.sin(i*91.7))%1, aa=s*7, rr=R*(.25+s*.7);
+    g.beginPath(); g.arc(Math.cos(aa)*rr,Math.sin(aa)*rr,w*.008*(1+a),0,7);
+    g.fillStyle=rgb(c,.3+.6*a); g.fill();
+  }
+});
+
+// 13 — starburst rays
+panel('rays', (g,w,a,c)=>{
+  const R=w*.16, N=48;
+  for(let i=0;i<N;i++){
+    const an=i/N*Math.PI*2+t*.2;
+    const s=Math.abs(Math.sin(i*33.7+t*2));
+    const len=R+w*.26*a*(.3+s);
+    g.beginPath(); g.moveTo(Math.cos(an)*R,Math.sin(an)*R);
+    g.lineTo(Math.cos(an)*len,Math.sin(an)*len);
+    g.strokeStyle=rgb(c,.15+.65*s*(.3+a)); g.lineWidth=w*.006; g.stroke();
+  }
+  g.beginPath(); g.arc(0,0,R*.8,0,7); g.fillStyle=rgb(c,.12+a*.2); g.fill();
+});
+
+// 14 — plasma disc
+panel('plasma', (g,w,a,c)=>{
+  const R=w*.34, step=Math.max(3,Math.round(w/60));
+  for(let y=-R;y<R;y+=step) for(let x=-R;x<R;x+=step){
+    const d=Math.hypot(x,y); if(d>R) continue;
+    const v=Math.sin(x*.05+t*1.4)+Math.sin(y*.045-t*1.1)+Math.sin((x+y)*.035+t*.8);
+    const o=Math.max(0,(v/3+.5))*(1-d/R)*(.35+a);
+    g.fillStyle=rgb(c,o*.8); g.fillRect(x,y,step,step);
+  }
+});
+
+// 15 — helix ring
+panel('helix', (g,w,a,c)=>{
+  const R=w*.30;
+  for(let s=0;s<2;s++){
+    g.beginPath();
+    for(let i=0;i<=200;i++){
+      const an=i/200*Math.PI*2;
+      const r=R+Math.sin(an*6+t*2+s*Math.PI)*w*.05*(.4+a*1.6);
+      const x=Math.cos(an)*r, y=Math.sin(an)*r*.85;
+      i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.closePath(); g.strokeStyle=rgb(s?[1,.24,.54]:c,.75); g.lineWidth=w*.007; g.stroke();
+  }
+});
+
+// 16 — shockwaves
+panel('shockwave', (g,w,a,c)=>{
+  for(let k=0;k<4;k++){
+    const ph=((t*.55+k/4)%1);
+    const r=w*.08+ph*w*.36;
+    g.beginPath(); g.arc(0,0,r,0,7);
+    g.strokeStyle=rgb(c,(1-ph)*(.25+a*.7)); g.lineWidth=w*.012*(1-ph)+.5; g.stroke();
+  }
+  g.beginPath(); g.arc(0,0,w*.07*(1+a*.5),0,7); g.fillStyle=rgb(c,.8); g.fill();
+});
+
+// 17 — petals
+panel('petals', (g,w,a,c)=>{
+  const R=w*.30, N=7;
+  for(let k=0;k<N;k++){
+    const rot=k/N*Math.PI*2+t*.3;
+    g.beginPath();
+    for(let i=0;i<=80;i++){
+      const u=i/80*Math.PI;
+      const r=R*Math.sin(u)*(.55+a*.6);
+      const an=rot+(u-Math.PI/2)*.5;
+      const x=Math.cos(an)*r, y=Math.sin(an)*r; i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.closePath(); g.fillStyle=rgb(c,.08+a*.12); g.fill();
+    g.strokeStyle=rgb(c,.45); g.lineWidth=1; g.stroke();
+  }
+});
+
+// 18 — wire torus
+panel('torus', (g,w,a,c)=>{
+  const R=w*.26, r2=w*.09*(1+a*.5), tilt=.45;
+  for(let k=0;k<16;k++){
+    const v=k/16*Math.PI*2;
+    g.beginPath();
+    for(let i=0;i<=60;i++){
+      const u=i/60*Math.PI*2;
+      const X=(R+r2*Math.cos(v+t))*Math.cos(u), Y=(R+r2*Math.cos(v+t))*Math.sin(u)*tilt+r2*Math.sin(v+t)*.9;
+      i?g.lineTo(X,Y):g.moveTo(X,Y);
+    }
+    g.closePath(); g.strokeStyle=rgb(c,.10+.25*Math.max(0,Math.cos(v+t))); g.lineWidth=1; g.stroke();
+  }
+});
+
+// 19 — tunnel
+panel('tunnel', (g,w,a,c)=>{
+  for(let k=0;k<16;k++){
+    const ph=((t*.4+k/16)%1);
+    const r=w*.44*ph;
+    const off=w*.05*(1-ph)*Math.sin(t*1.2+k*.4)*(.5+a);
+    g.beginPath(); g.arc(off,off*.6,r,0,7);
+    g.strokeStyle=rgb(c,(1-ph)*(.15+a*.5)); g.lineWidth=1.4; g.stroke();
+  }
+});
+
+// 20 — column meter behind a disc
+panel('columns', (g,w,a,c)=>{
+  const N=22, bw=w*.7/N;
+  g.save(); g.beginPath(); g.arc(0,0,w*.34,0,7); g.clip();
+  for(let i=0;i<N;i++){
+    const s=Math.abs(Math.sin(i*2.3+t*4))*a+.05;
+    const h=w*.6*s, x=-w*.35+i*bw;
+    g.fillStyle=rgb(c,.25+.5*s); g.fillRect(x+bw*.15,-h/2,bw*.7,h);
+  }
+  g.restore();
+  g.beginPath(); g.arc(0,0,w*.34,0,7); g.strokeStyle=rgb(c,.35); g.lineWidth=1.2; g.stroke();
+});
+
+// 21 — aperture blades
+panel('aperture', (g,w,a,c)=>{
+  const R=w*.32, N=8, open=w*.07+a*w*.13;
+  for(let i=0;i<N;i++){
+    const an=i/N*Math.PI*2+t*.25;
+    g.save(); g.rotate(an);
+    g.beginPath(); g.moveTo(open,0); g.lineTo(R,-R*.42); g.lineTo(R,R*.42); g.closePath();
+    g.fillStyle=rgb(c,.07+.05*(i%2)); g.fill();
+    g.strokeStyle=rgb(c,.5); g.lineWidth=1; g.stroke();
+    g.restore();
+  }
+  g.beginPath(); g.arc(0,0,open,0,7); g.fillStyle=rgb(c,.25+a*.5); g.fill();
+});
+
+// 22 — constellation
+panel('constellation', (g,w,a,c)=>{
+  const R=w*.32, pts=[];
+  for(let i=0;i<22;i++){
+    const s=Math.abs(Math.sin(i*57.3))%1, an=s*7+t*.25*(i%2?1:-1);
+    const r=R*(.35+s*.7);
+    pts.push([Math.cos(an)*r,Math.sin(an)*r*.95]);
+  }
+  for(let i=0;i<pts.length;i++) for(let j=i+1;j<pts.length;j++){
+    const d=Math.hypot(pts[i][0]-pts[j][0],pts[i][1]-pts[j][1]);
+    if(d<R*.5){ g.beginPath(); g.moveTo(...pts[i]); g.lineTo(...pts[j]);
+      g.strokeStyle=rgb(c,(1-d/(R*.5))*(.1+a*.35)); g.lineWidth=.8; g.stroke(); }
+  }
+  for(const p of pts){ g.beginPath(); g.arc(p[0],p[1],w*.006*(1+a),0,7); g.fillStyle=rgb(c,.8); g.fill(); }
+});
+
+// 23 — glitch ring
+panel('glitch ring', (g,w,a,c)=>{
+  const R=w*.30;
+  for(let i=0;i<40;i++){
+    const an=i/40*Math.PI*2, span=.11+a*.06;
+    const off=(Math.abs(Math.sin(i*41.7+Math.floor(t*6)))%1)*a*w*.07;
+    g.beginPath(); g.arc(0,0,R+off,an,an+span);
+    g.strokeStyle=rgb(i%7===0?[1,.24,.54]:c,.3+.6*a); g.lineWidth=w*.014; g.stroke();
+  }
+  for(let k=0;k<3;k++){
+    const y=(Math.abs(Math.sin(k*19+Math.floor(t*4)))%1-.5)*R*1.6;
+    g.fillStyle=rgb(c,.10); g.fillRect(-R,y,R*2,w*.006);
+  }
+});
+
+// 24 — her silhouette in scanlines
+panel('scan figure', (g,w,a,c)=>{
+  const R=w*.30;
+  for(let y=-R;y<R;y+=w*.014){
+    const k=Math.sqrt(Math.max(0,1-(y/R)**2));
+    const wob=Math.sin(y*.06+t*3)*a*w*.05;
+    const x=R*k*(.85+a*.2)+wob;
+    g.beginPath(); g.moveTo(-x,y); g.lineTo(x,y);
+    g.strokeStyle=rgb(c,.08+.4*k*(.3+a)); g.lineWidth=w*.007; g.stroke();
+  }
+  g.beginPath(); g.arc(0,0,R,0,7); g.strokeStyle=rgb(c,.2); g.lineWidth=1; g.stroke();
+});
+
+// 25 — halo with a living edge (5 + 10)
+panel('halo wave', (g,w,a,c)=>{
+  const R=w*.29;
+  g.save(); g.shadowBlur=w*.09*(.5+a); g.shadowColor=rgb(c,.9);
+  g.beginPath();
+  for(let i=0;i<=220;i++){
+    const an=i/220*Math.PI*2;
+    const v=Math.sin(an*6+t*3)*.6+Math.sin(an*11-t*2.2)*.25+Math.sin(an*3+t*.9)*.5;
+    const r=R*(1+v*a*.22);
+    const x=Math.cos(an)*r,y=Math.sin(an)*r; i?g.lineTo(x,y):g.moveTo(x,y);
+  }
+  g.closePath(); g.strokeStyle=rgb(c,.9); g.lineWidth=w*.014*(1+a*.6); g.stroke(); g.stroke();
+  g.restore();
+  const grd=g.createRadialGradient(0,0,R*.3,0,0,R*1.6);
+  grd.addColorStop(0,rgb(c,.13+a*.18)); grd.addColorStop(1,rgb(c,0));
+  g.beginPath(); g.arc(0,0,R*1.6,0,7); g.fillStyle=grd; g.fill();
+});
+
+// 26 — three halos, drifting apart
+panel('halo trio', (g,w,a,c)=>{
+  g.save(); g.shadowBlur=w*.07; 
+  for(let k=0;k<3;k++){
+    const R=w*(.20+k*.055)*(1+a*.10*Math.sin(t*2-k));
+    const off=w*.02*a*Math.sin(t*1.3+k*2);
+    g.shadowColor=rgb(k===1?[1,.24,.54]:c,.8);
+    g.beginPath(); g.arc(off,off*.7,R,0,7);
+    g.strokeStyle=rgb(k===1?[1,.24,.54]:c,.75-k*.14);
+    g.lineWidth=w*.010*(1+a*.8); g.stroke();
+  }
+  g.restore();
+});
+
+// 27 — lissajous with a fading trail
+panel('ribbon trail', (g,w,a,c)=>{
+  const R=w*.32, N=260;
+  for(let i=0;i<N;i++){
+    const u=i/N*Math.PI*2, tr=t*.6;
+    const x=Math.sin(u*2+tr)*R*(.55+a*.5), y=Math.sin(u*3+tr*1.3)*R*(.55+a*.5);
+    g.beginPath(); g.arc(x,y,w*.010*(1-i/N)+w*.002,0,7);
+    g.fillStyle=rgb(c,(1-i/N)*(.25+a*.7)); g.fill();
+  }
+});
+
+// 28 — lissajous, turning in space
+panel('ribbon 3d', (g,w,a,c)=>{
+  const R=w*.30, rot=t*.4;
+  for(let k=0;k<3;k++){
+    g.beginPath();
+    for(let i=0;i<=260;i++){
+      const u=i/260*Math.PI*2;
+      let x=Math.sin(u*3+k)*R*(.6+a*.45), y=Math.sin(u*2+t*.5)*R*(.6+a*.45), z=Math.cos(u*3+k)*R*.5;
+      const X=x*Math.cos(rot)-z*Math.sin(rot);
+      const sc=1/(1.6-(x*Math.sin(rot)+z*Math.cos(rot))/(R*2.4));
+      i?g.lineTo(X*sc,y*sc):g.moveTo(X*sc,y*sc);
+    }
+    g.strokeStyle=rgb(k===1?[1,.24,.54]:c,.5-k*.12); g.lineWidth=w*.006; g.stroke();
+  }
+});
+
+// 29 — polar wave, filled
+panel('wave filled', (g,w,a,c)=>{
+  const R=w*.28;
+  g.beginPath();
+  for(let i=0;i<=240;i++){
+    const an=i/240*Math.PI*2;
+    const v=Math.sin(an*5+t*3.2)*.5+Math.sin(an*9-t*2)*.3+Math.sin(an*2+t)*.6;
+    const r=R*(1+v*a*.3);
+    const x=Math.cos(an)*r,y=Math.sin(an)*r; i?g.lineTo(x,y):g.moveTo(x,y);
+  }
+  g.closePath();
+  const grd=g.createRadialGradient(0,0,R*.2,0,0,R*1.35);
+  grd.addColorStop(0,rgb(c,.55)); grd.addColorStop(.7,rgb(c,.16)); grd.addColorStop(1,rgb(c,.02));
+  g.fillStyle=grd; g.fill();
+  g.strokeStyle=rgb(c,.85); g.lineWidth=w*.005; g.stroke();
+});
+
+// 30 — two voices, one ring
+panel('two voices', (g,w,a,c)=>{
+  const R=w*.28;
+  for(const [col,ph,mul] of [[c,0,1],[[1,.24,.54],Math.PI,.75]]){
+    g.beginPath();
+    for(let i=0;i<=240;i++){
+      const an=i/240*Math.PI*2;
+      const v=Math.sin(an*7+t*3+ph)*Math.sin(an*2-t*.8+ph);
+      const r=R*mul+v*a*w*.13;
+      const x=Math.cos(an)*r,y=Math.sin(an)*r; i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.closePath(); g.strokeStyle=rgb(col,.8); g.lineWidth=w*.006; g.stroke();
+  }
+});
+
+// 31 — plasma inside a lit ring
+panel('plasma orb', (g,w,a,c)=>{
+  const R=w*.32, step=Math.max(3,Math.round(w/70));
+  g.save(); g.beginPath(); g.arc(0,0,R,0,7); g.clip();
+  for(let y=-R;y<R;y+=step) for(let x=-R;x<R;x+=step){
+    const v=Math.sin(x*.05+t*1.6)+Math.sin(y*.05-t*1.2)+Math.sin((x+y)*.03+t)+Math.sin(Math.hypot(x,y)*.06-t*2);
+    const o=Math.max(0,(v/4+.5))*(1-Math.hypot(x,y)/R)*(.4+a*1.1);
+    g.fillStyle=rgb(c,o); g.fillRect(x,y,step,step);
+  }
+  g.restore();
+  g.save(); g.shadowBlur=w*.06; g.shadowColor=rgb(c,.9);
+  g.beginPath(); g.arc(0,0,R,0,7); g.strokeStyle=rgb(c,.75); g.lineWidth=w*.008; g.stroke(); g.restore();
+});
+
+// 32 — the field, as contour lines
+panel('field lines', (g,w,a,c)=>{
+  const R=w*.34, step=w*.018;
+  for(let lv=0;lv<6;lv++){
+    g.beginPath();
+    for(let y=-R;y<R;y+=step){
+      let on=false;
+      for(let x=-R;x<R;x+=step){
+        const d=Math.hypot(x,y); if(d>R){on=false;continue;}
+        const v=Math.sin(x*.045+t*1.3)+Math.sin(y*.05-t)+Math.sin(d*.05-t*1.8);
+        const hit=Math.abs(((v+3)/6)*6-lv)<.12;
+        if(hit){ on?g.lineTo(x,y):g.moveTo(x,y); on=true; } else on=false;
+      }
+    }
+    g.strokeStyle=rgb(c,.12+.5*(1-lv/6)*(.3+a)); g.lineWidth=1; g.stroke();
+  }
+});
+
+// 33 — ribbons crossing a disc
+panel('ribbons', (g,w,a,c)=>{
+  const R=w*.33;
+  g.save(); g.beginPath(); g.arc(0,0,R,0,7); g.clip();
+  for(let k=0;k<7;k++){
+    g.beginPath();
+    for(let i=0;i<=80;i++){
+      const x=-R+i/80*R*2;
+      const y=Math.sin(x*.02+t*1.4+k*.8)*R*.35*(.3+a*1.4)+ (k-3)*R*.16;
+      i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.strokeStyle=rgb(k%3===0?[1,.24,.54]:c,.18+.45*a+.12); g.lineWidth=w*.012; g.stroke();
+  }
+  g.restore();
+});
+
+// 34 — an orb with a turbulent edge
+panel('turbulent orb', (g,w,a,c)=>{
+  const R=w*.27;
+  g.save(); g.shadowBlur=w*.10*(.4+a); g.shadowColor=rgb(c,.85);
+  g.beginPath();
+  for(let i=0;i<=200;i++){
+    const an=i/200*Math.PI*2;
+    const n=Math.sin(an*4+t*1.7)*.4+Math.sin(an*8-t*2.6)*.22+Math.sin(an*13+t*3.4)*.12;
+    const r=R*(1+n*a*.5);
+    const x=Math.cos(an)*r,y=Math.sin(an)*r; i?g.lineTo(x,y):g.moveTo(x,y);
+  }
+  g.closePath();
+  const grd=g.createRadialGradient(0,0,0,0,0,R*1.2);
+  grd.addColorStop(0,rgb(c,.5)); grd.addColorStop(1,rgb(c,.06));
+  g.fillStyle=grd; g.fill(); g.strokeStyle=rgb(c,.9); g.lineWidth=w*.005; g.stroke();
+  g.restore();
+});
+
+// 35 — spirograph
+panel('spirograph', (g,w,a,c)=>{
+  const R=w*.30, k=.62+a*.22;
+  for(let s=0;s<2;s++){
+    g.beginPath();
+    for(let i=0;i<=600;i++){
+      const u=i/600*Math.PI*12;
+      const r=R*(1-k), x=r*Math.cos(u+t*.3+s)+R*k*Math.cos(u*(1-k)/k), 
+            y=r*Math.sin(u+t*.3+s)-R*k*Math.sin(u*(1-k)/k);
+      i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.strokeStyle=rgb(s?[1,.24,.54]:c,.35); g.lineWidth=.9; g.stroke();
+  }
+});
+
+// 36 — rose curve
+panel('rose', (g,w,a,c)=>{
+  const R=w*.32;
+  for(let s=0;s<3;s++){
+    const n=3+s;
+    g.beginPath();
+    for(let i=0;i<=400;i++){
+      const u=i/400*Math.PI*2;
+      const r=R*Math.cos(n*u+t*(.4+s*.2))*(.55+a*.5);
+      const x=Math.cos(u)*r,y=Math.sin(u)*r; i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.strokeStyle=rgb(s===1?[1,.24,.54]:c,.5-s*.12); g.lineWidth=w*.005; g.stroke();
+  }
+});
+
+// 37 — smoke in a bowl
+panel('smoke', (g,w,a,c)=>{
+  const R=w*.33;
+  for(let i=0;i<130;i++){
+    const s=Math.abs(Math.sin(i*77.7))%1;
+    const an=s*7+t*(.15+s*.25);
+    const rr=R*(.2+s*.8);
+    const x=Math.cos(an)*rr+Math.sin(t*1.5+s*9)*w*.05*a;
+    const y=Math.sin(an)*rr+Math.cos(t*1.2+s*7)*w*.05*a;
+    const grd=g.createRadialGradient(x,y,0,x,y,w*.05);
+    grd.addColorStop(0,rgb(c,.10+a*.18)); grd.addColorStop(1,rgb(c,0));
+    g.beginPath(); g.arc(x,y,w*.05,0,7); g.fillStyle=grd; g.fill();
+  }
+});
+
+// 38 — interference
+panel('interference', (g,w,a,c)=>{
+  const R=w*.34, step=Math.max(3,Math.round(w/70));
+  const d=w*.12*(1+a);
+  g.save(); g.beginPath(); g.arc(0,0,R,0,7); g.clip();
+  for(let y=-R;y<R;y+=step) for(let x=-R;x<R;x+=step){
+    const v=Math.sin(Math.hypot(x-d,y)*.16-t*3)+Math.sin(Math.hypot(x+d,y)*.16-t*3);
+    g.fillStyle=rgb(c,Math.max(0,v/2)*(.3+a*.8)*.8); g.fillRect(x,y,step,step);
+  }
+  g.restore();
+});
+
+// 39 — coiled band
+panel('coil', (g,w,a,c)=>{
+  const R=w*.30;
+  for(let e=0;e<2;e++){
+    g.beginPath();
+    for(let i=0;i<=240;i++){
+      const an=i/240*Math.PI*2;
+      const band=w*.035*(1+a*1.6)*(e?-1:1);
+      const r=R+Math.sin(an*5+t*2.4)*w*.045*(.3+a)+band;
+      const x=Math.cos(an)*r,y=Math.sin(an)*r*.9; i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.closePath(); g.strokeStyle=rgb(c,.55); g.lineWidth=1.2; g.stroke();
+  }
+  g.beginPath();
+  for(let i=0;i<=240;i++){
+    const an=i/240*Math.PI*2;
+    const r=R+Math.sin(an*5+t*2.4)*w*.045*(.3+a);
+    const x=Math.cos(an)*r,y=Math.sin(an)*r*.9; i?g.lineTo(x,y):g.moveTo(x,y);
+  }
+  g.closePath(); g.strokeStyle=rgb(c,.16); g.lineWidth=w*.07*(1+a); g.stroke();
+});
+
+// 40 — aurora
+panel('aurora', (g,w,a,c)=>{
+  const R=w*.34;
+  g.save(); g.beginPath(); g.arc(0,0,R,0,7); g.clip();
+  g.globalCompositeOperation='screen';
+  for(let k=0;k<5;k++){
+    g.beginPath();
+    const base=(k-2)*R*.22;
+    g.moveTo(-R,R);
+    for(let i=0;i<=60;i++){
+      const x=-R+i/60*R*2;
+      const y=base+Math.sin(x*.018+t*1.1+k)*R*.22*(.3+a*1.2);
+      g.lineTo(x,y);
+    }
+    g.lineTo(R,R); g.closePath();
+    const grd=g.createLinearGradient(0,base-R*.3,0,base+R*.5);
+    const col=k%2?c:[1,.24,.54];
+    grd.addColorStop(0,rgb(col,0)); grd.addColorStop(.35,rgb(col,.16+a*.2)); grd.addColorStop(1,rgb(col,0));
+    g.fillStyle=grd; g.fill();
+  }
+  g.restore();
+});
+
+// ---- a face, made of the shapes he picked ---------------------------------
+// Openness of the eyes: a slow blink everyone has, plus what the state does
+// to them -- wide when he is talking to her, narrow while she thinks.
+function lid(){
+  const b=Math.abs(Math.sin(t*.55+1.2));
+  const blink = b>.985 ? 0 : (b>.965 ? .35 : 1);
+  const by={idle:.78,listening:1.12,thinking:.55,speaking:.95}[phase];
+  return blink*by;
+}
+const MAG=[1,.24,.54];
+
+// 41 — two ribbon eyes and a ribbon mouth
+panel('ribbon face', (g,w,a,c)=>{
+  const E=w*.13, open=lid();
+  for(const sx of [-1,1]){
+    g.save(); g.translate(sx*w*.17,-w*.09); g.scale(1,open);
+    for(let k=0;k<5;k++){
+      g.beginPath();
+      for(let i=0;i<=60;i++){
+        const x=-E+i/60*E*2;
+        const y=Math.sin(x*.05+t*1.6+k*.7)*E*.45*(.3+a*1.2)+(k-2)*E*.16;
+        i?g.lineTo(x,y):g.moveTo(x,y);
+      }
+      g.strokeStyle=rgb(c,.25+.5*a+.15); g.lineWidth=w*.009; g.stroke();
+    }
+    g.restore();
+  }
+  g.save(); g.translate(0,w*.17);
+  for(let k=0;k<4;k++){
+    g.beginPath();
+    for(let i=0;i<=80;i++){
+      const x=-w*.19+i/80*w*.38;
+      const y=Math.sin(x*.045+t*3.2+k)*w*.05*(.15+a*1.5)+(k-1.5)*w*.012;
+      i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.strokeStyle=rgb(MAG,.3+.5*a); g.lineWidth=w*.010; g.stroke();
+  }
+  g.restore();
+});
+
+// 42 — halo face: her outline is the ring, her mouth is the wave
+panel('halo face', (g,w,a,c)=>{
+  const R=w*.30, open=lid();
+  g.save(); g.shadowBlur=w*.08*(.5+a); g.shadowColor=rgb(c,.9);
+  g.beginPath();
+  for(let i=0;i<=220;i++){
+    const an=i/220*Math.PI*2;
+    const v=Math.sin(an*6+t*3)*.5+Math.sin(an*3+t*.9)*.5;
+    const r=R*(1+v*a*.18);
+    const x=Math.cos(an)*r,y=Math.sin(an)*r; i?g.lineTo(x,y):g.moveTo(x,y);
+  }
+  g.closePath(); g.strokeStyle=rgb(c,.85); g.lineWidth=w*.012; g.stroke(); g.restore();
+  for(const sx of [-1,1]){
+    g.save(); g.translate(sx*w*.10,-w*.05); g.scale(1,open);
+    g.beginPath(); g.ellipse(0,0,w*.022,w*.030,0,0,7);
+    g.fillStyle=rgb(c,.9); g.fill(); g.restore();
+  }
+  g.save(); g.translate(0,w*.11); g.beginPath();
+  for(let i=0;i<=70;i++){
+    const x=-w*.10+i/70*w*.20;
+    const y=Math.sin(x*.08+t*4)*w*.035*(.1+a*1.6);
+    i?g.lineTo(x,y):g.moveTo(x,y);
+  }
+  g.strokeStyle=rgb(MAG,.85); g.lineWidth=w*.010; g.lineCap='round'; g.stroke(); g.restore();
+});
+
+// 43 — three trails: two eyes, one mouth
+panel('trail face', (g,w,a,c)=>{
+  const open=lid();
+  const trail=(cx,cy,sx,sy,fx,fy,col)=>{
+    for(let i=0;i<120;i++){
+      const u=i/120*Math.PI*2, tr=t*.8;
+      const x=cx+Math.sin(u*fx+tr)*sx, y=cy+Math.sin(u*fy+tr*1.2)*sy;
+      g.beginPath(); g.arc(x,y,w*.007*(1-i/120)+w*.0015,0,7);
+      g.fillStyle=rgb(col,(1-i/120)*(.3+a*.8)); g.fill();
+    }
+  };
+  const E=w*.075*(.5+a*.6);
+  trail(-w*.16,-w*.07,E,E*open,2,3,c);
+  trail( w*.16,-w*.07,E,E*open,2,3,c);
+  trail(0,w*.16,w*.16*(.6+a*.6),w*.035*(.2+a*1.4),1,2,MAG);
+});
+
+// 44 — turning ribbons as eyes
+panel('turning eyes', (g,w,a,c)=>{
+  const open=lid(), rot=t*.5;
+  for(const sx of [-1,1]){
+    g.save(); g.translate(sx*w*.16,-w*.06); g.scale(1,open);
+    for(let k=0;k<2;k++){
+      g.beginPath();
+      for(let i=0;i<=200;i++){
+        const u=i/200*Math.PI*2, R=w*.10*(.7+a*.6);
+        let x=Math.sin(u*3+k)*R, y=Math.sin(u*2+t*.6)*R, z=Math.cos(u*3+k)*R*.6;
+        const X=x*Math.cos(rot*sx)-z*Math.sin(rot*sx);
+        const sc=1/(1.5-(x*Math.sin(rot)+z*Math.cos(rot))/(R*3));
+        i?g.lineTo(X*sc,y*sc):g.moveTo(X*sc,y*sc);
+      }
+      g.strokeStyle=rgb(k?MAG:c,.55-k*.2); g.lineWidth=w*.005; g.stroke();
+    }
+    g.restore();
+  }
+  g.beginPath();
+  for(let i=0;i<=80;i++){
+    const x=-w*.15+i/80*w*.30;
+    const y=w*.18+Math.sin(x*.06+t*3.6)*w*.04*(.12+a*1.5);
+    i?g.lineTo(x,y):g.moveTo(x,y);
+  }
+  g.strokeStyle=rgb(c,.7); g.lineWidth=w*.009; g.stroke();
+});
+
+// 45 — a face of horizontal ribbons, eyes cut out of them
+panel('ribbon mask', (g,w,a,c)=>{
+  const R=w*.34, open=lid();
+  g.save(); g.beginPath(); g.arc(0,0,R,0,7); g.clip();
+  for(let k=0;k<11;k++){
+    g.beginPath();
+    for(let i=0;i<=70;i++){
+      const x=-R+i/70*R*2;
+      const y=(k-5)*R*.17+Math.sin(x*.025+t*1.3+k*.5)*R*.10*(.25+a*1.3);
+      i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.strokeStyle=rgb(k===8?MAG:c,.16+.4*a+.12); g.lineWidth=w*.014; g.stroke();
+  }
+  g.globalCompositeOperation='destination-out';
+  for(const sx of [-1,1]){
+    g.beginPath(); g.ellipse(sx*w*.13,-w*.06,w*.055,w*.055*open+w*.004,0,0,7);
+    g.fillStyle='#000'; g.fill();
+  }
+  g.globalCompositeOperation='source-over';
+  for(const sx of [-1,1]){
+    g.beginPath(); g.ellipse(sx*w*.13,-w*.06,w*.055,w*.055*open+w*.004,0,0,7);
+    g.strokeStyle=rgb(c,.5); g.lineWidth=1.2; g.stroke();
+  }
+  g.restore();
+});
+
+// 46 — eyes that are halos
+panel('halo eyes', (g,w,a,c)=>{
+  const open=lid();
+  g.save(); g.shadowBlur=w*.06*(.5+a); g.shadowColor=rgb(c,.9);
+  for(const sx of [-1,1]){
+    g.save(); g.translate(sx*w*.16,-w*.05); g.scale(1,Math.max(.08,open));
+    g.beginPath();
+    for(let i=0;i<=140;i++){
+      const an=i/140*Math.PI*2, R=w*.085;
+      const r=R*(1+Math.sin(an*5+t*3+sx)*a*.25);
+      const x=Math.cos(an)*r,y=Math.sin(an)*r; i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.closePath(); g.strokeStyle=rgb(c,.9); g.lineWidth=w*.008; g.stroke();
+    g.beginPath(); g.arc(Math.sin(t*.7)*w*.02,0,w*.022*(1+a*.4),0,7);
+    g.fillStyle=rgb(c,.85); g.fill();
+    g.restore();
+  }
+  g.restore();
+  g.beginPath();
+  for(let i=0;i<=70;i++){
+    const x=-w*.12+i/70*w*.24, y=w*.17+Math.sin(x*.07+t*4)*w*.03*(.1+a*1.7);
+    i?g.lineTo(x,y):g.moveTo(x,y);
+  }
+  g.strokeStyle=rgb(MAG,.8); g.lineWidth=w*.009; g.lineCap='round'; g.stroke();
+});
+
+// 47 — a figure of eight: two eyes in one stroke
+panel('figure eight', (g,w,a,c)=>{
+  const R=w*.15*(1+a*.35), open=lid();
+  for(let k=0;k<3;k++){
+    g.beginPath();
+    for(let i=0;i<=300;i++){
+      const u=i/300*Math.PI*2;
+      const x=Math.sin(u)*R*2.0, y=Math.sin(u*2+t*.6+k*.4)*R*.55*open;
+      i?g.lineTo(x,y-w*.04):g.moveTo(x,y-w*.04);
+    }
+    g.strokeStyle=rgb(k===1?MAG:c,.6-k*.16); g.lineWidth=w*.007; g.stroke();
+  }
+  g.beginPath();
+  for(let i=0;i<=70;i++){
+    const x=-w*.13+i/70*w*.26, y=w*.19+Math.sin(x*.06+t*3.4)*w*.035*(.1+a*1.6);
+    i?g.lineTo(x,y):g.moveTo(x,y);
+  }
+  g.strokeStyle=rgb(c,.55); g.lineWidth=w*.008; g.stroke();
+});
+
+// 48 — brows, eyes, smile: the least of a face that still reads
+panel('minimal face', (g,w,a,c)=>{
+  const open=lid();
+  for(const sx of [-1,1]){
+    g.save(); g.shadowBlur=w*.05; g.shadowColor=rgb(c,.8);
+    g.beginPath();
+    g.ellipse(sx*w*.15,-w*.06,w*.026,w*.038*open+w*.003,0,0,7);
+    g.fillStyle=rgb(c,.92); g.fill(); g.restore();
+    const brow=-w*.14+({thinking:w*.02,listening:-w*.015}[phase]||0);
+    g.beginPath(); g.moveTo(sx*w*.08,brow); g.lineTo(sx*w*.22,brow-sx*0+(phase==='thinking'?w*.012:-w*.008));
+    g.strokeStyle=rgb(c,.4); g.lineWidth=w*.008; g.lineCap='round'; g.stroke();
+  }
+  g.beginPath();
+  const amp2=w*.05*(.12+a*1.4);
+  for(let i=0;i<=80;i++){
+    const x=-w*.16+i/80*w*.32;
+    const y=w*.15+Math.sin(x*.05+t*3.8)*amp2+Math.cos(x*.02)*w*.01;
+    i?g.lineTo(x,y):g.moveTo(x,y);
+  }
+  g.strokeStyle=rgb(MAG,.9); g.lineWidth=w*.011; g.lineCap='round'; g.stroke();
+});
+
+// 49 — one eye, made of ribbons
+panel('one eye', (g,w,a,c)=>{
+  const open=Math.max(.12,lid());
+  g.save(); g.beginPath();
+  g.moveTo(-w*.30,0); g.quadraticCurveTo(0,-w*.22*open,w*.30,0);
+  g.quadraticCurveTo(0,w*.22*open,-w*.30,0); g.closePath();
+  g.strokeStyle=rgb(c,.8); g.lineWidth=w*.008; g.stroke(); g.clip();
+  for(let k=0;k<9;k++){
+    g.beginPath();
+    for(let i=0;i<=70;i++){
+      const x=-w*.30+i/70*w*.60;
+      const y=(k-4)*w*.035+Math.sin(x*.03+t*1.5+k*.6)*w*.03*(.2+a*1.4);
+      i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.strokeStyle=rgb(k===4?MAG:c,.2+.45*a+.1); g.lineWidth=w*.011; g.stroke();
+  }
+  g.restore();
+  g.beginPath(); g.arc(Math.sin(t*.6)*w*.05,0,w*.055*(1+a*.2),0,7);
+  g.strokeStyle=rgb(c,.75); g.lineWidth=w*.006; g.stroke();
+  g.beginPath(); g.arc(Math.sin(t*.6)*w*.05,0,w*.022*(1+a*.5),0,7);
+  g.fillStyle=rgb(c,.9); g.fill();
+});
+
+// 50 — a mouth that is the wave, eyes that are two short waves
+panel('three waves', (g,w,a,c)=>{
+  const open=lid();
+  const wave=(cy,halfW,amp3,freq,col,lw)=>{
+    g.beginPath();
+    for(let i=0;i<=80;i++){
+      const x=-halfW+i/80*halfW*2;
+      const y=cy+Math.sin(x*freq+t*3)*amp3;
+      i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.strokeStyle=rgb(col,.85); g.lineWidth=lw; g.lineCap='round'; g.stroke();
+  };
+  wave(-w*.07-w*.02, w*.08, w*.022*open*(.3+a), .12, c, w*.010);
+  g.save(); g.translate(w*.32,0);
+  wave(-w*.07-w*.02, w*.08, w*.022*open*(.3+a), .12, c, w*.010);
+  g.restore();
+  g.save(); g.translate(-w*.16,0);
+  wave(w*.16, w*.20, w*.05*(.1+a*1.5), .05, MAG, w*.012);
+  g.restore();
+});
+
+// 51 — she looks at him: a ring with a moving pupil
+panel('watcher', (g,w,a,c)=>{
+  const R=w*.30, open=lid();
+  g.save(); g.shadowBlur=w*.07*(.4+a); g.shadowColor=rgb(c,.8);
+  g.beginPath();
+  for(let i=0;i<=200;i++){
+    const an=i/200*Math.PI*2;
+    const r=R*(1+Math.sin(an*7+t*2.6)*a*.16);
+    const x=Math.cos(an)*r,y=Math.sin(an)*r; i?g.lineTo(x,y):g.moveTo(x,y);
+  }
+  g.closePath(); g.strokeStyle=rgb(c,.85); g.lineWidth=w*.011; g.stroke(); g.restore();
+  const px=Math.sin(t*.5)*R*.35, py=Math.cos(t*.37)*R*.22;
+  g.save(); g.translate(px,py); g.scale(1,Math.max(.1,open));
+  g.beginPath(); g.arc(0,0,R*.20*(1+a*.25),0,7); g.fillStyle=rgb(c,.16); g.fill();
+  g.beginPath(); g.arc(0,0,R*.10*(1+a*.4),0,7); g.fillStyle=rgb(MAG,.9); g.fill();
+  g.restore();
+});
+
+// 52 — ribbons that gather into a face and let go
+panel('gathering', (g,w,a,c)=>{
+  const R=w*.33, pull=({idle:.15,listening:.55,thinking:.35,speaking:.85})[phase];
+  g.save(); g.beginPath(); g.arc(0,0,R,0,7); g.clip();
+  for(let k=0;k<13;k++){
+    g.beginPath();
+    for(let i=0;i<=80;i++){
+      const x=-R+i/80*R*2;
+      const flat=(k-6)*R*.15;
+      const eyeL=-w*.14, eyeR=w*.14;
+      const near=Math.exp(-((x-eyeL)**2)/(w*w*.006))+Math.exp(-((x-eyeR)**2)/(w*w*.006));
+      const face=flat*(1-near*pull*.8)-(k>8?near*pull*w*.03:0);
+      const y=face+Math.sin(x*.03+t*1.4+k*.5)*R*.07*(.3+a);
+      i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.strokeStyle=rgb(k>9?MAG:c,.14+.4*a+.1); g.lineWidth=w*.012; g.stroke();
+  }
+  g.restore();
+});
+
+// ---- the android portrait: white ink, pale lilac, steel, one cool eye -----
+// Her state stops being the whole picture here and becomes an accent: a tint
+// in the hair and a light behind the eye. Near-monochrome is the point.
+const W_=[.95,.94,.96], LIL=[.91,.83,.93], STEEL=[.73,.76,.81], EYE=[.56,.70,.79];
+const mix=(x,y,k)=>x.map((v,i)=>v*(1-k)+y[i]*k);
+
+// 53 — hair: strands framing nothing, parting when she speaks
+panel('strands', (g,w,a,c)=>{
+  const part=({idle:.10,listening:.22,thinking:.14,speaking:.42})[phase];
+  for(let k=0;k<26;k++){
+    const s=k/25, sx=k%2?1:-1, seed=Math.abs(Math.sin(k*91.7))%1;
+    g.beginPath();
+    for(let i=0;i<=40;i++){
+      const u=i/40;
+      const spread=(w*.06+w*.26*seed)*(1+part*a*1.6);
+      const x=sx*(w*.05+spread*u) + Math.sin(u*3+t*1.1+k)*w*.02*(.3+a);
+      const y=-w*.34+u*w*.62 + Math.sin(u*2+t*.9+k*.7)*w*.02;
+      i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.strokeStyle=rgb(mix(W_,mix(LIL,c,.25),s*.9),.16+.5*(1-s)*(.5+a*.6));
+    g.lineWidth=w*.004+w*.003*(1-s); g.stroke();
+  }
+});
+
+// 54 — horns over a plated halo
+panel('horned halo', (g,w,a,c)=>{
+  const R=w*.27;
+  g.save(); g.shadowBlur=w*.05*(.3+a); g.shadowColor=rgb(c,.5);
+  for(let k=0;k<26;k++){                       // the ring, as armour segments
+    const an=k/26*Math.PI*2+t*.12, span=.19;
+    g.beginPath(); g.arc(0,0,R*(1+a*.06*Math.sin(t*3+k)),an,an+span);
+    g.strokeStyle=rgb(k%6===0?mix(STEEL,c,.5):W_,.25+.55*a+.2); g.lineWidth=w*.016; g.stroke();
+  }
+  g.restore();
+  for(const sx of [-1,1]){                     // two horns
+    g.beginPath();
+    g.moveTo(sx*R*.62,-R*.68);
+    g.quadraticCurveTo(sx*R*1.05,-R*1.45, sx*R*.74,-R*1.62);
+    g.quadraticCurveTo(sx*R*.80,-R*1.15, sx*R*.42,-R*.78);
+    g.closePath();
+    const grd=g.createLinearGradient(0,-R*1.6,0,-R*.6);
+    grd.addColorStop(0,rgb(STEEL,.85)); grd.addColorStop(1,rgb(STEEL,.25));
+    g.fillStyle=grd; g.fill();
+    g.strokeStyle=rgb(W_,.5); g.lineWidth=1; g.stroke();
+  }
+});
+
+// 55 — armour plate, breathing
+panel('plating', (g,w,a,c)=>{
+  const R=w*.32;
+  for(let ring=1;ring<=3;ring++){
+    const rr=R*ring/3, N=6+ring*4;
+    for(let k=0;k<N;k++){
+      const an=k/N*Math.PI*2+t*.1*(ring%2?1:-1), span=Math.PI*2/N*.72;
+      const push=w*.008*a*Math.sin(t*2.4+k+ring);
+      g.beginPath(); g.arc(0,0,rr+push,an,an+span);
+      g.strokeStyle=rgb(ring===2?mix(W_,c,.35):STEEL,.2+.5*(ring/3)*(.4+a));
+      g.lineWidth=w*.02*(1-ring*.15); g.stroke();
+      g.beginPath(); g.arc(Math.cos(an)*(rr+push),Math.sin(an)*(rr+push),w*.004,0,7);
+      g.fillStyle=rgb(W_,.35); g.fill();
+    }
+  }
+});
+
+// 56 — the eyes, in ink
+panel('ink eyes', (g,w,a,c)=>{
+  const open=Math.max(.06,lid());
+  for(const sx of [-1,1]){
+    g.save(); g.translate(sx*w*.155,-w*.02);
+    g.beginPath();                              // the lid line
+    g.moveTo(-w*.085,0);
+    g.quadraticCurveTo(0,-w*.075*open,w*.085,-w*.004);
+    g.quadraticCurveTo(0,w*.055*open,-w*.085,0);
+    g.closePath();
+    g.fillStyle=rgb(mix(EYE,c,.25),.30+a*.25); g.fill();
+    g.strokeStyle=rgb(W_,.8); g.lineWidth=w*.005; g.stroke();
+    g.save(); g.clip();                          // iris
+    const ix=Math.sin(t*.45)*w*.02;
+    g.beginPath(); g.arc(ix,0,w*.034,0,7); g.fillStyle=rgb(mix(EYE,c,.4),.85); g.fill();
+    g.beginPath(); g.arc(ix,0,w*.014*(1+a*.3),0,7); g.fillStyle='rgba(8,10,16,.9)'; g.fill();
+    g.beginPath(); g.arc(ix-w*.012,-w*.012,w*.007,0,7); g.fillStyle=rgb(W_,.95); g.fill();
+    g.restore();
+    for(let i=0;i<5;i++){                        // lashes
+      const u=-.7+i*.35, x=u*w*.075;
+      g.beginPath(); g.moveTo(x,-w*.055*open*(1-Math.abs(u)*.5));
+      g.lineTo(x+sx*w*.012,-w*.085*open*(1-Math.abs(u)*.4));
+      g.strokeStyle=rgb(W_,.5); g.lineWidth=w*.003; g.stroke();
+    }
+    const brow=-w*.115+(phase==='thinking'?w*.018:phase==='listening'?-w*.012:0);
+    g.beginPath(); g.moveTo(-w*.085,brow+w*.012); g.quadraticCurveTo(0,brow-w*.010,w*.085,brow+w*.004);
+    g.strokeStyle=rgb(W_,.42); g.lineWidth=w*.007; g.lineCap='round'; g.stroke();
+    g.restore();
+  }
+});
+
+// 57 — hair parts, she looks through
+panel('behind hair', (g,w,a,c)=>{
+  const open=lid(), part=({idle:.5,listening:.95,thinking:.65,speaking:1.15})[phase];
+  for(const sx of [-1,1]){                       // eyes first, hair over them
+    g.save(); g.translate(sx*w*.115,-w*.03); g.scale(1,Math.max(.08,open));
+    g.beginPath(); g.ellipse(0,0,w*.045,w*.045,0,0,7);
+    g.fillStyle=rgb(mix(EYE,c,.35),.75); g.fill();
+    g.beginPath(); g.arc(0,0,w*.016,0,7); g.fillStyle='rgba(6,8,14,.95)'; g.fill();
+    g.restore();
+  }
+  for(let k=0;k<22;k++){
+    const sx=k%2?1:-1, s=Math.abs(Math.sin(k*57.1))%1;
+    g.beginPath();
+    for(let i=0;i<=36;i++){
+      const u=i/36;
+      const x=sx*(w*.03+w*.30*s)*u*part + Math.sin(u*4+t*1.2+k)*w*.018*(.4+a);
+      const y=-w*.32+u*w*.60;
+      i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.strokeStyle=rgb(mix(W_,LIL,s),.2+.45*(1-s)); g.lineWidth=w*.005; g.stroke();
+  }
+});
+
+// 58 — her head, in contour only
+panel('contour head', (g,w,a,c)=>{
+  const R=w*.24;
+  for(let k=0;k<9;k++){
+    const off=k*w*.008;
+    g.beginPath();
+    for(let i=0;i<=160;i++){
+      const an=i/160*Math.PI*2;
+      const jaw=1-.28*Math.max(0,Math.sin(an-Math.PI/2))**1.6;   // narrower chin
+      const n=Math.sin(an*5+t*1.6+k*.3)*a*.12;
+      const r=(R+off)*jaw*(1+n);
+      const x=Math.cos(an)*r*.86, y=Math.sin(an)*r;
+      i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.closePath(); g.strokeStyle=rgb(mix(W_,c,k/12),.10+.42*(1-k/9)); g.lineWidth=1; g.stroke();
+  }
+  for(const sx of [-1,1]){
+    g.beginPath(); g.ellipse(sx*w*.075,-w*.03,w*.030,w*.020*Math.max(.1,lid()),0,0,7);
+    g.fillStyle=rgb(mix(EYE,c,.3),.8); g.fill();
+  }
+  g.beginPath();
+  for(let i=0;i<=50;i++){
+    const x=-w*.055+i/50*w*.11, y=w*.10+Math.sin(x*.12+t*3.6)*w*.014*(.15+a*1.4);
+    i?g.lineTo(x,y):g.moveTo(x,y);
+  }
+  g.strokeStyle=rgb(mix(LIL,MAG,.45),.75); g.lineWidth=w*.007; g.lineCap='round'; g.stroke();
+});
+
+// 59 — a visor of light across the eyes
+panel('visor', (g,w,a,c)=>{
+  const R=w*.30;
+  for(let k=0;k<20;k++){                          // plated crown
+    const an=Math.PI+k/20*Math.PI;
+    g.beginPath(); g.arc(0,0,R,an,an+.12);
+    g.strokeStyle=rgb(STEEL,.3+.3*a); g.lineWidth=w*.018; g.stroke();
+  }
+  g.save();
+  g.beginPath(); g.rect(-R,-w*.055,R*2,w*.085); g.clip();
+  const grd=g.createLinearGradient(-R,0,R,0);
+  grd.addColorStop(0,rgb(c,.05)); grd.addColorStop(.5,rgb(c,.55+a*.4)); grd.addColorStop(1,rgb(c,.05));
+  g.fillStyle=grd; g.fillRect(-R,-w*.055,R*2,w*.085);
+  for(let i=0;i<40;i++){                          // the read-out inside it
+    const x=-R+((i/40*R*2)+t*w*.10)%(R*2);
+    const h=w*.05*a*Math.abs(Math.sin(i*2.7+t*4))+w*.006;
+    g.fillStyle=rgb(W_,.55); g.fillRect(x,-h/2,w*.004,h);
+  }
+  g.restore();
+  g.beginPath(); g.rect(-R,-w*.055,R*2,w*.085);
+  g.strokeStyle=rgb(W_,.5); g.lineWidth=w*.004; g.stroke();
+  for(const sx of [-1,1]){                        // horns
+    g.beginPath(); g.moveTo(sx*R*.55,-R*.60);
+    g.quadraticCurveTo(sx*R*.95,-R*1.30, sx*R*.66,-R*1.45);
+    g.quadraticCurveTo(sx*R*.72,-R*1.05, sx*R*.38,-R*.68);
+    g.closePath(); g.fillStyle=rgb(STEEL,.55); g.fill();
+    g.strokeStyle=rgb(W_,.4); g.lineWidth=1; g.stroke();
+  }
+});
+
+// 60 — the chest lattice, as a mandala
+panel('lattice', (g,w,a,c)=>{
+  const R=w*.34;
+  for(let k=0;k<12;k++){
+    const an=k/12*Math.PI*2+t*.08;
+    g.save(); g.rotate(an);
+    g.beginPath();
+    g.moveTo(w*.04,0); g.lineTo(R*.55,-w*.03); g.lineTo(R*.92*(1+a*.08),0);
+    g.lineTo(R*.55,w*.03); g.closePath();
+    g.fillStyle=rgb(W_,.06+.10*a); g.fill();
+    g.strokeStyle=rgb(k%3===0?mix(W_,c,.5):STEEL,.35+.4*a); g.lineWidth=w*.004; g.stroke();
+    g.beginPath(); g.arc(R*.55,0,w*.010,0,7);
+    g.fillStyle=rgb(STEEL,.5); g.fill();
+    g.restore();
+  }
+  g.beginPath(); g.arc(0,0,w*.055*(1+a*.25),0,7);
+  g.fillStyle=rgb(mix(W_,c,.4),.5+a*.4); g.fill();
+  g.beginPath(); g.arc(0,0,w*.075,0,7); g.strokeStyle=rgb(W_,.45); g.lineWidth=w*.004; g.stroke();
+});
+
+// 61 — white ink, lilac at the ends
+panel('lilac mane', (g,w,a,c)=>{
+  for(let k=0;k<34;k++){
+    const seed=Math.abs(Math.sin(k*33.3))%1, sx=k<17?-1:1;
+    const len=w*.30+seed*w*.22;
+    g.beginPath();
+    let px=0,py=-w*.24;
+    for(let i=0;i<=44;i++){
+      const u=i/44;
+      const sway=Math.sin(u*3.2+t*(1.0+seed*.6)+k)*w*.035*(.25+a*1.1)*u;
+      const x=sx*(w*.04+len*u*(.55+seed*.5))+sway;
+      const y=-w*.26+u*len*1.25;
+      if(i){ g.lineTo(x,y); } else { g.moveTo(x,y); }
+      px=x;py=y;
+    }
+    const grd=g.createLinearGradient(0,-w*.26,0,w*.34);
+    grd.addColorStop(0,rgb(W_,.55)); grd.addColorStop(1,rgb(mix(LIL,c,.30),.10));
+    g.strokeStyle=grd; g.lineWidth=w*.0045; g.stroke();
+  }
+  for(const sx of [-1,1]){
+    g.beginPath(); g.ellipse(sx*w*.085,-w*.05,w*.026,w*.017*Math.max(.1,lid()),0,0,7);
+    g.fillStyle=rgb(mix(EYE,c,.3),.9); g.fill();
+  }
+});
+
+// 62 — a mask of plates, with her wave for a mouth
+panel('plated face', (g,w,a,c)=>{
+  const R=w*.30, open=lid();
+  g.beginPath();                                   // the face, an oval of plate
+  for(let i=0;i<=120;i++){
+    const an=i/120*Math.PI*2;
+    const jaw=1-.26*Math.max(0,Math.sin(an-Math.PI/2))**1.5;
+    const x=Math.cos(an)*R*.82*jaw, y=Math.sin(an)*R*jaw;
+    i?g.lineTo(x,y):g.moveTo(x,y);
+  }
+  g.closePath();
+  const grd=g.createLinearGradient(0,-R,0,R);
+  grd.addColorStop(0,rgb(W_,.16)); grd.addColorStop(1,rgb(STEEL,.05));
+  g.fillStyle=grd; g.fill(); g.strokeStyle=rgb(W_,.45); g.lineWidth=w*.004; g.stroke();
+  for(let k=0;k<4;k++){                            // panel seams
+    const y=-R*.55+k*R*.38;
+    g.beginPath(); g.moveTo(-R*.62,y); g.lineTo(R*.62,y);
+    g.strokeStyle=rgb(STEEL,.18); g.lineWidth=1; g.stroke();
+  }
+  for(const sx of [-1,1]){
+    g.save(); g.translate(sx*w*.10,-w*.04); g.scale(1,Math.max(.08,open));
+    g.beginPath(); g.ellipse(0,0,w*.040,w*.032,0,0,7);
+    g.fillStyle=rgb(mix(EYE,c,.35),.85); g.fill();
+    g.beginPath(); g.arc(Math.sin(t*.5)*w*.012,0,w*.013,0,7);
+    g.fillStyle='rgba(6,8,14,.92)'; g.fill(); g.restore();
+  }
+  g.beginPath();
+  for(let i=0;i<=60;i++){
+    const x=-w*.075+i/60*w*.15, y=w*.13+Math.sin(x*.10+t*4)*w*.018*(.12+a*1.5);
+    i?g.lineTo(x,y):g.moveTo(x,y);
+  }
+  g.strokeStyle=rgb(mix(LIL,MAG,.5),.85); g.lineWidth=w*.008; g.lineCap='round'; g.stroke();
+});
+
+// ---- spheres, in the dashboard's skin -------------------------------------
+// lain's own look: cyan and magenta on void, a hard bloom, scanlines over
+// everything and a dark vignette at the edge (skin.css).
+function project(x,y,z,ry,rx,w){
+  let X=x*Math.cos(ry)-z*Math.sin(ry), Z=x*Math.sin(ry)+z*Math.cos(ry);
+  let Y=y*Math.cos(rx)-Z*Math.sin(rx); Z=y*Math.sin(rx)+Z*Math.cos(rx);
+  const f=1/(1.9-Z/(w*.9));
+  return [X*f, Y*f, Z];
+}
+function scan(g,w,c,a){
+  g.save();
+  const grd=g.createRadialGradient(0,0,w*.18,0,0,w*.52);
+  grd.addColorStop(0,'rgba(0,0,0,0)'); grd.addColorStop(1,'rgba(3,2,8,.85)');
+  g.beginPath(); g.rect(-w/2,-w/2,w,w); g.fillStyle=grd; g.fill();
+  g.fillStyle='rgba(0,0,0,.20)';
+  for(let y=-w/2;y<w/2;y+=3) g.fillRect(-w/2,y,w,1);
+  g.restore();
+}
+
+// 63 — halo sphere: lit rings around a globe
+panel('halo sphere', (g,w,a,c)=>{
+  const R=w*.30, ry=t*.5, rx=Math.sin(t*.3)*.35;
+  g.save(); g.shadowBlur=w*.05*(.4+a); g.shadowColor=rgb(c,.9);
+  for(let k=0;k<9;k++){
+    const lat=(k/8-.5)*Math.PI*.92, cr=Math.cos(lat)*R, cy=Math.sin(lat)*R;
+    g.beginPath();
+    for(let i=0;i<=90;i++){
+      const lon=i/90*Math.PI*2;
+      const wob=1+a*.14*Math.sin(lon*4+t*3+k);
+      const [x,y,z]=project(Math.cos(lon)*cr*wob, cy*wob, Math.sin(lon)*cr*wob, ry, rx, R);
+      i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.closePath();
+    g.strokeStyle=rgb(k===4?MAG:c,.25+.55*(1-Math.abs(k-4)/5)); g.lineWidth=w*.006; g.stroke();
+  }
+  for(let k=0;k<12;k++){                          // meridians, fainter
+    const lon=k/12*Math.PI*2;
+    g.beginPath();
+    for(let i=0;i<=60;i++){
+      const lat=(i/60-.5)*Math.PI;
+      const [x,y]=project(Math.cos(lon)*Math.cos(lat)*R, Math.sin(lat)*R,
+                          Math.sin(lon)*Math.cos(lat)*R, ry, rx, R);
+      i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.strokeStyle=rgb(c,.10); g.lineWidth=1; g.stroke();
+  }
+  g.restore();
+  scan(g,w,c,a);
+});
+
+// 64 — bubble sphere: glass shells around one core
+panel('bubble sphere', (g,w,a,c)=>{
+  const R=w*.26;
+  g.globalCompositeOperation='screen';
+  for(let i=0;i<5;i++){
+    const an=t*.45+i*1.25, off=R*(.10+a*.30);
+    const x=Math.cos(an)*off, y=Math.sin(an*1.2)*off*.7;
+    const hue=i%2?c:MAG, rr=R*(.85+.12*Math.sin(t+i));
+    const grd=g.createRadialGradient(x-rr*.3,y-rr*.35,rr*.05,x,y,rr);
+    grd.addColorStop(0,rgb(hue,.30+a*.25));       // the specular, top-left
+    grd.addColorStop(.55,rgb(hue,.06));
+    grd.addColorStop(.92,rgb(hue,.26+a*.3));      // the rim
+    grd.addColorStop(1,rgb(hue,0));
+    g.beginPath(); g.arc(x,y,rr,0,7); g.fillStyle=grd; g.fill();
+  }
+  g.globalCompositeOperation='source-over';
+  scan(g,w,c,a);
+});
+
+// 65 — groove sphere: a record wrapped around a globe
+panel('groove sphere', (g,w,a,c)=>{
+  const R=w*.30, ry=t*.35, rx=.30+Math.sin(t*.25)*.2;
+  for(let k=0;k<26;k++){
+    const lat=(k/25-.5)*Math.PI*.96, cr=Math.cos(lat)*R, cy=Math.sin(lat)*R;
+    g.beginPath();
+    let lit=0;
+    for(let i=0;i<=100;i++){
+      const lon=i/100*Math.PI*2;
+      const d=1+Math.sin(lon*3+t*2+k*.35)*a*.10;
+      const [x,y,z]=project(Math.cos(lon)*cr*d, cy*d, Math.sin(lon)*cr*d, ry, rx, R);
+      lit=(z/R+1)/2;
+      i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.closePath();
+    g.strokeStyle=rgb(k%7===0?MAG:c,.08+.45*(.3+a)*(1-Math.abs(k-12.5)/16));
+    g.lineWidth=w*.004; g.stroke();
+  }
+  scan(g,w,c,a);
+});
+
+// 66 — trail sphere: a light running over the surface
+panel('trail sphere', (g,w,a,c)=>{
+  const R=w*.29, ry=t*.4, rx=.25;
+  for(let k=0;k<10;k++){                           // the cage it runs on
+    const lon=k/10*Math.PI*2;
+    g.beginPath();
+    for(let i=0;i<=50;i++){
+      const lat=(i/50-.5)*Math.PI;
+      const [x,y]=project(Math.cos(lon)*Math.cos(lat)*R, Math.sin(lat)*R,
+                          Math.sin(lon)*Math.cos(lat)*R, ry, rx, R);
+      i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.strokeStyle=rgb(c,.07); g.lineWidth=1; g.stroke();
+  }
+  const N=150;
+  for(let i=0;i<N;i++){
+    const u=t*1.1-i*.012;
+    const lat=Math.sin(u*.9)*1.25, lon=u*2.1;
+    const rr=R*(1+a*.10*Math.sin(u*4));
+    const [x,y,z]=project(Math.cos(lon)*Math.cos(lat)*rr, Math.sin(lat)*rr,
+                          Math.sin(lon)*Math.cos(lat)*rr, ry, rx, R);
+    const front=(z/R+1)/2, fade=1-i/N;
+    g.beginPath(); g.arc(x,y,w*.009*fade+w*.002,0,7);
+    g.fillStyle=rgb(i<12?MAG:c,fade*(.15+.75*front)*(.4+a)); g.fill();
+  }
+  scan(g,w,c,a);
+});
+
+// 67 — ribbon sphere: the lissajous, wrapped on a shell
+panel('ribbon sphere', (g,w,a,c)=>{
+  const R=w*.29, ry=t*.45, rx=Math.sin(t*.22)*.4;
+  for(let s=0;s<3;s++){
+    g.beginPath();
+    for(let i=0;i<=420;i++){
+      const u=i/420*Math.PI*2;
+      const lat=Math.sin(u*(2+s))*1.2, lon=u*3+s*2.1+t*.2;
+      const rr=R*(.92+a*.16*Math.sin(u*6+t*3));
+      const [x,y]=project(Math.cos(lon)*Math.cos(lat)*rr, Math.sin(lat)*rr,
+                          Math.sin(lon)*Math.cos(lat)*rr, ry, rx, R);
+      i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.save(); g.shadowBlur=w*.04; g.shadowColor=rgb(s===1?MAG:c,.8);
+    g.strokeStyle=rgb(s===1?MAG:c,.55-s*.12); g.lineWidth=w*.005; g.stroke(); g.restore();
+  }
+  g.beginPath(); g.arc(0,0,R*.16*(1+a*.5),0,7);
+  g.fillStyle=rgb(c,.5+a*.4); g.fill();
+  scan(g,w,c,a);
+});
+
+function frame(){
+  t+=1/60;
+  phase = pick==='auto' ? PH[Math.floor(t/3)%4] : pick;
+  document.getElementById('now').textContent = phase;
+  const c=C[phase], a=amp();
+  for(const d of draws){
+    const dpr=devicePixelRatio||1, w=d.cv.clientWidth;
+    if(d.cv.width!==w*dpr){d.cv.width=d.cv.height=w*dpr;}
+    const g=d.cv.getContext('2d');
+    g.setTransform(dpr,0,0,dpr,0,0);
+    g.clearRect(0,0,w,w); g.fillStyle='#06050C'; g.fillRect(0,0,w,w);
+    g.save(); g.translate(w/2,w/2); d.fn(g,w,a,c); g.restore();
+  }
+  requestAnimationFrame(frame);
+}
+frame();
+</script>

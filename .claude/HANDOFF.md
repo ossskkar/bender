@@ -1,59 +1,63 @@
-# Handoff — one conversation, one screen (2026-09-27)
+# Handoff — the iPad app: one screen, and her new face (2026-09-28)
 
-Voice and chat were two Hermes sessions on two screens. They are one thread and
-one screen now. State and progress: Backlog project **Arisu**, journey
-*"I switch between typing and talking in one conversation"*.
+Everything below is **the iPad app only** (`native/`). The web face and
+`lain/arisu/chat.html` are the phones' and are not being changed.
+State and progress: Backlog project **Arisu**.
 
-## State
-- **One thread, live on architect.** Every Hermes session — spoken or typed —
-  is created seeded with the tail of the one conversation (`history.seed`
-  merges the chat log and the voice log on their clocks), and
-  `hermes.invalidate()` drops the sessions that did not produce the last line.
-  Proven end to end: typed "remember: amber" to `/arisu/chat`, asked through
-  `/arisu/tool` `think` (the voice path), got it back.
-  `voice_reset`/`chat_reset` → one `reset()`; "new conversation" is one thing.
-  lain suite 353 OK. Commits `baf6d94`, `5f2d60c`, `53666c2`, all deployed.
-- **One screen, built and checked in the iPad simulator.** `DeckScreen` →
-  `DeckRail` (196pt, right, both modes, one group at a time); the chat page is
-  a pane beside it loaded with `?chrome=0` so it draws no second masthead; the
-  microphone is its own button; the deck button toggles the rail and remembers
-  it. Commit `0516b4f` in `arisu` — **committed, not pushed** (its remote is
-  `ossskkar/bender` and the push was refused here).
-- **The Mac's deck works again** (2026-09-28). It served `/` in a millisecond
-  and left every `/deck` hanging inside `open()` for a day; the cause was a
-  *pending* TCC decision for `/usr/local/bin/python3.11`, not a missing one --
-  the Files & Folders toggles were already on, and merely opening that pane
-  cleared it. 36 buttons over the tailnet, and the iPad's rail fills: six group
-  chips, six keys two across, no scrolling.
+## State — all built, installed on the iPad, pushed
+- **Chat is native.** `native/Arisu/Chat.swift`: `Chat` (model, talks to
+  `GET/POST /arisu/chat`, `/arisu/chat/new`, `/arisu/history`) and `ChatPane`
+  (thread + composer) and `ChatHistory`. The web view is gone from the app.
+- **Composer is the navigation.** Send, and Voice — Voice draws the hologram,
+  unmutes and starts the call; a keyboard button under her comes back and ends
+  it. 5 minutes of silence closes the room (`closeQuietRoom`).
+- **Deck**: left, `arisu.deckFraction` of the width (drag the seam), keys 72pt
+  at the bottom, swipe to change group, apps strip above the tabs, and the rail
+  follows the Mac's frontmost app (`GET /deck/front`, `lsappinfo`).
+- **One skin**: `native/Arisu/Skin.swift` — lain's palette, radius 10,
+  `IconButton`, `Skin.mono`. Title (magenta, flickering) spans both panes.
+- **lain**: `history.merged()` folds spoken lines into the typed thread with
+  `via: "voice"`; deployed to architect, suite 353 (1 pre-existing failure in
+  `test_reader`, a date test, not ours).
 
-## Decisions
-- **The two transcript renderers stay.** Merging them was in the plan and was
-  dropped: subtitles over the room are read from the sofa, the chat page at
-  arm's length; one implementation makes one of them worse, and a webview over
-  the glow buys nothing the chat page does not already do in Safari.
-- **Not one shared Hermes session.** That would put the voice on the chat's
-  40-question thread; long threads were 58% of all input on 2026-09-17. The
-  seed pays once per `session.create` instead. If she loses the thread, raise
-  `hermes.SEED` (16) — never the turn cap.
-- Reasoning `low`, measured faster for typed, now applies to the voice too
-  (`LAIN_HERMES_REASONING`). Watch for shallower spoken answers.
+## In flight — her face becomes a voice visual
+He wants the avatar/portrait in voice mode replaced by an animated voice
+visual. **67 animated mockups** live in `native/voice-visuals.html` — open it
+in a real browser (not a preview pane). He has liked, in order of narrowing:
+5, 9, 10, 14 → 33, 27, 28, 25 → then "sphere, lain cyberpunk look", which is
+**63–67** (halo / bubble / groove / trail / ribbon sphere). **He has not named
+the final number yet — ask him before building.**
+
+### How to build the chosen one
+1. New `native/Arisu/VoiceVisual.swift`: a SwiftUI `Canvas` inside
+   `TimelineView(.animation)`, porting that panel's draw function from the
+   HTML (same maths, `GraphicsContext` instead of 2D canvas).
+2. Inputs: `amplitude` from `live.level` (0…1, already smoothed) or
+   `pet.level`, and the state colour from `ContentView.phaseColor`
+   (idle indigo / listening green / thinking magenta / speaking cyan).
+3. Draw it where `ContentView.face` (line ~501) draws `FaceView`. Keep
+   `FaceView` and put the choice behind a Settings switch rather than deleting
+   the portrait.
+4. Build, install and relaunch on his iPad — no Xcode needed:
+   `xcodebuild -project native/Arisu.xcodeproj -scheme Arisu -configuration Debug -destination 'platform=iOS,name=iPad' -derivedDataPath /tmp/claude-501/arisu-dev -allowProvisioningUpdates build`
+   then `xcrun devicectl device install app --device 085B9100-31D5-5A2D-B44C-82D143A30ACA <path>/Arisu.app`
+   and `xcrun devicectl device process launch --device 085B9100-31D5-5A2D-B44C-82D143A30ACA --terminate-existing com.oscar.arisu`.
+   He wants a deploy after every visible change, not one at the end.
 
 ## Gotchas
-- **A TCC-denied `open()` on macOS hangs; it does not fail.** The deck served
-  `/` in a millisecond and left every `/deck` waiting forever. Sampling the
-  process shows the handler thread parked in `__open`. Moving the store to
-  `~/.local/share/arisu-deck/buttons.json` did **not** fix it — the job has no
-  file-access consent at all. The repo's `buttons.json` is now the seed.
-- The lain backlog API has no `step_set_done` op over HTTP; `step_edit` with
-  `done:true` is the one that works.
+- The app's remote is `ossskkar/bender`; `git push origin HEAD` works now.
+- The Mac deck is `arisu/deck/deck.py` on :8887, launchd
+  `com.oscar.arisu-deck`; its live store is
+  `~/.local/share/arisu-deck/buttons.json`, the repo's copy is only the seed —
+  edit **both** or the change does not show. `launchctl kickstart -k gui/501/com.oscar.arisu-deck` to restart.
+- Use `lsappinfo`, never AppleScript/System Events, for anything about the Mac:
+  a pending Automation consent hangs that server inside the syscall.
+- `/deck/app` only opens apps named in `buttons.json` — it is a tailnet socket.
 
 ## Next steps
-1. Grant the deck's python file access — System Settings ▸ Privacy & Security,
-   for `/usr/local/bin/python3.11` — then
-   `launchctl kickstart -k gui/501/com.oscar.arisu-deck` and check
-   `curl -s http://127.0.0.1:8887/deck`.
-2. `cd ~/Documents/claude-projects/arisu && git push origin HEAD`.
-3. Run the app on the iPad from Xcode and use it for an evening.
+1. Ask him which mockup number (63–67 are the current favourites).
+2. Build it as above, install, iterate on his verdict.
 
 ## Resume
-Read this file and continue with the Backlog journey above.
+Read this file, open `native/voice-visuals.html` in a browser, and ask him for
+the number.
