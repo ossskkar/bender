@@ -22,27 +22,51 @@ struct DeckRail: View {
     private let cyan = Color(red: 0.27, green: 0.90, blue: 0.97)
     private let mag = Color(red: 1.0, green: 0.22, blue: 0.78)
 
-    /// Wide enough for two keys and a group chip row, narrow enough to leave
-    /// her the middle of a landscape iPad.
-    static let width: CGFloat = 196
+    /// What it opens at the first time, as a share of the screen. He sets it
+    /// after that by dragging the seam (Oscar, 2026-09-28): half the iPad is
+    /// the deck he actually reaches for, and half is her.
+    static let fraction = 0.5
+
+    /// One deck along, wrapping at both ends -- a swipe that does nothing at
+    /// the last group reads as a dropped gesture, not as an edge.
+    private func step(_ by: Int) {
+        let all = deck.groups
+        guard all.count > 1, let at = all.firstIndex(of: shown) else { return }
+        let next = (at + by + all.count) % all.count
+        withAnimation(.easeOut(duration: 0.18)) { group = all[next] }
+    }
 
     /// The group on show: his choice, or the first the Mac sent.
     private var shown: String { group ?? deck.groups.first ?? "" }
 
     var body: some View {
+        // Everything he presses sits at the bottom of the rail, where his hand
+        // already is on a 13-inch iPad held in landscape (Oscar, 2026-09-28).
+        // The title stays up top because he reads it and never touches it.
         VStack(alignment: .leading, spacing: 0) {
             head
+            Spacer(minLength: 0)
             if let failed = deck.failed { note(failed) }
             else if deck.buttons.isEmpty && deck.loading {
-                ProgressView().tint(cyan).padding(.top, 30).frame(maxWidth: .infinity)
+                ProgressView().tint(cyan).padding(.bottom, 30).frame(maxWidth: .infinity)
             } else {
+                if let said = deck.said { answer(said) }
                 groups
-                keys
+                keys.padding(.bottom, 18)
             }
-            Spacer(minLength: 0)
-            if let said = deck.said { answer(said) }
         }
-        .frame(width: Self.width)
+        // A swipe across the keys is the next application's deck. Six chips
+        // are a fine target with a stylus and a poor one with a thumb, and
+        // switching deck is the thing he does most often after pressing one.
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 30)
+                .onEnded { move in
+                    guard abs(move.translation.width) > abs(move.translation.height) else { return }
+                    step(move.translation.width < 0 ? 1 : -1)
+                }
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(cyan.opacity(0.03))
         .task { await deck.load() }
         .sheet(item: $sheet) { button in
@@ -60,8 +84,8 @@ struct DeckRail: View {
         } message: { Text(saveError ?? "") }
     }
 
-    /// The masthead's height, so the rail's own title sits on the same line as
-    /// her name and the buttons across the top.
+    /// The rail's own label. Her name is the app's title and lives in the row
+    /// above this one now, so this is only "which panel is this".
     private var head: some View {
         HStack(spacing: 6) {
             Text("DECK")
@@ -82,7 +106,7 @@ struct DeckRail: View {
             }
         }
         .padding(.horizontal, 12)
-        .padding(.top, 28)
+        .padding(.top, 14)
         .padding(.bottom, 10)
     }
 
@@ -104,12 +128,14 @@ struct DeckRail: View {
             }
         }
         .padding(.horizontal, 12)
-        .padding(.bottom, 10)
+        .padding(.bottom, 8)
     }
 
     private var keys: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 2),
-                  spacing: 8) {
+        // As many columns as the seam leaves room for. It was two across a
+        // fixed 196pt rail; the rail is his to widen now, and a two-column
+        // grid on half an iPad is six buttons swimming in black.
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 8)], spacing: 8) {
             ForEach(deck.buttons.filter { $0.group == shown }) { key($0) }
         }
         .padding(.horizontal, 12)

@@ -1,0 +1,375 @@
+import SwiftUI
+
+/// The typed conversation, drawn by the app.
+///
+/// It was `chat.html` in a web view until 2026-09-28 -- the same page Safari
+/// shows on his work phones, embedded with `?chrome=0` so it drew no second
+/// masthead. That page is still the phones' chat; this is the iPad's, and it
+/// is native so the composer can hand the screen to her voice without a
+/// bridge, and so the thread scrolls at the frame rate of everything else.
+///
+/// The desk owns the conversation. `GET /arisu/chat` is what is on the thread
+/// now, `POST /arisu/chat` takes one line and answers it, and the id of the
+/// session is the desk's business, not this screen's.
+@MainActor final class Chat: ObservableObject {
+    struct Line: Identifiable, Equatable {
+        let id = UUID()
+        let mine: Bool
+        var text: String
+        let at: Date
+        /// Spoken, and merged back into the typed thread afterwards. Drawn
+        /// dimmer, with a microphone, because a line he said out loud two
+        /// hours ago should not read like one he typed just now.
+        var spoken = false
+    }
+
+    @Published private(set) var lines: [Line] = []
+    @Published private(set) var thinking = false
+    @Published var failed: String?
+    /// Conversations, newest first, for the history sheet.
+    @Published private(set) var sessions: [Session] = []
+
+    struct Session: Identifiable, Decodable {
+        let id: String
+        let kind: String
+        let start: Double
+        let end: Double
+        let count: Int
+        let preview: String
+    }
+
+    private struct Thread: Decodable {
+        struct Message: Decodable {
+            let who: String
+            let text: String
+            let t: Double?
+            let via: String?
+        }
+        let session: String?
+        let messages: [Message]
+    }
+
+    private struct Answer: Decodable { let answer: String?; let error: String? }
+    private struct Sessions: Decodable { let sessions: [Session] }
+
+    private let net: URLSession = {
+        let c = URLSessionConfiguration.default
+        // One typed turn is a whole Hermes turn on architect, same as her
+        // voice: seconds warm, much worse on a quota failover.
+        c.timeoutIntervalForRequest = 120
+        c.waitsForConnectivity = true
+        return URLSession(configuration: c)
+    }()
+
+    private static func line(_ m: Thread.Message) -> Line {
+        Line(mine: m.who == "you", text: m.text,
+             at: Date(timeIntervalSince1970: (m.t ?? 0) / 1000),
+             spoken: (m.via ?? "") == "voice")
+    }
+
+    /// What is on the thread now.
+    func load() async {
+        do {
+            let (data, _) = try await net.data(from: Brain.base.appendingPathComponent("chat"))
+            lines = try JSONDecoder().decode(Thread.self, from: data).messages.map(Self.line)
+            failed = nil
+        } catch {
+            failed = "could not reach the desk"
+        }
+    }
+
+    /// Say one thing and wait for her answer. His line lands immediately --
+    /// the wait is hers, and a composer that clears only once the desk has
+    /// answered feels broken at seven seconds a turn.
+    func send(_ text: String) async {
+        let said = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !said.isEmpty, !thinking else { return }
+        lines.append(Line(mine: true, text: said, at: Date()))
+        thinking = true
+        defer { thinking = false }
+        var r = URLRequest(url: Brain.base.appendingPathComponent("chat"))
+        r.httpMethod = "POST"
+        r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        r.httpBody = try? JSONSerialization.data(withJSONObject: ["text": said])
+        do {
+            let (data, _) = try await net.data(for: r)
+            let got = try JSONDecoder().decode(Answer.self, from: data)
+            guard let answer = got.answer, !answer.isEmpty else {
+                throw NSError(domain: "arisu", code: 0,
+                              userInfo: [NSLocalizedDescriptionKey: got.error ?? "she said nothing"])
+            }
+            lines.append(Line(mine: false, text: answer, at: Date()))
+            failed = nil
+        } catch {
+            failed = error.localizedDescription
+        }
+    }
+
+    /// A clean thread. The old one stays in history; the desk decides what
+    /// "new" means for her mind, which is why this is a POST and not a
+    /// `lines.removeAll()`.
+    func new() async {
+        var r = URLRequest(url: Brain.base.appendingPathComponent("chat/new"))
+        r.httpMethod = "POST"
+        _ = try? await net.data(for: r)
+        lines.removeAll()
+        failed = nil
+    }
+
+    func loadSessions() async {
+        guard let url = URL(string: "history", relativeTo: Brain.base) else { return }
+        guard let (data, _) = try? await net.data(from: url),
+              let got = try? JSONDecoder().decode(Sessions.self, from: data) else { return }
+        sessions = got.sessions
+    }
+
+    /// One past conversation, read-only.
+    func transcript(_ id: String) async -> [Line] {
+        var c = URLComponents(url: Brain.base.appendingPathComponent("history"),
+                              resolvingAgainstBaseURL: false)!
+        c.queryItems = [URLQueryItem(name: "id", value: id)]
+        guard let url = c.url, let (data, _) = try? await net.data(from: url),
+              let got = try? JSONDecoder().decode(Thread.self, from: data) else { return [] }
+        return got.messages.map(Self.line)
+    }
+}
+
+/// The thread and the composer. The composer is the whole navigation of this
+/// app now (Oscar, 2026-09-28): Send types at her, Voice hands the screen to
+/// the hologram, and there is no mode toggle in the corner to find first.
+struct ChatPane: View {
+    @ObservedObject var chat: Chat
+    /// Her state, so the composer can carry the same colour the room does.
+    let phase: Color
+    /// Press Voice: the caller draws her instead of this.
+    let toVoice: () -> Void
+    /// The app's title row is above this view now, not over it.
+    var topInset: CGFloat = 0
+
+    @State private var typing = ""
+    @State private var showHistory = false
+    @FocusState private var writing: Bool
+
+    private let cyan = Color(red: 0.27, green: 0.90, blue: 0.97)
+    private let mag = Color(red: 1.0, green: 0.24, blue: 0.54)
+
+    var body: some View {
+        VStack(spacing: 0) {
+            thread
+            composer
+        }
+        .padding(.top, topInset)
+        .background(Color.black)
+        .task { await chat.load() }
+        .sheet(isPresented: $showHistory) { ChatHistory(chat: chat) }
+    }
+
+    private var thread: some View {
+        ScrollViewReader { scroll in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 10) {
+                    ForEach(chat.lines) { bubble($0) }
+                    if chat.thinking {
+                        HStack(spacing: 8) {
+                            ProgressView().tint(mag).scaleEffect(0.7)
+                            Text("thinking")
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundStyle(mag.opacity(0.8))
+                        }
+                        .id("thinking")
+                    }
+                    if let failed = chat.failed {
+                        Text("! " + failed)
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundStyle(mag)
+                    }
+                    Color.clear.frame(height: 1).id("end")
+                }
+                .padding(.horizontal, 22)
+                .padding(.vertical, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .onChange(of: chat.lines.count) { _, _ in
+                withAnimation { scroll.scrollTo("end", anchor: .bottom) }
+            }
+            .onChange(of: chat.thinking) { _, _ in
+                withAnimation { scroll.scrollTo("end", anchor: .bottom) }
+            }
+        }
+    }
+
+    /// His on the right in magenta, hers on the left in cyan -- the same shape
+    /// her subtitles have over the room, so the two modes read as one thread.
+    private func bubble(_ line: Chat.Line) -> some View {
+        HStack {
+            if line.mine { Spacer(minLength: 40) }
+            HStack(alignment: .top, spacing: 6) {
+                if line.spoken {
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle((line.mine ? mag : cyan).opacity(0.6))
+                        .padding(.top, 4)
+                }
+                Text(line.text)
+                    .font(.system(size: 15, design: .monospaced))
+                    .foregroundStyle(line.mine ? mag : cyan)
+                    .textSelection(.enabled)
+            }
+            .opacity(line.spoken ? 0.72 : 1)
+            .padding(.horizontal, 14).padding(.vertical, 9)
+            .background(RoundedRectangle(cornerRadius: 12)
+                .fill((line.mine ? mag : cyan).opacity(0.08)))
+            .overlay(RoundedRectangle(cornerRadius: 12)
+                .stroke((line.mine ? mag : cyan).opacity(line.spoken ? 0.18 : 0.3)))
+            if !line.mine { Spacer(minLength: 40) }
+        }
+        .frame(maxWidth: .infinity, alignment: line.mine ? .trailing : .leading)
+    }
+
+    private var composer: some View {
+        HStack(spacing: 10) {
+            button("clock", "History") { showHistory = true }
+            button("plus", "New conversation") { Task { await chat.new() } }
+            TextField("", text: $typing, axis: .vertical)
+                .textFieldStyle(.plain)
+                .lineLimit(1...5)
+                .font(.system(size: 15, design: .monospaced))
+                .foregroundStyle(.white)
+                .tint(mag)
+                .focused($writing)
+                .submitLabel(.send)
+                .onSubmit(send)
+                .padding(.horizontal, 14).padding(.vertical, 11)
+                .background(RoundedRectangle(cornerRadius: 11).fill(Color.white.opacity(0.06)))
+                .overlay(RoundedRectangle(cornerRadius: 11)
+                    .stroke(writing ? mag.opacity(0.7) : Color.white.opacity(0.14)))
+                .overlay(alignment: .leading) {
+                    if typing.isEmpty {
+                        Text("say something")
+                            .font(.system(size: 15, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.25))
+                            .padding(.leading, 15)
+                            .allowsHitTesting(false)
+                    }
+                }
+            button("arrow.up", "Send", tint: typing.isEmpty ? nil : mag, filled: !typing.isEmpty,
+                   action: send)
+            // The way into her voice. Her state colours it, so the button he
+            // pressed to start talking is also the light that says she heard.
+            button("waveform", "Voice", tint: phase, action: toVoice)
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 10)
+        .padding(.bottom, 14)
+        .background(Color.white.opacity(0.03))
+        .overlay(Rectangle().frame(height: 1).foregroundStyle(Color.white.opacity(0.08)),
+                 alignment: .top)
+    }
+
+    private func send() {
+        let said = typing
+        typing = ""
+        Task { await chat.send(said) }
+    }
+
+    private func button(_ symbol: String, _ label: String, tint: Color? = nil,
+                        filled: Bool = false, action: @escaping () -> Void) -> some View {
+        let ink = tint ?? Color.white.opacity(0.35)
+        return Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(filled ? Color.black : ink)
+                .frame(width: 46, height: 42)
+                .background(RoundedRectangle(cornerRadius: 11)
+                    .fill(filled ? ink : Color.black.opacity(0.35)))
+                .overlay(RoundedRectangle(cornerRadius: 11).stroke(ink.opacity(filled ? 0 : 0.35)))
+        }
+        .accessibilityLabel(label)
+    }
+}
+
+/// Every conversation, chat and voice, newest first. Reading one is reading;
+/// nothing here resumes a thread, because the desk has exactly one live
+/// conversation and picking an old one would quietly end it.
+struct ChatHistory: View {
+    @ObservedObject var chat: Chat
+    @Environment(\.dismiss) private var dismiss
+    @State private var open: [Chat.Line] = []
+    @State private var title = ""
+
+    private let cyan = Color(red: 0.27, green: 0.90, blue: 0.97)
+    private let mag = Color(red: 1.0, green: 0.24, blue: 0.54)
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if open.isEmpty { list } else { transcript }
+            }
+            .background(Color.black)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if open.isEmpty {
+                        Button("Close") { dismiss() }
+                    } else {
+                        Button("Back") { open = []; title = "" }
+                    }
+                }
+            }
+            .navigationTitle(open.isEmpty ? "Conversations" : title)
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .preferredColorScheme(.dark)
+        .task { await chat.loadSessions() }
+    }
+
+    private var list: some View {
+        List(chat.sessions) { s in
+            Button {
+                title = when(s.start)
+                Task { open = await chat.transcript(s.id) }
+            } label: {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Image(systemName: s.kind == "voice" ? "mic.fill" : "terminal")
+                            .font(.system(size: 11))
+                            .foregroundStyle(s.kind == "voice" ? cyan : mag)
+                        Text(when(s.start))
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.6))
+                        Spacer()
+                        Text("\(s.count)")
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.3))
+                    }
+                    Text(s.preview)
+                        .font(.system(size: 14))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .lineLimit(2)
+                }
+            }
+            .listRowBackground(Color.white.opacity(0.04))
+        }
+        .scrollContentBackground(.hidden)
+    }
+
+    private var transcript: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(open) { line in
+                    Text(line.text)
+                        .font(.system(size: 14, design: .monospaced))
+                        .foregroundStyle(line.mine ? mag : cyan)
+                        .frame(maxWidth: .infinity,
+                               alignment: line.mine ? .trailing : .leading)
+                }
+            }
+            .padding(18)
+        }
+    }
+
+    private func when(_ ms: Double) -> String {
+        let d = Date(timeIntervalSince1970: ms / 1000)
+        return d.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)
+            .hour().minute())
+    }
+}

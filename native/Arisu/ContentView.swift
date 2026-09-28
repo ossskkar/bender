@@ -39,12 +39,25 @@ struct ContentView: View {
     /// launches: it was a full screen he had to open until 2026-09-27, which
     /// meant leaving the conversation to press a button on his Mac.
     @AppStorage("arisu.deck") private var deckShown = true
+    /// How much of the screen the deck takes. His, by dragging the seam.
+    @AppStorage("arisu.deckFraction") private var deckFraction = DeckRail.fraction
+    /// Where the fraction was when this drag started -- a drag reports its
+    /// whole translation every time, so adding it each frame would run away.
+    @State private var dragFrom: Double?
+    /// When either of them last said anything out loud. A room nobody is
+    /// talking in holds the microphone open and burns a realtime session for
+    /// nothing, so it closes itself (Oscar, 2026-09-28).
+    @State private var lastSpoke = Date()
+    /// The wordmark's flicker: a tube that is not quite well.
+    @State private var flicker = 1.0
     /// The typed chat: its own screen, the terminal page lain serves
     /// (arisu/chat.html) full screen over her. Voice and chat are two
     /// separate UIs in one app (Oscar, 2026-09-23).
-    @State private var showChat = false
-    /// Open the chat screen on its history list rather than the live thread.
-    @State private var chatOnHistory = false
+    @State private var showChat = true
+    /// The typed thread. Held here rather than inside the pane so that it
+    /// survives switching to her voice and back -- the conversation is one
+    /// thing, and re-fetching it every time he speaks would make it blink.
+    @StateObject private var chat = Chat()
     /// The recent lines of both of them, oldest first, as chat bubbles.
     @State private var messages: [Bubble] = []
     /// Legend and buttons start hidden; a tap on the screen shows them, the
@@ -135,8 +148,7 @@ struct ContentView: View {
         }
         .shadow(color: .black.opacity(0.85), radius: 4)
         .padding(.leading, 26)
-        // Clear of the masthead, which owns the top-left corner now.
-        .padding(.top, 82)
+        .padding(.top, 16)
         .animation(.easeInOut(duration: 0.25), value: phase)
         .allowsHitTesting(false)
     }
@@ -165,17 +177,29 @@ struct ContentView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            conversation
-                .overlay(alignment: .topLeading) { if chromeShown { legend.transition(.opacity) } }
-                .overlay(alignment: .top) { topBar }
-                .animation(.easeOut(duration: 0.2), value: chromeShown)
-            if deckShown {
-                // The one piece of her state that reads in both modes: the room's
-                // glow is behind the typed thread, so the seam carries it.
-                Rectangle().fill(phaseColor.opacity(0.5)).frame(width: 2)
-                    .animation(.easeInOut(duration: 0.35), value: phaseColor)
-                DeckRail()
+        GeometryReader { geo in
+            // Her name is the app's, not the conversation's: it sits over the
+            // whole window, deck included (Oscar, 2026-09-28). It used to be
+            // drawn inside the right-hand pane, which made it look like a
+            // label for the chat.
+            VStack(spacing: 0) {
+                topBar
+                HStack(spacing: 0) {
+                    if deckShown {
+                        DeckRail().frame(width: geo.size.width * deckFraction)
+                    // The one piece of her state that reads in both modes: the
+                    // room's glow is behind the typed thread, so the seam
+                    // carries it. It is also the handle -- 2pt of light with a
+                    // 24pt grab area, because a divider he cannot move is a
+                    // decision made for him (Oscar, 2026-09-28).
+                        seam(total: geo.size.width)
+                    }
+                    conversation
+                        .overlay(alignment: .topLeading) {
+                            if chromeShown { legend.transition(.opacity) }
+                        }
+                        .animation(.easeOut(duration: 0.2), value: chromeShown)
+                }
             }
         }
         .background(Color.black)
@@ -184,16 +208,38 @@ struct ContentView: View {
         // shown, so this only draws it.
         .sheet(item: $live.page) { PageSheet(page: $0) { live.page = nil } }
         .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet, live: live) }
-        .onChange(of: pet.heard) { _, t in say(t, mine: true); obey(t); record(t, "heard") }
-        .onChange(of: pet.line) { _, t in say(t, mine: false); record(t, "answer") }
+        .onChange(of: pet.heard) { _, t in
+            lastSpoke = Date(); say(t, mine: true); obey(t); record(t, "heard")
+        }
+        .onChange(of: pet.line) { _, t in
+            lastSpoke = Date(); say(t, mine: false); record(t, "answer")
+        }
         .onChange(of: pet.running) { _, on in record(on ? "call started" : "call ended", "call") }
         .animation(.easeInOut(duration: 0.25), value: pet.thinking)
         .animation(.easeInOut(duration: 0.25), value: live.thinking)
         .animation(.easeInOut(duration: 0.25), value: pet.running)
+        .task { await closeQuietRoom() }
         .onAppear {
             Task { await pet.arrive() }
             withAnimation(.linear(duration: 5.6).repeatForever(autoreverses: false)) { sweep = true }
         }
+    }
+
+    /// The lit divider, and the handle that moves it. Clamped so neither side
+    /// can be dragged away to nothing.
+    private func seam(total: CGFloat) -> some View {
+        Rectangle().fill(phaseColor.opacity(0.5)).frame(width: 2)
+            .animation(.easeInOut(duration: 0.35), value: phaseColor)
+            .overlay(Color.clear.frame(width: 24).contentShape(Rectangle()))
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { drag in
+                        let from = dragFrom ?? deckFraction
+                        if dragFrom == nil { dragFrom = from }
+                        deckFraction = min(0.7, max(0.2, from + drag.translation.width / total))
+                    }
+                    .onEnded { _ in dragFrom = nil }
+            )
     }
 
     /// Reading or talking, in the same place. Switching is which of these is
@@ -202,9 +248,7 @@ struct ContentView: View {
     /// draws no chrome of its own here: the row along the top is the app's.
     @ViewBuilder private var conversation: some View {
         if showChat {
-            ChatScreen(query: "app=1&chrome=0"
-                       + (chatOnHistory ? "&view=history" : "")
-                       + "&style=" + (bubbles ? "bubble" : "terminal")) { showChat = false }
+            ChatPane(chat: chat, phase: phaseColor) { toVoice() }
         } else {
             hologram
         }
@@ -241,8 +285,9 @@ struct ContentView: View {
                         .padding(.trailing, 24)
                     }
                     // A meter for a microphone that is down would be a lie.
-                    if pet.running && showMeter { meter.padding(.bottom, 22) }
-                    else { Color.clear.frame(height: 36).padding(.bottom, 22) }
+                    if pet.running && showMeter { meter.padding(.bottom, 14) }
+                    else { Color.clear.frame(height: 36).padding(.bottom, 14) }
+                    roomControls.padding(.bottom, 26)
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
@@ -251,6 +296,34 @@ struct ContentView: View {
             .onTapGesture(count: 2) { pet.toggleRunning() }
             .onTapGesture { chromeShown.toggle() }
         }
+    }
+
+    /// Mute, and the way back to the keyboard. Centred under her rather than
+    /// in the top row: in voice mode these are the only two things he does,
+    /// and his hands are nowhere near the corner of a 13-inch iPad.
+    private var roomControls: some View {
+        HStack(spacing: 18) {
+            round(live.muted || !pet.running ? "mic.slash.fill" : "mic.fill",
+                  "Microphone",
+                  ink: pet.running && !live.muted ? listener : off,
+                  fill: pet.running && !live.muted) {
+                if pet.running { live.muted.toggle() }
+            }
+            round("keyboard", "Back to the chat", ink: Self.mag, fill: false) { toChat() }
+        }
+    }
+
+    private func round(_ symbol: String, _ label: String, ink: Color, fill: Bool,
+                       action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 21, weight: .semibold))
+                .foregroundStyle(fill ? Color.black : ink)
+                .frame(width: 60, height: 60)
+                .background(Circle().fill(fill ? ink : Color.white.opacity(0.07)))
+                .overlay(Circle().stroke(ink.opacity(fill ? 0 : 0.4)))
+        }
+        .accessibilityLabel(label)
     }
 
     /// Off. Colour means on and grey means off everywhere on this screen --
@@ -262,18 +335,43 @@ struct ContentView: View {
     /// page's own words, so the two screens carry the same masthead at the same
     /// level (Oscar, 2026-09-26). It used to exist only on the chat page, which
     /// made switching mode feel like leaving the app.
+    /// The skin's magenta (`--mag`, #FF3D8A), which is the colour the web
+    /// wordmark has always been. This screen had it in cyan for a day and it
+    /// stopped reading as the same app (Oscar, 2026-09-28).
+    private static let mag = Color(red: 1.0, green: 0.24, blue: 0.54)
+
     private var masthead: some View {
         let cyan = Color(red: 0.27, green: 0.90, blue: 0.97)
-        return VStack(alignment: .leading, spacing: 2) {
+        return VStack(alignment: .leading, spacing: 3) {
             Text("Arisuへようこそ！")
-                .font(.system(size: 20, weight: .semibold, design: .monospaced))
-                .foregroundStyle(cyan)
-            Text("present day · present time")
-                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                .foregroundStyle(cyan.opacity(0.45))
+                .font(.system(size: 17, weight: .bold, design: .monospaced))
+                .tracking(4.5)
+                .foregroundStyle(Self.mag)
+                .shadow(color: Self.mag.opacity(0.55 * flicker), radius: 10)
+            Text("PRESENT DAY · PRESENT TIME")
+                .font(.system(size: 10, weight: .regular, design: .monospaced))
+                .tracking(2.8)
+                .foregroundStyle(cyan.opacity(0.8))
         }
+        .opacity(flicker)
         .shadow(color: .black.opacity(0.85), radius: 4)
         .allowsHitTesting(false)
+        .task { await flickerForever() }
+    }
+
+    /// A bad tube. It sits still for a few seconds, drops for a frame or two,
+    /// sometimes twice, then settles -- the point is that he cannot predict
+    /// it, so the interval and the dip are both drawn fresh each time.
+    private func flickerForever() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(Int.random(in: 2600...9000)))
+            for _ in 0..<Int.random(in: 1...3) {
+                withAnimation(.linear(duration: 0.05)) { flicker = Double.random(in: 0.15...0.5) }
+                try? await Task.sleep(for: .milliseconds(Int.random(in: 40...110)))
+                withAnimation(.linear(duration: 0.07)) { flicker = 1.0 }
+                try? await Task.sleep(for: .milliseconds(Int.random(in: 50...140)))
+            }
+        }
     }
 
     /// Everything that is always on screen, in one row at the top: the
@@ -297,20 +395,18 @@ struct ContentView: View {
                     showTranscript.toggle()
                 }
             }
-            squareButton(pet.running ? "waveform.circle.fill" : "waveform.circle",
-                         "Conversation", tint: pet.running ? glow : off) {
-                pet.toggleRunning()
-            }
             // Is the microphone hot. Its own control since 2026-09-27, because
             // "mode" is no longer a screen he leaves: typing while she is
             // listening is legal now, and so is shutting the room up without
             // ending the conversation. Off when there is no conversation to
             // mute rather than hidden -- a control that comes and goes is one
             // he has to hunt for.
-            squareButton(live.muted || !pet.running ? "mic.slash" : "mic.fill",
-                         "Microphone",
-                         tint: pet.running && !live.muted ? listener : off) {
-                if pet.running { live.muted.toggle() }
+            if !showChat {
+                squareButton(live.muted || !pet.running ? "mic.slash" : "mic.fill",
+                             "Microphone",
+                             tint: pet.running && !live.muted ? listener : off) {
+                    if pet.running { live.muted.toggle() }
+                }
             }
             // Which device is listening. Shown as soon as there is anyone else
             // to hand it to rather than only in a group: hiding it until the
@@ -328,12 +424,12 @@ struct ContentView: View {
             // Shared by both screens.
             squareButton("square.grid.3x3.fill", "Deck",
                          tint: deckShown ? glow : off) { deckShown.toggle() }
-            squareButton("clock", "History") { chatOnHistory = true; showChat = true }
-            squareButton("plus", "New conversation") { newVoiceConversation() }
-            toggleBody(cyan)
         }
-        .padding(.top, 24)
-        .padding(.horizontal, 26)
+        .padding(.vertical, 14)
+        .padding(.horizontal, 22)
+        .background(Color.black)
+        .overlay(Rectangle().frame(height: 1).foregroundStyle(Self.mag.opacity(0.18)),
+                 alignment: .bottom)
     }
 
     private func squareButton(_ symbol: String, _ label: String, tint: Color? = nil,
@@ -352,6 +448,37 @@ struct ContentView: View {
         .accessibilityLabel(label)
     }
 
+    /// Five minutes of silence ends the call and puts the keyboard back. Not
+    /// the conversation -- the thread is one thing and survives this; only the
+    /// microphone and the realtime session go.
+    private func closeQuietRoom() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(20))
+            if pet.running && !showChat && Date().timeIntervalSince(lastSpoke) > 300 {
+                toChat()
+            }
+        }
+    }
+
+    /// Into the room: the chat goes, she is on screen, and the microphone
+    /// opens. One press, because "switch mode" and "start talking" were two
+    /// presses for one intention (Oscar, 2026-09-28).
+    private func toVoice() {
+        showChat = false
+        lastSpoke = Date()
+        live.muted = false
+        if !pet.running { pet.toggleRunning() }
+    }
+
+    /// Back to the keyboard. The call ends -- leaving her listening to an
+    /// empty desk is how the microphone stays hot for an hour -- and whatever
+    /// was said out loud joins the typed thread.
+    private func toChat() {
+        if pet.running { pet.toggleRunning() }
+        showChat = true
+        Task { await chat.load() }
+    }
+
     /// A new voice conversation: her mind (Hermes) starts clean on the desk,
     /// and a call in progress is ended and begun again.
     private func newVoiceConversation() {
@@ -363,27 +490,6 @@ struct ContentView: View {
         pet.toggleRunning()
     }
 
-    private func toggleBody(_ cyan: Color) -> some View {
-        HStack(spacing: 0) {
-            Button { showChat = false } label: {
-                Image(systemName: "waveform")
-                    .foregroundStyle(showChat ? cyan : Color(red: 0.02, green: 0.09, blue: 0.10))
-                    .frame(width: 54, height: 38)
-                    .background(showChat ? Color.clear : cyan)
-            }
-            .accessibilityLabel("Voice")
-            Button { chatOnHistory = false; showChat = true } label: {
-                Image(systemName: "terminal")
-                    .foregroundStyle(showChat ? Color(red: 0.02, green: 0.09, blue: 0.10) : cyan)
-                    .frame(width: 54, height: 38)
-                    .background(showChat ? cyan : Color.clear)
-            }
-            .accessibilityLabel("Chat")
-        }
-        .font(.system(size: 19, weight: .semibold))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(cyan.opacity(0.55)))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
 
     /// The renderer's own vocabulary. `Phase` already says all of it except
     /// asleep, which is not a phase of a conversation but the absence of one:
