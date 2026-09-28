@@ -20,29 +20,26 @@ State and progress: Backlog project **Arisu**.
   `via: "voice"`; deployed to architect, suite 353 (1 pre-existing failure in
   `test_reader`, a date test, not ours).
 
-## In flight — her face becomes a voice visual
-He wants the avatar/portrait in voice mode replaced by an animated voice
-visual. **67 animated mockups** live in `native/voice-visuals.html` — open it
-in a real browser (not a preview pane). He has liked, in order of narrowing:
-5, 9, 10, 14 → 33, 27, 28, 25 → then "sphere, lain cyberpunk look", which is
-**63–67** (halo / bubble / groove / trail / ribbon sphere). **He has not named
-the final number yet — ask him before building.**
+## Her face can be a voice visual — built, installed, waiting on his pick
+`native/Arisu/VoiceVisual.swift` draws **all five spheres he shortlisted** —
+halo, bubble, groove, trail, ribbon — as a SwiftUI `Canvas` in the dashboard's
+skin (bloom, scanlines, vignette; the state colour is the only state cue, his
+own `pet.level` is the movement, with a slow breath under it so a waiting face
+is not a still one). **Settings ▸ Face** picks one; **Portrait** keeps the
+still and the Live2D model exactly as they were, with the model grid and the
+Live2D toggle hidden unless Portrait is chosen. Default: **ribbon**.
 
-### How to build the chosen one
-1. New `native/Arisu/VoiceVisual.swift`: a SwiftUI `Canvas` inside
-   `TimelineView(.animation)`, porting that panel's draw function from the
-   HTML (same maths, `GraphicsContext` instead of 2D canvas).
-2. Inputs: `amplitude` from `live.level` (0…1, already smoothed) or
-   `pet.level`, and the state colour from `ContentView.phaseColor`
-   (idle indigo / listening green / thinking magenta / speaking cyan).
-3. Draw it where `ContentView.face` (line ~501) draws `FaceView`. Keep
-   `FaceView` and put the choice behind a Settings switch rather than deleting
-   the portrait.
-4. Build, install and relaunch on his iPad — no Xcode needed:
-   `xcodebuild -project native/Arisu.xcodeproj -scheme Arisu -configuration Debug -destination 'platform=iOS,name=iPad' -derivedDataPath /tmp/claude-501/arisu-dev -allowProvisioningUpdates build`
-   then `xcrun devicectl device install app --device 085B9100-31D5-5A2D-B44C-82D143A30ACA <path>/Arisu.app`
-   and `xcrun devicectl device process launch --device 085B9100-31D5-5A2D-B44C-82D143A30ACA --terminate-existing com.oscar.arisu`.
-   He wants a deploy after every visible change, not one at the end.
+Why all five rather than one: he was away and the pick was the only thing
+blocking, so the reversible choice was to ship the lot behind a picker and let
+him choose on the device. Overturning it is deleting four cases of an enum.
+
+Checked in the iPad simulator, all five draw (screenshots were taken from a
+temporary build that opened in voice mode; that patch is reverted). The
+install to his iPad landed; **the launch did not, because the iPad is locked**
+— it opens on the new build next time he taps it.
+
+The 67 mockups stay in `native/voice-visuals.html`. Keep the Swift and the
+HTML in step, or the next round of picking is done against the wrong picture.
 
 ## Gotchas
 - The app's remote is `ossskkar/bender`; `git push origin HEAD` works now.
@@ -55,9 +52,14 @@ the final number yet — ask him before building.**
 - `/deck/app` only opens apps named in `buttons.json` — it is a tailnet socket.
 
 ## Next steps
-1. Ask him which mockup number (63–67 are the current favourites).
-2. Build it as above, install, iterate on his verdict.
+1. He opens **Settings ▸ Face** on the iPad and picks a sphere; delete the
+   four he does not want, or leave the picker if he likes having them.
+2. Watch one real call with it: the spheres are untested against a live
+   `pet.level` and against 60 fps on the 2020 iPad Pro. If it drops frames,
+   the first thing to cut is the bloom (`glow()` — two strokes per path).
+3. `native/Arisu/Chat.swift` history sheet is read-only on purpose; if he
+   wants to resume an old thread the desk needs an endpoint for it.
 
 ## Resume
-Read this file, open `native/voice-visuals.html` in a browser, and ask him for
-the number.
+Read this file. The app on his iPad is current; the open question is only
+which sphere he keeps.
