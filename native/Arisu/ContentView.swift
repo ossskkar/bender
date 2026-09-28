@@ -474,16 +474,6 @@ struct ContentView: View {
         Task { await chat.load() }
     }
 
-    /// A new voice conversation: her mind (Hermes) starts clean on the desk,
-    /// and a call in progress is ended and begun again.
-    private func newVoiceConversation() {
-        var r = URLRequest(url: Brain.base.appendingPathComponent("voice/new"))
-        r.httpMethod = "POST"
-        URLSession.shared.dataTask(with: r).resume()
-        messages.removeAll()
-        if pet.running { pet.toggleRunning() }
-        pet.toggleRunning()
-    }
 
 
     /// The renderer's own vocabulary. `Phase` already says all of it except
@@ -758,47 +748,6 @@ struct TerminalLine: View {
             .textSelection(.enabled)
     }
 }
-
-/// The typed chat, full screen and edge to edge: lain's terminal page with no
-/// iOS bar over it, so it reads as the app's other screen. Its own "face"
-/// button posts `close` to the `arisu` handler, which returns to her.
-struct ChatScreen: UIViewRepresentable {
-    var query = "app=1"
-    let close: () -> Void
-
-    func makeCoordinator() -> Coordinator { Coordinator(close: close) }
-
-    func makeUIView(context: Context) -> WKWebView {
-        let config = WKWebViewConfiguration()
-        config.userContentController.add(context.coordinator, name: "arisu")
-        let web = WKWebView(frame: .zero, configuration: config)
-        if #available(iOS 16.4, *) { web.isInspectable = true }
-        // Her own black while the page loads, not a white flash.
-        web.isOpaque = false
-        web.backgroundColor = .black
-        web.scrollView.backgroundColor = .black
-        web.scrollView.contentInsetAdjustmentBehavior = .never
-        if let url = URL(string: "chat.html?" + query, relativeTo: Brain.base) {
-            web.load(URLRequest(url: url))
-        }
-        return web
-    }
-
-    func updateUIView(_ web: WKWebView, context: Context) {}
-
-    static func dismantleUIView(_ web: WKWebView, coordinator: Coordinator) {
-        web.configuration.userContentController.removeScriptMessageHandler(forName: "arisu")
-    }
-
-    final class Coordinator: NSObject, WKScriptMessageHandler {
-        let close: () -> Void
-        init(close: @escaping () -> Void) { self.close = close }
-        func userContentController(_ c: WKUserContentController, didReceive m: WKScriptMessage) {
-            if (m.body as? String) == "close" { close() }
-        }
-    }
-}
-
 /// The site itself. No script of hers lives in here, and no data of his goes
 /// in: a fresh non-persistent store, so the web view carries no cookies from
 /// anywhere else and leaves none behind.
