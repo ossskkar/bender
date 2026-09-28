@@ -22,6 +22,10 @@ struct ContentView: View {
     /// The Live2D face instead of the portrait. Off by default: it loads from
     /// the desk, and the portrait is the face that works with no network.
     @AppStorage("arisu.live2d") private var live2dFace = true
+    /// Her face in voice mode: the portrait/Live2D renderer, or one of the
+    /// voice visuals. Ribbon by default -- it is the one that reads as her
+    /// from across the desk and still shows the level up close.
+    @AppStorage("arisu.faceStyle") private var faceStyle = FaceStyle.ribbon.rawValue
     /// The moving bars at the bottom, on or off (Settings > Face).
     @AppStorage("arisu.meter") private var showMeter = true
     /// Bubbles or terminal lines, for her subtitles here and for the typed
@@ -498,17 +502,23 @@ struct ContentView: View {
         }
     }
 
-    private var face: some View {
-        // No shadow, no mask, no drift. The colour-split, the bloom and the
-        // soft bottom edge are all things the renderer does itself now, and
-        // stacking SwiftUI's versions on top only muddied them.
-        FaceView(face: pet.face, state: faceState, amplitude: Double(pet.level),
-                 live2d: live2dFace, model: pet.model,
-                 glow: [phaseRGB.0, phaseRGB.1, phaseRGB.2]
-                     .map { String(Int($0 * 255)) }.joined(separator: ","),
-                 tune: pet.glow)
-            .offset(x: faceX, y: faceY)
-            .allowsHitTesting(false)
+    @ViewBuilder private var face: some View {
+        let style = FaceStyle(rawValue: faceStyle) ?? .ribbon
+        if style == .portrait {
+            // No shadow, no mask, no drift. The colour-split, the bloom and the
+            // soft bottom edge are all things the renderer does itself now, and
+            // stacking SwiftUI's versions on top only muddied them.
+            FaceView(face: pet.face, state: faceState, amplitude: Double(pet.level),
+                     live2d: live2dFace, model: pet.model,
+                     glow: [phaseRGB.0, phaseRGB.1, phaseRGB.2]
+                         .map { String(Int($0 * 255)) }.joined(separator: ","),
+                     tune: pet.glow)
+                .offset(x: faceX, y: faceY)
+                .allowsHitTesting(false)
+        } else {
+            VoiceVisual(style: style, amplitude: Double(pet.level), tint: phaseColor)
+                .offset(x: faceX, y: faceY)
+        }
     }
 
     private var scanlines: some View {

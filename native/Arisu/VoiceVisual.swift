@@ -1,0 +1,242 @@
+import SwiftUI
+
+/// Her face, as a voice visual.
+///
+/// The portrait and the Live2D model are a picture of a person; these are a
+/// picture of a voice. Five of them, all spheres, all in lain's own skin --
+/// cyan and magenta on void, a hard bloom, scanlines and a vignette, which is
+/// what makes the iPad look like the dashboard rather than like a toy
+/// (Oscar, 2026-09-28). He picks one in Settings; the portrait is still there.
+///
+/// The shapes come from `native/voice-visuals.html`, the page of 67 animated
+/// mockups he narrowed down. Anything changed here should be changed there
+/// too, or the next round of picking is done against the wrong picture.
+enum FaceStyle: String, CaseIterable, Identifiable {
+    case portrait, halo, bubble, groove, trail, ribbon
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .portrait: return "Portrait"
+        case .halo:     return "Halo sphere"
+        case .bubble:   return "Bubble sphere"
+        case .groove:   return "Groove sphere"
+        case .trail:    return "Trail sphere"
+        case .ribbon:   return "Ribbon sphere"
+        }
+    }
+}
+
+struct VoiceVisual: View {
+    let style: FaceStyle
+    /// 0…1, her own level -- the same number the portrait's mouth uses.
+    let amplitude: Double
+    /// The state colour: indigo waiting, green hearing him, magenta working,
+    /// cyan talking. It is the whole state cue here, so it is never mixed
+    /// with the character's mood.
+    let tint: Color
+
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            Canvas { ctx, size in
+                let t = timeline.date.timeIntervalSinceReferenceDate
+                let w = min(size.width, size.height)
+                ctx.translateBy(x: size.width / 2, y: size.height / 2)
+                draw(ctx, w: w, t: t)
+                // The dashboard's own finish, over whatever was drawn.
+                vignette(ctx, w: w)
+                scanlines(ctx, w: w)
+            }
+        }
+        .drawingGroup()          // one Metal layer: 60 fps on the 2020 iPad
+        .allowsHitTesting(false)
+    }
+
+    // ----------------------------------------------------------------- bits
+
+    private var mag: Color { Skin.mag }
+    private var a: Double { max(0, min(1, amplitude)) }
+
+    /// The sphere, turned and tipped, flattened onto the screen.
+    private func project(_ x: Double, _ y: Double, _ z: Double,
+                         _ ry: Double, _ rx: Double, _ r: Double) -> (Double, Double, Double) {
+        let x1 = x * cos(ry) - z * sin(ry)
+        var z1 = x * sin(ry) + z * cos(ry)
+        let y1 = y * cos(rx) - z1 * sin(rx)
+        z1 = y * sin(rx) + z1 * cos(rx)
+        let f = 1 / (1.9 - z1 / (r * 0.9))
+        return (x1 * f, y1 * f, z1)
+    }
+
+    private func ring(_ points: [(Double, Double)], closed: Bool = true) -> Path {
+        var p = Path()
+        for (i, pt) in points.enumerated() {
+            i == 0 ? p.move(to: CGPoint(x: pt.0, y: pt.1)) : p.addLine(to: CGPoint(x: pt.0, y: pt.1))
+        }
+        if closed { p.closeSubpath() }
+        return p
+    }
+
+    /// Bloom. A stroke drawn once through a shadow filter and once plain --
+    /// the lit ring in skin.css is the same trick.
+    private func glow(_ ctx: inout GraphicsContext, _ w: Double, _ color: Color,
+                      _ body: (inout GraphicsContext) -> Void) {
+        var lit = ctx
+        lit.addFilter(.shadow(color: color.opacity(0.85), radius: w * 0.035))
+        body(&lit)
+        body(&ctx)
+    }
+
+    private func vignette(_ ctx: GraphicsContext, w: Double) {
+        let r = CGRect(x: -w, y: -w, width: w * 2, height: w * 2)
+        ctx.fill(Path(r), with: .radialGradient(
+            Gradient(colors: [.clear, Color(red: 0.012, green: 0.008, blue: 0.031).opacity(0.85)]),
+            center: .zero, startRadius: w * 0.18, endRadius: w * 0.62))
+    }
+
+    private func scanlines(_ ctx: GraphicsContext, w: Double) {
+        var p = Path()
+        var y = -w
+        while y < w { p.addRect(CGRect(x: -w, y: y, width: w * 2, height: 1)); y += 3 }
+        ctx.fill(p, with: .color(.black.opacity(0.20)))
+    }
+
+    // ---------------------------------------------------------------- draws
+
+    private func draw(_ ctx: GraphicsContext, w: Double, t: Double) {
+        var c = ctx
+        switch style {
+        case .portrait, .halo: halo(&c, w, t)
+        case .bubble:          bubble(&c, w, t)
+        case .groove:          groove(&c, w, t)
+        case .trail:           trail(&c, w, t)
+        case .ribbon:          ribbon(&c, w, t)
+        }
+    }
+
+    /// Lit rings around a globe, the magenta one at her equator.
+    private func halo(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
+        let R = w * 0.30, ry = t * 0.5, rx = sin(t * 0.3) * 0.35
+        for k in 0..<12 {                               // meridians, faint
+            let lon = Double(k) / 12 * .pi * 2
+            let pts = (0...60).map { i -> (Double, Double) in
+                let lat = (Double(i) / 60 - 0.5) * .pi
+                let p = project(cos(lon) * cos(lat) * R, sin(lat) * R,
+                                sin(lon) * cos(lat) * R, ry, rx, R)
+                return (p.0, p.1)
+            }
+            ctx.stroke(ring(pts, closed: false), with: .color(tint.opacity(0.10)), lineWidth: 1)
+        }
+        for k in 0..<9 {
+            let lat = (Double(k) / 8 - 0.5) * .pi * 0.92
+            let cr = cos(lat) * R, cy = sin(lat) * R
+            let pts = (0...90).map { i -> (Double, Double) in
+                let lon = Double(i) / 90 * .pi * 2
+                let wob = 1 + a * 0.14 * sin(lon * 4 + t * 3 + Double(k))
+                let p = project(cos(lon) * cr * wob, cy * wob, sin(lon) * cr * wob, ry, rx, R)
+                return (p.0, p.1)
+            }
+            let col = k == 4 ? mag : tint
+            let o = 0.25 + 0.55 * (1 - abs(Double(k) - 4) / 5)
+            glow(&ctx, w, col) { g in
+                g.stroke(ring(pts), with: .color(col.opacity(o)), lineWidth: w * 0.006)
+            }
+        }
+    }
+
+    /// Glass shells with a specular and a rim, added together.
+    private func bubble(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
+        let R = w * 0.26
+        var add = ctx
+        add.blendMode = .plusLighter
+        for i in 0..<5 {
+            let an = t * 0.45 + Double(i) * 1.25, off = R * (0.10 + a * 0.30)
+            let x = cos(an) * off, y = sin(an * 1.2) * off * 0.7
+            let rr = R * (0.85 + 0.12 * sin(t + Double(i)))
+            let hue = i % 2 == 0 ? tint : mag
+            let rect = CGRect(x: x - rr, y: y - rr, width: rr * 2, height: rr * 2)
+            add.fill(Path(ellipseIn: rect), with: .radialGradient(
+                Gradient(stops: [
+                    .init(color: hue.opacity(0.30 + a * 0.25), location: 0),
+                    .init(color: hue.opacity(0.06), location: 0.55),
+                    .init(color: hue.opacity(0.26 + a * 0.30), location: 0.92),
+                    .init(color: hue.opacity(0), location: 1)]),
+                center: CGPoint(x: x - rr * 0.3, y: y - rr * 0.35),
+                startRadius: rr * 0.05, endRadius: rr))
+        }
+    }
+
+    /// The record, wrapped around a globe.
+    private func groove(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
+        let R = w * 0.30, ry = t * 0.35, rx = 0.30 + sin(t * 0.25) * 0.2
+        for k in 0..<26 {
+            let lat = (Double(k) / 25 - 0.5) * .pi * 0.96
+            let cr = cos(lat) * R, cy = sin(lat) * R
+            let pts = (0...100).map { i -> (Double, Double) in
+                let lon = Double(i) / 100 * .pi * 2
+                let d = 1 + sin(lon * 3 + t * 2 + Double(k) * 0.35) * a * 0.10
+                let p = project(cos(lon) * cr * d, cy * d, sin(lon) * cr * d, ry, rx, R)
+                return (p.0, p.1)
+            }
+            let col = k % 7 == 0 ? mag : tint
+            let o = 0.08 + 0.45 * (0.3 + a) * (1 - abs(Double(k) - 12.5) / 16)
+            ctx.stroke(ring(pts), with: .color(col.opacity(o)), lineWidth: w * 0.004)
+        }
+    }
+
+    /// A light running over the surface, dimming as it passes behind.
+    private func trail(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
+        let R = w * 0.29, ry = t * 0.4, rx = 0.25
+        for k in 0..<10 {                               // the cage it runs on
+            let lon = Double(k) / 10 * .pi * 2
+            let pts = (0...50).map { i -> (Double, Double) in
+                let lat = (Double(i) / 50 - 0.5) * .pi
+                let p = project(cos(lon) * cos(lat) * R, sin(lat) * R,
+                                sin(lon) * cos(lat) * R, ry, rx, R)
+                return (p.0, p.1)
+            }
+            ctx.stroke(ring(pts, closed: false), with: .color(tint.opacity(0.07)), lineWidth: 1)
+        }
+        let n = 150
+        for i in 0..<n {
+            let u = t * 1.1 - Double(i) * 0.012
+            let lat = sin(u * 0.9) * 1.25, lon = u * 2.1
+            let rr = R * (1 + a * 0.10 * sin(u * 4))
+            let p = project(cos(lon) * cos(lat) * rr, sin(lat) * rr,
+                            sin(lon) * cos(lat) * rr, ry, rx, R)
+            let front = (p.2 / R + 1) / 2, fade = 1 - Double(i) / Double(n)
+            let dot = w * 0.009 * fade + w * 0.002
+            let rect = CGRect(x: p.0 - dot, y: p.1 - dot, width: dot * 2, height: dot * 2)
+            ctx.fill(Path(ellipseIn: rect),
+                     with: .color((i < 12 ? mag : tint)
+                        .opacity(fade * (0.15 + 0.75 * front) * (0.4 + a))))
+        }
+    }
+
+    /// The lissajous, wrapped on a shell, with her core inside it.
+    private func ribbon(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
+        let R = w * 0.29, ry = t * 0.45, rx = sin(t * 0.22) * 0.4
+        for s in 0..<3 {
+            let pts = (0...420).map { i -> (Double, Double) in
+                let u = Double(i) / 420 * .pi * 2
+                let lat = sin(u * Double(2 + s)) * 1.2
+                let lon = u * 3 + Double(s) * 2.1 + t * 0.2
+                let rr = R * (0.92 + a * 0.16 * sin(u * 6 + t * 3))
+                let p = project(cos(lon) * cos(lat) * rr, sin(lat) * rr,
+                                sin(lon) * cos(lat) * rr, ry, rx, R)
+                return (p.0, p.1)
+            }
+            let col = s == 1 ? mag : tint
+            glow(&ctx, w, col) { g in
+                g.stroke(ring(pts, closed: false),
+                         with: .color(col.opacity(0.55 - Double(s) * 0.12)),
+                         lineWidth: w * 0.005)
+            }
+        }
+        let core = R * 0.16 * (1 + a * 0.5)
+        glow(&ctx, w, tint) { g in
+            g.fill(Path(ellipseIn: CGRect(x: -core, y: -core, width: core * 2, height: core * 2)),
+                   with: .color(tint.opacity(0.5 + a * 0.4)))
+        }
+    }
+}

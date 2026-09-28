@@ -35,6 +35,7 @@ struct SettingsSheet: View {
     /// Shared with `ContentView`, which hands it to the face. A preference of
     /// this screen, not of the character, so it lives on the device.
     @AppStorage("arisu.live2d") private var live2dFace = true
+    @AppStorage("arisu.faceStyle") private var faceStyle = FaceStyle.ribbon.rawValue
     @AppStorage("arisu.meter") private var showMeter = true
     /// Bubbles or terminal lines, for her subtitles and the typed chat alike.
     @AppStorage("arisu.bubbles") private var bubbles = true
@@ -94,18 +95,30 @@ struct SettingsSheet: View {
             if let cast, cast.characters.count > 1 { castSection(cast) }
 
             Section {
-                Toggle("Live2D face", isOn: $live2dFace)
-                    .font(.system(size: 19))
+                // A picture of a person, or a picture of a voice. The five
+                // spheres are drawn by the app itself and need no desk.
+                Picker("Face", selection: $faceStyle) {
+                    ForEach(FaceStyle.allCases) { style in
+                        Text(style.label).tag(style.rawValue)
+                    }
+                }
+                .font(.system(size: 19))
+                if faceStyle == FaceStyle.portrait.rawValue {
+                    Toggle("Live2D face", isOn: $live2dFace)
+                        .font(.system(size: 19))
+                }
                 Toggle("Moving bars at the bottom", isOn: $showMeter)
                     .font(.system(size: 19))
-                if live2dFace { modelGrid }
+                if faceStyle == FaceStyle.portrait.rawValue && live2dFace { modelGrid }
             } header: {
                 header("Face")
             } footer: {
-                footer("Draws her as a moving Live2D model, loaded from the desk. "
-                       + "The model is saved to the character, so the web page "
-                       + "shows the same one. If the desk cannot be reached, "
-                       + "the portrait comes back.")
+                footer("Portrait draws her as herself -- a still, or a moving "
+                       + "Live2D model loaded from the desk, saved to the "
+                       + "character so the web page shows the same one. The "
+                       + "spheres draw her voice instead: the state is the "
+                       + "colour, her level is the movement, and they need "
+                       + "nothing from the desk.")
             }
 
             positionSection

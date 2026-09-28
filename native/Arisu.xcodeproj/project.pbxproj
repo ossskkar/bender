@@ -13,6 +13,7 @@
 		A1111111000000000000DE03 /* DeckRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1111111000000000000DE04 /* DeckRail.swift */; };
 		A1111111000000000000CH01 /* Chat.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1111111000000000000CH02 /* Chat.swift */; };
 		A1111111000000000000SK01 /* Skin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1111111000000000000SK02 /* Skin.swift */; };
+		A1111111000000000000VV01 /* VoiceVisual.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1111111000000000000VV02 /* VoiceVisual.swift */; };
 		A1111111000000000000DE05 /* DeckEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1111111000000000000DE06 /* DeckEditor.swift */; };
 		43F0879FFDAA5CC9BF5AF311 /* Ear.swift in Sources */ = {isa = PBXBuildFile; fileRef = F98A8600096F593286FDD18C /* Ear.swift */; };
 		43F0879FFDAA5CC9BF5AF312 /* Live.swift in Sources */ = {isa = PBXBuildFile; fileRef = F98A8600096F593286FDD18D /* Live.swift */; };
@@ -36,6 +37,7 @@
 		A1111111000000000000DE04 /* DeckRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeckRail.swift; sourceTree = "<group>"; };
 		A1111111000000000000CH02 /* Chat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Chat.swift; sourceTree = "<group>"; };
 		A1111111000000000000SK02 /* Skin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Skin.swift; sourceTree = "<group>"; };
+		A1111111000000000000VV02 /* VoiceVisual.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceVisual.swift; sourceTree = "<group>"; };
 		A1111111000000000000DE06 /* DeckEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeckEditor.swift; sourceTree = "<group>"; };
 		6533966DE78A54959539DEF8 /* Brain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Brain.swift; sourceTree = "<group>"; };
 		DB4F4FC4C54E56B7A87A605F /* Voice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Voice.swift; sourceTree = "<group>"; };
@@ -88,6 +90,7 @@
 				A1111111000000000000DE04 /* DeckRail.swift */,
 				A1111111000000000000CH02 /* Chat.swift */,
 				A1111111000000000000SK02 /* Skin.swift */,
+				A1111111000000000000VV02 /* VoiceVisual.swift */,
 				A1111111000000000000DE06 /* DeckEditor.swift */,
 				FF187857D8C65BB89621CF9D /* ContentView.swift */,
 				A22222220000000000000002 /* FaceView.swift */,
@@ -179,6 +182,7 @@
 				A1111111000000000000DE03 /* DeckRail.swift in Sources */,
 				A1111111000000000000CH01 /* Chat.swift in Sources */,
 				A1111111000000000000SK01 /* Skin.swift in Sources */,
+				A1111111000000000000VV01 /* VoiceVisual.swift in Sources */,
 				A1111111000000000000DE05 /* DeckEditor.swift in Sources */,
 				AD8A4B8DB6115482A928E9F1 /* ContentView.swift in Sources */,
 				A22222220000000000000001 /* FaceView.swift in Sources */,
