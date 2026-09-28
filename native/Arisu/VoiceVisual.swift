@@ -55,7 +55,15 @@ struct VoiceVisual: View {
     // ----------------------------------------------------------------- bits
 
     private var mag: Color { Skin.mag }
-    private var a: Double { max(0, min(1, amplitude)) }
+
+    /// Her level, with a floor. A sphere that is exactly still while she waits
+    /// reads as a crash rather than as patience, so there is always a slow
+    /// breath under it -- `breath(t)` at rest, her own level once she has one.
+    private func amp(_ t: Double) -> Double {
+        let live = max(0, min(1, amplitude))
+        let breath = 0.10 + 0.045 * sin(t * 0.9)
+        return max(breath, live)
+    }
 
     /// The sphere, turned and tipped, flattened onto the screen.
     private func project(_ x: Double, _ y: Double, _ z: Double,
@@ -116,6 +124,7 @@ struct VoiceVisual: View {
 
     /// Lit rings around a globe, the magenta one at her equator.
     private func halo(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
+        let a = amp(t)
         let R = w * 0.30, ry = t * 0.5, rx = sin(t * 0.3) * 0.35
         for k in 0..<12 {                               // meridians, faint
             let lon = Double(k) / 12 * .pi * 2
@@ -146,6 +155,7 @@ struct VoiceVisual: View {
 
     /// Glass shells with a specular and a rim, added together.
     private func bubble(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
+        let a = amp(t)
         let R = w * 0.26
         var add = ctx
         add.blendMode = .plusLighter
@@ -168,6 +178,7 @@ struct VoiceVisual: View {
 
     /// The record, wrapped around a globe.
     private func groove(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
+        let a = amp(t)
         let R = w * 0.30, ry = t * 0.35, rx = 0.30 + sin(t * 0.25) * 0.2
         for k in 0..<26 {
             let lat = (Double(k) / 25 - 0.5) * .pi * 0.96
@@ -186,6 +197,7 @@ struct VoiceVisual: View {
 
     /// A light running over the surface, dimming as it passes behind.
     private func trail(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
+        let a = amp(t)
         let R = w * 0.29, ry = t * 0.4, rx = 0.25
         for k in 0..<10 {                               // the cage it runs on
             let lon = Double(k) / 10 * .pi * 2
@@ -215,6 +227,7 @@ struct VoiceVisual: View {
 
     /// The lissajous, wrapped on a shell, with her core inside it.
     private func ribbon(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
+        let a = amp(t)
         let R = w * 0.29, ry = t * 0.45, rx = sin(t * 0.22) * 0.4
         for s in 0..<3 {
             let pts = (0...420).map { i -> (Double, Double) in
