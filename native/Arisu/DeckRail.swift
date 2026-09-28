@@ -69,6 +69,14 @@ struct DeckRail: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.white.opacity(0.03))
         .task { await deck.load() }
+        .task { await deck.watchFront() }
+        // The Mac changed app: bring that deck up. Only on the change, never
+        // continuously -- a rail that re-asserts itself every two seconds is
+        // one he cannot hold on a different group while he works.
+        .onChange(of: deck.front) { _, now in
+            guard !now.isEmpty, deck.groups.contains(now) else { return }
+            withAnimation(.easeOut(duration: 0.18)) { group = now }
+        }
         .sheet(item: $sheet) { button in
             DeckEditor(button: button, isNew: !deck.buttons.contains { $0.id == button.id },
                        groups: deck.groups) { edited in
@@ -89,6 +97,12 @@ struct DeckRail: View {
     private var head: some View {
         HStack(spacing: 6) {
             Skin.caption("deck", mag.opacity(0.85))
+            if !deck.frontApp.isEmpty {
+                Text(deck.frontApp)
+                    .font(Skin.mono(10))
+                    .foregroundStyle(Skin.ink)
+                    .lineLimit(1)
+            }
             Spacer(minLength: 0)
             if editing {
                 small("plus", "Add a button", tint: mag) {

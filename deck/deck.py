@@ -284,6 +284,57 @@ def execute(action: dict, dry_run: bool = False, timeout: int = 20):
 # the service
 
 
+# Which deck belongs to which Mac app. The iPad brings a group to the front
+# when the Mac's frontmost app changes (Oscar, 2026-09-28), so the buttons he
+# wants are already there when he looks down. Matched on the app's display
+# name, lowercased; a group whose name is in the app's name needs no row here
+# (Spotify -> spotify, Google Chrome -> chrome).
+FRONT_GROUPS = {
+    "claude": "claude-code",
+    "terminal": "hermes",
+    "iterm2": "hermes",
+    "ghostty": "hermes",
+    "safari": "chrome",
+    "finder": "mac",
+    "system settings": "mac",
+}
+
+
+def front_app() -> str:
+    """The Mac's frontmost application, by display name.
+
+    `lsappinfo` and not AppleScript on purpose: asking System Events for it
+    needs Automation consent, and a *pending* TCC decision is what left this
+    server hanging inside a syscall for a day (2026-09-28). This reads
+    CoreServices' own launch database and needs nothing.
+    """
+    try:
+        asn = _run(["lsappinfo", "front"], timeout=3)[1].strip()
+        if not asn:
+            return ""
+        name = _run(["lsappinfo", "info", "-only", "name", asn], timeout=3)[1]
+    except Exception:
+        return ""
+    # '"LSDisplayName"="Claude"' -- the last quoted field is the name.
+    parts = [p for p in name.strip().split('"') if p not in ("", "=")]
+    return parts[-1] if parts else ""
+
+
+def front_group(groups) -> str:
+    """The deck for whatever is in front, or "" if none of them fits.
+
+    Empty matters: it means *leave the rail where he put it*. Falling back to
+    a default would drag him off his group every time he opened Mail.
+    """
+    app = front_app().lower()
+    if not app:
+        return ""
+    for key, group in FRONT_GROUPS.items():
+        if key in app and group in groups:
+            return group
+    return next((g for g in groups if g and g.lower() in app), "")
+
+
 class Handler(BaseHTTPRequestHandler):
     path_to_buttons = BUTTONS
     quiet = False
@@ -311,13 +362,20 @@ class Handler(BaseHTTPRequestHandler):
         return json.loads(self.rfile.read(length).decode("utf-8"))
 
     def do_GET(self):
-        if self.path.rstrip("/") != "/deck":
-            return self.reply(404, {"error": "no such path"})
+        path = self.path.rstrip("/") or "/"
         try:
             data = load(self.path_to_buttons)
         except (OSError, ValueError) as exc:
             return self.reply(500, {"error": f"buttons.json: {exc}"})
-        self.reply(200, {"buttons": data.get("buttons") or []})
+        buttons = data.get("buttons") or []
+        groups = list(dict.fromkeys(b.get("group", "") for b in buttons))
+        # Polled every couple of seconds by the rail, so it answers with the
+        # app and nothing else -- the buttons have not changed.
+        if path == "/deck/front":
+            return self.reply(200, {"app": front_app(), "group": front_group(groups)})
+        if path != "/deck":
+            return self.reply(404, {"error": "no such path"})
+        self.reply(200, {"buttons": buttons, "front": front_group(groups)})
 
     def do_POST(self):
         path = self.path.rstrip("/") or "/"

@@ -97,6 +97,11 @@ struct DeckButton: Codable, Equatable, Identifiable {
     @Published var buttons: [DeckButton] = []
     @Published var failed: String?
     @Published var loading = false
+    /// The deck of whatever is frontmost on the Mac, and the app's own name
+    /// for the rail to show. Empty means nothing on the Mac matches a group,
+    /// which is the signal to leave his choice alone.
+    @Published var front = ""
+    @Published var frontApp = ""
     /// The id that is running, and the last answer, for the row to show.
     @Published var running: String?
     @Published var said: (id: String, ok: Bool, detail: String)?
@@ -118,14 +123,31 @@ struct DeckButton: Codable, Equatable, Identifiable {
         return seen
     }
 
+    /// What the Mac is doing, every couple of seconds. Cheap on purpose: the
+    /// answer is two short strings and the buttons are not re-sent.
+    func watchFront() async {
+        struct Answer: Decodable { let app: String?; let group: String? }
+        while !Task.isCancelled {
+            if let (data, _) = try? await session.data(
+                from: DeckAPI.base.appendingPathComponent("deck/front")),
+               let got = try? JSONDecoder().decode(Answer.self, from: data) {
+                frontApp = got.app ?? ""
+                front = got.group ?? ""
+            }
+            try? await Task.sleep(for: .seconds(2))
+        }
+    }
+
     func load() async {
         loading = true
         defer { loading = false }
-        struct Answer: Decodable { let buttons: [DeckButton] }
+        struct Answer: Decodable { let buttons: [DeckButton]; let front: String? }
         do {
             let (data, _) = try await session.data(
                 from: DeckAPI.base.appendingPathComponent("deck"))
-            buttons = try JSONDecoder().decode(Answer.self, from: data).buttons
+            let got = try JSONDecoder().decode(Answer.self, from: data)
+            buttons = got.buttons
+            front = got.front ?? front
             failed = nil
         } catch {
             failed = "The Mac did not answer. Is the deck running, and is this "
