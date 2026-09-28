@@ -17,7 +17,7 @@ struct DeckEditor: View {
     @Environment(\.dismiss) private var dismiss
     @State private var confirmRemove = false
 
-    private let accent = Color(red: 0.27, green: 0.90, blue: 0.97)
+    private let accent = Skin.cyan
 
     var body: some View {
         NavigationStack {

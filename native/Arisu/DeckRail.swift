@@ -19,8 +19,8 @@ struct DeckRail: View {
     @State private var sheet: DeckButton?
     @State private var saveError: String?
 
-    private let cyan = Color(red: 0.27, green: 0.90, blue: 0.97)
-    private let mag = Color(red: 1.0, green: 0.22, blue: 0.78)
+    private let cyan = Skin.cyan
+    private let mag = Skin.mag
 
     /// What it opens at the first time, as a share of the screen. He sets it
     /// after that by dragging the seam (Oscar, 2026-09-28): half the iPad is
@@ -67,7 +67,7 @@ struct DeckRail: View {
                 }
         )
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(cyan.opacity(0.03))
+        .background(Color.white.opacity(0.03))
         .task { await deck.load() }
         .sheet(item: $sheet) { button in
             DeckEditor(button: button, isNew: !deck.buttons.contains { $0.id == button.id },
@@ -88,10 +88,7 @@ struct DeckRail: View {
     /// above this one now, so this is only "which panel is this".
     private var head: some View {
         HStack(spacing: 6) {
-            Text("DECK")
-                .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                .tracking(4)
-                .foregroundStyle(mag.opacity(0.85))
+            Skin.caption("deck", mag.opacity(0.85))
             Spacer(minLength: 0)
             if editing {
                 small("plus", "Add a button", tint: mag) {
@@ -118,9 +115,9 @@ struct DeckRail: View {
                 let on = name == shown
                 Button { group = name } label: {
                     Text(name)
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(on ? Color(red: 0.02, green: 0.09, blue: 0.10) : cyan.opacity(0.7))
-                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .font(Skin.mono(13, .semibold))
+                        .foregroundStyle(on ? Skin.onLit : cyan.opacity(0.7))
+                        .padding(.horizontal, 12).padding(.vertical, 7)
                         .background(Capsule().fill(on ? cyan : .clear))
                         .overlay(Capsule().stroke(cyan.opacity(on ? 0 : 0.3)))
                 }
@@ -135,7 +132,7 @@ struct DeckRail: View {
         // As many columns as the seam leaves room for. It was two across a
         // fixed 196pt rail; the rail is his to widen now, and a two-column
         // grid on half an iPad is six buttons swimming in black.
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 8)], spacing: 8) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 10)], spacing: 10) {
             ForEach(deck.buttons.filter { $0.group == shown }) { key($0) }
         }
         .padding(.horizontal, 12)
@@ -148,9 +145,9 @@ struct DeckRail: View {
         } label: {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 5) {
-                    if !b.icon.isEmpty { Text(b.icon).font(.system(size: 14)) }
+                    if !b.icon.isEmpty { Text(b.icon).font(.system(size: 20)) }
                     Text(b.label)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(Skin.mono(15, .semibold))
                         .foregroundStyle(.white)
                         .lineLimit(1).minimumScaleFactor(0.8)
                     Spacer(minLength: 0)
@@ -160,16 +157,15 @@ struct DeckRail: View {
                     }
                 }
                 Text(b.action.summary)
-                    .font(.system(size: 9, design: .monospaced))
-                    .foregroundStyle(cyan.opacity(0.55))
+                    .font(Skin.mono(10))
+                    .foregroundStyle(Skin.ink)
                     .lineLimit(1).truncationMode(.middle)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.05)))
-            .overlay(RoundedRectangle(cornerRadius: 8)
-                .stroke((editing ? mag : cyan).opacity(busy ? 0.9 : 0.3)))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 14)
+            // A thumb, not a stylus: 72pt is what he presses without looking.
+            .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+            .raised(editing ? mag : cyan, stroke: busy ? 0.9 : 0.3)
         }
         .buttonStyle(.plain)
     }
@@ -183,8 +179,8 @@ struct DeckRail: View {
                 .font(.system(size: 11))
                 .foregroundStyle(said.ok ? cyan : mag)
             Text(said.detail.isEmpty ? (said.ok ? "done" : "failed") : said.detail)
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.75))
+                .font(Skin.mono(11))
+                .foregroundStyle(.white.opacity(0.8))
                 .lineLimit(5)
             Spacer(minLength: 0)
             Button { deck.said = nil } label: {
@@ -192,10 +188,10 @@ struct DeckRail: View {
                     .foregroundStyle(.white.opacity(0.4))
             }
         }
-        .padding(10)
-        .background(Color.white.opacity(0.05))
-        .overlay(Rectangle().frame(height: 1).foregroundStyle(cyan.opacity(0.2)),
-                 alignment: .top)
+        .padding(12)
+        .raised(cyan, stroke: 0.25)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 10)
     }
 
     private func note(_ line: String) -> some View {

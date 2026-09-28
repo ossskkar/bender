@@ -74,14 +74,14 @@ struct ContentView: View {
     /// the words themselves stay one colour -- "hot" rendered them at
     /// (1.0, 0.30, 0.42), which reads as magenta and collided with the
     /// magenta the meter once used to mean she is working.
-    private let voice = Color(red: 0.27, green: 0.90, blue: 0.97)
+    private let voice = Skin.cyan
     /// His chat bubbles: the legend's thinking magenta.
-    private let mineColor = Color(red: 1.0, green: 0.22, blue: 0.78)
+    private let mineColor = Skin.mag
 
     /// Recording red. The one colour on this screen that is not part of the
     /// hologram's palette, on purpose: a record light should look like a
     /// record light and not like a mood.
-    private let recording = Color(red: 1.0, green: 0.27, blue: 0.31)
+    private let recording = Skin.recording
 
     /// His voice, and the colour his words are already written in. The meter
     /// borrows it so that "who is making this move" needs no legend: the bars
@@ -140,7 +140,7 @@ struct ContentView: View {
                     Circle().fill(c).frame(width: 10, height: 10)
                         .shadow(color: c.opacity(0.8), radius: phase == p ? 6 : 0)
                     Text(name)
-                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .font(Skin.mono(13, .semibold))
                         .foregroundStyle(c)
                 }
                 .opacity(phase == p ? 1 : 0.45)
@@ -313,15 +313,17 @@ struct ContentView: View {
         }
     }
 
+    /// The room's two controls are the same button as everywhere else, only
+    /// bigger: a circle under her and a square at the top was two apps.
     private func round(_ symbol: String, _ label: String, ink: Color, fill: Bool,
                        action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 21, weight: .semibold))
-                .foregroundStyle(fill ? Color.black : ink)
-                .frame(width: 60, height: 60)
-                .background(Circle().fill(fill ? ink : Color.white.opacity(0.07)))
-                .overlay(Circle().stroke(ink.opacity(fill ? 0 : 0.4)))
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(fill ? Skin.onLit : ink)
+                .frame(width: 78, height: 58)
+                .raised(ink, stroke: fill ? 0 : 0.4,
+                        fill: fill ? ink : Color.black.opacity(0.35))
         }
         .accessibilityLabel(label)
     }
@@ -329,7 +331,7 @@ struct ContentView: View {
     /// Off. Colour means on and grey means off everywhere on this screen --
     /// before, the pause button went magenta when it was *stopped*, which made
     /// the loudest thing on screen the thing that was doing nothing.
-    private let off = Color.white.opacity(0.3)
+    private let off = Skin.off
 
     /// Her name over the room, at the height of the buttons and in the chat
     /// page's own words, so the two screens carry the same masthead at the same
@@ -338,18 +340,18 @@ struct ContentView: View {
     /// The skin's magenta (`--mag`, #FF3D8A), which is the colour the web
     /// wordmark has always been. This screen had it in cyan for a day and it
     /// stopped reading as the same app (Oscar, 2026-09-28).
-    private static let mag = Color(red: 1.0, green: 0.24, blue: 0.54)
+    private static let mag = Skin.mag
 
     private var masthead: some View {
-        let cyan = Color(red: 0.27, green: 0.90, blue: 0.97)
+        let cyan = Skin.cyan
         return VStack(alignment: .leading, spacing: 3) {
             Text("Arisuへようこそ！")
-                .font(.system(size: 17, weight: .bold, design: .monospaced))
+                .font(Skin.mono(17, .bold))
                 .tracking(4.5)
                 .foregroundStyle(Self.mag)
                 .shadow(color: Self.mag.opacity(0.55 * flicker), radius: 10)
             Text("PRESENT DAY · PRESENT TIME")
-                .font(.system(size: 10, weight: .regular, design: .monospaced))
+                .font(Skin.mono(10))
                 .tracking(2.8)
                 .foregroundStyle(cyan.opacity(0.8))
         }
@@ -427,25 +429,14 @@ struct ContentView: View {
         }
         .padding(.vertical, 14)
         .padding(.horizontal, 22)
-        .background(Color.black)
+        .background(Skin.void)
         .overlay(Rectangle().frame(height: 1).foregroundStyle(Self.mag.opacity(0.18)),
                  alignment: .bottom)
     }
 
     private func squareButton(_ symbol: String, _ label: String, tint: Color? = nil,
                               action: @escaping () -> Void) -> some View {
-        let cyan = Color(red: 0.27, green: 0.90, blue: 0.97)
-        let ink = tint ?? cyan
-        return Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 19, weight: .semibold))
-                .foregroundStyle(ink)
-                .frame(width: 50, height: 38)
-                .background(Color.black.opacity(0.35))
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(ink.opacity(0.35)))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-        }
-        .accessibilityLabel(label)
+        IconButton(symbol: symbol, label: label, tint: tint ?? Skin.cyan, action: action)
     }
 
     /// Five minutes of silence ends the call and puts the keyboard back. Not

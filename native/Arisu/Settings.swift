@@ -43,7 +43,7 @@ struct SettingsSheet: View {
     @AppStorage("arisu.faceY") private var faceY = 0.0
 
     private let brain = Brain()
-    private let accent = Color(red: 0.27, green: 0.90, blue: 0.97)
+    private let accent = Skin.cyan
 
     var body: some View {
         NavigationStack {

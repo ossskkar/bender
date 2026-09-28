@@ -150,8 +150,8 @@ struct ChatPane: View {
     @State private var showHistory = false
     @FocusState private var writing: Bool
 
-    private let cyan = Color(red: 0.27, green: 0.90, blue: 0.97)
-    private let mag = Color(red: 1.0, green: 0.24, blue: 0.54)
+    private let cyan = Skin.cyan
+    private let mag = Skin.mag
 
     var body: some View {
         VStack(spacing: 0) {
@@ -180,7 +180,7 @@ struct ChatPane: View {
                     }
                     if let failed = chat.failed {
                         Text("! " + failed)
-                            .font(.system(size: 12, design: .monospaced))
+                            .font(Skin.mono(12))
                             .foregroundStyle(mag)
                     }
                     Color.clear.frame(height: 1).id("end")
@@ -211,16 +211,14 @@ struct ChatPane: View {
                         .padding(.top, 4)
                 }
                 Text(line.text)
-                    .font(.system(size: 15, design: .monospaced))
+                    .font(Skin.mono(15))
                     .foregroundStyle(line.mine ? mag : cyan)
                     .textSelection(.enabled)
             }
             .opacity(line.spoken ? 0.72 : 1)
-            .padding(.horizontal, 14).padding(.vertical, 9)
-            .background(RoundedRectangle(cornerRadius: 12)
-                .fill((line.mine ? mag : cyan).opacity(0.08)))
-            .overlay(RoundedRectangle(cornerRadius: 12)
-                .stroke((line.mine ? mag : cyan).opacity(line.spoken ? 0.18 : 0.3)))
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .raised(line.mine ? mag : cyan, stroke: line.spoken ? 0.18 : 0.3,
+                    fill: (line.mine ? mag : cyan).opacity(0.08))
             if !line.mine { Spacer(minLength: 40) }
         }
         .frame(maxWidth: .infinity, alignment: line.mine ? .trailing : .leading)
@@ -228,35 +226,36 @@ struct ChatPane: View {
 
     private var composer: some View {
         HStack(spacing: 10) {
-            button("clock", "History") { showHistory = true }
-            button("plus", "New conversation") { Task { await chat.new() } }
+            IconButton(symbol: "clock", label: "History", tint: Skin.off) { showHistory = true }
+            IconButton(symbol: "plus", label: "New conversation", tint: Skin.off) {
+                Task { await chat.new() }
+            }
             TextField("", text: $typing, axis: .vertical)
                 .textFieldStyle(.plain)
                 .lineLimit(1...5)
-                .font(.system(size: 15, design: .monospaced))
+                .font(Skin.mono(15))
                 .foregroundStyle(.white)
                 .tint(mag)
                 .focused($writing)
                 .submitLabel(.send)
                 .onSubmit(send)
                 .padding(.horizontal, 14).padding(.vertical, 11)
-                .background(RoundedRectangle(cornerRadius: 11).fill(Color.white.opacity(0.06)))
-                .overlay(RoundedRectangle(cornerRadius: 11)
-                    .stroke(writing ? mag.opacity(0.7) : Color.white.opacity(0.14)))
+                .raised(writing ? mag : .white, stroke: writing ? 0.7 : 0.14,
+                        fill: Color.white.opacity(0.06))
                 .overlay(alignment: .leading) {
                     if typing.isEmpty {
                         Text("say something")
-                            .font(.system(size: 15, design: .monospaced))
+                            .font(Skin.mono(15))
                             .foregroundStyle(.white.opacity(0.25))
                             .padding(.leading, 15)
                             .allowsHitTesting(false)
                     }
                 }
-            button("arrow.up", "Send", tint: typing.isEmpty ? nil : mag, filled: !typing.isEmpty,
-                   action: send)
+            IconButton(symbol: "arrow.up", label: "Send",
+                       tint: typing.isEmpty ? Skin.off : mag, lit: !typing.isEmpty, action: send)
             // The way into her voice. Her state colours it, so the button he
             // pressed to start talking is also the light that says she heard.
-            button("waveform", "Voice", tint: phase, action: toVoice)
+            IconButton(symbol: "waveform", label: "Voice", tint: phase, action: toVoice)
         }
         .padding(.horizontal, 18)
         .padding(.top, 10)
@@ -272,20 +271,6 @@ struct ChatPane: View {
         Task { await chat.send(said) }
     }
 
-    private func button(_ symbol: String, _ label: String, tint: Color? = nil,
-                        filled: Bool = false, action: @escaping () -> Void) -> some View {
-        let ink = tint ?? Color.white.opacity(0.35)
-        return Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(filled ? Color.black : ink)
-                .frame(width: 46, height: 42)
-                .background(RoundedRectangle(cornerRadius: 11)
-                    .fill(filled ? ink : Color.black.opacity(0.35)))
-                .overlay(RoundedRectangle(cornerRadius: 11).stroke(ink.opacity(filled ? 0 : 0.35)))
-        }
-        .accessibilityLabel(label)
-    }
 }
 
 /// Every conversation, chat and voice, newest first. Reading one is reading;
@@ -297,8 +282,8 @@ struct ChatHistory: View {
     @State private var open: [Chat.Line] = []
     @State private var title = ""
 
-    private let cyan = Color(red: 0.27, green: 0.90, blue: 0.97)
-    private let mag = Color(red: 1.0, green: 0.24, blue: 0.54)
+    private let cyan = Skin.cyan
+    private let mag = Skin.mag
 
     var body: some View {
         NavigationStack {
@@ -334,15 +319,15 @@ struct ChatHistory: View {
                             .font(.system(size: 11))
                             .foregroundStyle(s.kind == "voice" ? cyan : mag)
                         Text(when(s.start))
-                            .font(.system(size: 12, design: .monospaced))
+                            .font(Skin.mono(12))
                             .foregroundStyle(.white.opacity(0.6))
                         Spacer()
                         Text("\(s.count)")
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(.white.opacity(0.3))
+                            .font(Skin.mono(11))
+                            .foregroundStyle(Skin.ink.opacity(0.7))
                     }
                     Text(s.preview)
-                        .font(.system(size: 14))
+                        .font(Skin.mono(13))
                         .foregroundStyle(.white.opacity(0.85))
                         .lineLimit(2)
                 }
@@ -357,7 +342,7 @@ struct ChatHistory: View {
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(open) { line in
                     Text(line.text)
-                        .font(.system(size: 14, design: .monospaced))
+                        .font(Skin.mono(14))
                         .foregroundStyle(line.mine ? mag : cyan)
                         .frame(maxWidth: .infinity,
                                alignment: line.mine ? .trailing : .leading)
