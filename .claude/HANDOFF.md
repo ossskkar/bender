@@ -41,6 +41,13 @@ install to his iPad landed; **the launch did not, because the iPad is locked**
 The 67 mockups stay in `native/voice-visuals.html`. Keep the Swift and the
 HTML in step, or the next round of picking is done against the wrong picture.
 
+## Also done while he was away (2026-09-29)
+- The spheres breathe at rest (an amplitude floor) — a still face read as a crash.
+- `ChatScreen` (the web-view chat) and `newVoiceConversation` are deleted: both
+  went unreferenced when the chat became native and the composer took over.
+- `deck.py selftest` now covers `front_group`, including the two empty answers
+  (an app he never mapped, and no app at all) that mean "leave the rail alone".
+
 ## Gotchas
 - The app's remote is `ossskkar/bender`; `git push origin HEAD` works now.
 - The Mac deck is `arisu/deck/deck.py` on :8887, launchd
