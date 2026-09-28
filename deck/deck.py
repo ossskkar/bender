@@ -375,7 +375,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, {"app": front_app(), "group": front_group(groups)})
         if path != "/deck":
             return self.reply(404, {"error": "no such path"})
-        self.reply(200, {"buttons": buttons, "front": front_group(groups)})
+        self.reply(200, {"buttons": buttons, "front": front_group(groups),
+                         "apps": data.get("apps") or []})
 
     def do_POST(self):
         path = self.path.rstrip("/") or "/"
@@ -396,6 +397,22 @@ class Handler(BaseHTTPRequestHandler):
             ok, detail = execute(found.get("action") or {})
             return self.reply(200 if ok else 500,
                               {"ok": ok, "id": bid, "detail": detail})
+
+        # Bring one of his applications to the front. The name must be one of
+        # the ones `buttons.json` lists -- this is a socket on the tailnet, and
+        # `open -a` with a name off the wire is a way to start anything on the
+        # Mac. Argv, never a shell string, for the same reason.
+        if path == "/deck/app":
+            name = str(payload.get("name") or "")
+            try:
+                known = load(self.path_to_buttons).get("apps") or []
+            except (OSError, ValueError) as exc:
+                return self.reply(500, {"error": f"buttons.json: {exc}"})
+            if name not in known:
+                return self.reply(404, {"error": f"not one of his apps: {name!r}"})
+            ok, detail = _run(["open", "-a", name], timeout=10)
+            return self.reply(200 if ok else 500,
+                              {"ok": ok, "app": name, "detail": detail or name})
 
         if path == "/deck":
             try:

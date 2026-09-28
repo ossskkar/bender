@@ -102,6 +102,8 @@ struct DeckButton: Codable, Equatable, Identifiable {
     /// which is the signal to leave his choice alone.
     @Published var front = ""
     @Published var frontApp = ""
+    /// The applications he switches between, from the Mac's own list.
+    @Published var apps: [String] = []
     /// The id that is running, and the last answer, for the row to show.
     @Published var running: String?
     @Published var said: (id: String, ok: Bool, detail: String)?
@@ -141,18 +143,42 @@ struct DeckButton: Codable, Equatable, Identifiable {
     func load() async {
         loading = true
         defer { loading = false }
-        struct Answer: Decodable { let buttons: [DeckButton]; let front: String? }
+        struct Answer: Decodable {
+            let buttons: [DeckButton]
+            let front: String?
+            let apps: [String]?
+        }
         do {
             let (data, _) = try await session.data(
                 from: DeckAPI.base.appendingPathComponent("deck"))
             let got = try JSONDecoder().decode(Answer.self, from: data)
             buttons = got.buttons
             front = got.front ?? front
+            apps = got.apps ?? []
             failed = nil
         } catch {
             failed = "The Mac did not answer. Is the deck running, and is this "
                    + "device on the tailnet?"
         }
+    }
+
+    /// Bring one of his applications to the front of the Mac. The rail
+    /// follows the Mac, so pressing this also changes which deck is up --
+    /// one press moves both machines.
+    func open(app: String) async {
+        struct Answer: Decodable { let ok: Bool?; let detail: String?; let error: String? }
+        running = app
+        defer { running = nil }
+        var r = URLRequest(url: DeckAPI.base.appendingPathComponent("deck/app"))
+        r.httpMethod = "POST"
+        r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        r.httpBody = try? JSONSerialization.data(withJSONObject: ["name": app])
+        guard let (data, _) = try? await session.data(for: r),
+              let got = try? JSONDecoder().decode(Answer.self, from: data) else {
+            said = (app, false, "the Mac did not answer")
+            return
+        }
+        if let wrong = got.error { said = (app, false, wrong) }
     }
 
     func run(_ b: DeckButton) async {

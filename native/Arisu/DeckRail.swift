@@ -27,6 +27,43 @@ struct DeckRail: View {
     /// the deck he actually reaches for, and half is her.
     static let fraction = 0.5
 
+    /// His applications, on every tab, along the very bottom -- the lowest
+    /// thing in the rail because switching app is what he reaches for without
+    /// looking. Pressing one moves the Mac, and the rail follows the Mac, so
+    /// the right deck arrives on its own a moment later.
+    private var appStrip: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Skin.caption("apps", Skin.ink)
+                .padding(.horizontal, 12)
+            FlowRow(spacing: 6) {
+                ForEach(deck.apps, id: \.self) { app in
+                    let here = app.lowercased() == deck.frontApp.lowercased()
+                    Button { Task { await deck.open(app: app) } } label: {
+                        Text(short(app))
+                            .font(Skin.mono(12, .semibold))
+                            .foregroundStyle(here ? Skin.onLit : Skin.cyan.opacity(0.75))
+                            .lineLimit(1)
+                            .padding(.horizontal, 12)
+                            .frame(height: 40)
+                            .raised(Skin.cyan, stroke: here ? 0 : 0.3,
+                                    fill: here ? Skin.cyan : Skin.raised)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 12)
+        }
+    }
+
+    /// "Google Chrome" is Chrome on a rail this wide; "Citrix Workspace" is
+    /// Citrix. The first word is the one he reads.
+    private func short(_ app: String) -> String {
+        let drop = ["Google ", "Microsoft ", "Apple "]
+        var name = app
+        for d in drop where name.hasPrefix(d) { name.removeFirst(d.count) }
+        return name.split(separator: " ").first.map(String.init) ?? name
+    }
+
     /// One deck along, wrapping at both ends -- a swipe that does nothing at
     /// the last group reads as a dropped gesture, not as an edge.
     private func step(_ by: Int) {
@@ -52,7 +89,8 @@ struct DeckRail: View {
             } else {
                 if let said = deck.said { answer(said) }
                 groups
-                keys.padding(.bottom, 18)
+                keys
+                appStrip.padding(.top, 14).padding(.bottom, 16)
             }
         }
         // A swipe across the keys is the next application's deck. Six chips
