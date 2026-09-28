@@ -508,6 +508,23 @@ def selftest() -> int:
                          dry_run=True)
     assert ok, detail
     assert execute({"type": "nope"}, dry_run=True)[0] is False, "unknown type slipped through"
+
+    # Which deck the Mac's frontmost app asks for. The empty answer is the one
+    # that matters: it means leave the rail where he put it, and an app he has
+    # never mapped must never drag him back to a default.
+    groups = ["claude-code", "mac", "lain", "hermes", "spotify", "chrome"]
+    seen = {}
+    try:
+        real = front_app
+        for app, want in (("Claude", "claude-code"), ("Terminal", "hermes"),
+                          ("Google Chrome", "chrome"), ("Spotify", "spotify"),
+                          ("Mail", ""), ("", "")):
+            globals()["front_app"] = lambda a=app: a
+            got = front_group(groups)
+            seen[app] = got
+            assert got == want, f"{app!r} -> {got!r}, wanted {want!r}"
+    finally:
+        globals()["front_app"] = real
     assert execute({"type": "compound", "steps": []}, dry_run=True)[0] is False, "empty compound"
 
     for bad, why in [([{"id": "a"}], "no action"),
