@@ -19,7 +19,12 @@ one screen now. State and progress: Backlog project **Arisu**, journey
   microphone is its own button; the deck button toggles the rail and remembers
   it. Commit `0516b4f` in `arisu` — **committed, not pushed** (its remote is
   `ossskkar/bender` and the push was refused here).
-- **The Mac's deck answers nothing**, so the rail is empty. See below.
+- **The Mac's deck works again** (2026-09-28). It served `/` in a millisecond
+  and left every `/deck` hanging inside `open()` for a day; the cause was a
+  *pending* TCC decision for `/usr/local/bin/python3.11`, not a missing one --
+  the Files & Folders toggles were already on, and merely opening that pane
+  cleared it. 36 buttons over the tailnet, and the iPad's rail fills: six group
+  chips, six keys two across, no scrolling.
 
 ## Decisions
 - **The two transcript renderers stay.** Merging them was in the plan and was
