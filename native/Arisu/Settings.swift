@@ -36,7 +36,6 @@ struct SettingsSheet: View {
     /// this screen, not of the character, so it lives on the device.
     @AppStorage("arisu.live2d") private var live2dFace = true
     @AppStorage("arisu.faceStyle") private var faceStyle = FaceStyle.ribbon.rawValue
-    @AppStorage("arisu.meter") private var showMeter = true
     /// Bubbles or terminal lines, for her subtitles and the typed chat alike.
     @AppStorage("arisu.bubbles.voice") private var voiceBubbles = true
     @AppStorage("arisu.bubbles.chat") private var chatBubbles = true
@@ -107,8 +106,6 @@ struct SettingsSheet: View {
                     Toggle("Live2D face", isOn: $live2dFace)
                         .font(.system(size: 19))
                 }
-                Toggle("Moving bars at the bottom", isOn: $showMeter)
-                    .font(.system(size: 19))
                 if faceStyle == FaceStyle.portrait.rawValue && live2dFace { modelGrid }
             } header: {
                 header("Face")
@@ -127,23 +124,32 @@ struct SettingsSheet: View {
                 // One preference for both was the wrong shape: subtitles are
                 // read from across the room and the thread at arm's length
                 // (Oscar, 2026-09-29).
-                Picker("In the room", selection: $voiceBubbles) {
-                    Text("Bubbles").tag(true)
-                    Text("Terminal").tag(false)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Her subtitles in voice mode")
+                        .font(.system(size: 17, weight: .medium))
+                    Picker("Her subtitles in voice mode", selection: $voiceBubbles) {
+                        Text("Bubbles").tag(true)
+                        Text("Terminal").tag(false)
+                    }
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
-                Picker("In the chat", selection: $chatBubbles) {
-                    Text("Bubbles").tag(true)
-                    Text("Terminal").tag(false)
+                .padding(.vertical, 4)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("The typed thread in chat mode")
+                        .font(.system(size: 17, weight: .medium))
+                    Picker("The typed thread in chat mode", selection: $chatBubbles) {
+                        Text("Bubbles").tag(true)
+                        Text("Terminal").tag(false)
+                    }
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
+                .padding(.vertical, 4)
             } header: {
                 header("Messages")
             } footer: {
-                footer("How each mode draws the conversation, separately: her "
-                       + "subtitles over her face, and the typed thread. "
-                       + "Bubbles are hers on the left and yours on the right; "
-                       + "terminal is one line each.")
+                footer("Bubbles put hers on the left and yours on the right. "
+                       + "Terminal puts every line on the left, one line each, "
+                       + "the way a log reads.")
             }
 
             if isVisual { visualSection }
@@ -302,6 +308,17 @@ struct SettingsSheet: View {
     /// ever reached the portrait.
     private var visualSection: some View {
         Section {
+            // The dials on the thing they move, at the size he is choosing.
+            VoiceVisual(style: FaceStyle(rawValue: faceStyle) ?? .ribbon,
+                        state: .speaking, amplitude: 0.5, tint: Skin.cyan,
+                        scale: faceScale, bloom: faceBloom, speed: faceSpeed)
+                .frame(height: 170)
+                .frame(maxWidth: .infinity)
+                .background(Skin.void)
+                .clipShape(RoundedRectangle(cornerRadius: Skin.radius))
+                .overlay(RoundedRectangle(cornerRadius: Skin.radius)
+                    .stroke(Color.white.opacity(0.14)))
+                .padding(.vertical, 6)
             dial("Size", $faceScale, 0.5...1.8)
             dial("Glow", $faceBloom, 0...2.2)
             dial("Pace", $faceSpeed, 0.3...2.0)

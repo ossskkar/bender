@@ -208,7 +208,9 @@ struct ChatPane: View {
     /// her subtitles have over the room, so the two modes read as one thread.
     private func bubble(_ line: Chat.Line) -> some View {
         HStack {
-            if line.mine { Spacer(minLength: 40) }
+            // Terminal is a log: every line starts at the left margin, his
+            // and hers alike (Oscar, 2026-09-29).
+            if line.mine && bubbles { Spacer(minLength: 40) }
             HStack(alignment: .top, spacing: 6) {
                 if line.spoken {
                     Image(systemName: "mic.fill")
@@ -216,7 +218,7 @@ struct ChatPane: View {
                         .foregroundStyle((line.mine ? mag : cyan).opacity(0.6))
                         .padding(.top, 4)
                 }
-                Text(line.text)
+                Text((bubbles ? "" : (line.mine ? "> " : "")) + line.text)
                     .font(Skin.mono(15))
                     .foregroundStyle(line.mine ? mag : cyan)
                     .textSelection(.enabled)
@@ -233,9 +235,10 @@ struct ChatPane: View {
                                 .opacity(line.spoken ? 0.18 : 0.3)))
                 }
             }
-            if !line.mine { Spacer(minLength: 40) }
+            if !line.mine || !bubbles { Spacer(minLength: 40) }
         }
-        .frame(maxWidth: .infinity, alignment: line.mine ? .trailing : .leading)
+        .frame(maxWidth: .infinity,
+               alignment: (line.mine && bubbles) ? .trailing : .leading)
     }
 
     private var composer: some View {

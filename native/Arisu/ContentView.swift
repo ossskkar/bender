@@ -26,8 +26,6 @@ struct ContentView: View {
     /// voice visuals. Ribbon by default -- it is the one that reads as her
     /// from across the desk and still shows the level up close.
     @AppStorage("arisu.faceStyle") private var faceStyle = FaceStyle.ribbon.rawValue
-    /// The moving bars at the bottom, on or off (Settings > Face).
-    @AppStorage("arisu.meter") private var showMeter = true
     /// Bubbles or terminal lines, for her subtitles here and for the typed
     /// chat alike (Oscar, 2026-09-26). One preference, both screens: the chat
     /// page is told which to draw through its query string.
@@ -315,7 +313,7 @@ struct ContentView: View {
                     .foregroundStyle(pet.running ? phaseColor : Skin.ink)
                     .animation(.easeInOut(duration: 0.25), value: phaseColor)
                     .fixedSize()
-                if pet.running && showMeter { meter }
+                if pet.running { meter }
             }
             .frame(maxWidth: .infinity)
             squareButton(live.muted || !pet.running ? "mic.slash" : "mic.fill",
@@ -366,15 +364,15 @@ struct ContentView: View {
         // dashboard's own wordmark does.
         return HStack(alignment: .firstTextBaseline, spacing: 14) {
             Text("Arisuへようこそ！")
-                .font(Skin.mono(17, .bold))
+                .font(Skin.mono(19, .bold))
                 .tracking(4.5)
                 .foregroundStyle(Self.mag)
-                .shadow(color: Self.mag.opacity(0.55 * flicker), radius: 10)
+                .shadow(color: Self.mag.opacity(0.7 * flicker), radius: 12)
                 .fixedSize()
             Text("PRESENT DAY · PRESENT TIME")
-                .font(Skin.mono(10))
+                .font(Skin.mono(11, .medium))
                 .tracking(2.8)
-                .foregroundStyle(cyan.opacity(0.8))
+                .foregroundStyle(cyan)
                 .lineLimit(1)
                 .layoutPriority(-1)
         }
@@ -391,7 +389,7 @@ struct ContentView: View {
         while !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(Int.random(in: 2600...9000)))
             for _ in 0..<Int.random(in: 1...3) {
-                withAnimation(.linear(duration: 0.05)) { flicker = Double.random(in: 0.15...0.5) }
+                withAnimation(.linear(duration: 0.05)) { flicker = Double.random(in: 0.45...0.75) }
                 try? await Task.sleep(for: .milliseconds(Int.random(in: 40...110)))
                 withAnimation(.linear(duration: 0.07)) { flicker = 1.0 }
                 try? await Task.sleep(for: .milliseconds(Int.random(in: 50...140)))
@@ -437,8 +435,8 @@ struct ContentView: View {
         }
         .padding(.vertical, 14)
         .padding(.horizontal, 22)
-        .background(Skin.void)
-        .overlay(Rectangle().frame(height: 1).foregroundStyle(Self.mag.opacity(0.18)),
+        .background(Color.white.opacity(0.05))
+        .overlay(Rectangle().frame(height: 1).foregroundStyle(Self.mag.opacity(0.35)),
                  alignment: .bottom)
     }
 
@@ -566,7 +564,7 @@ struct ContentView: View {
         .animation(.easeInOut(duration: 0.25), value: room.holder)
     }
 
-    /// The conversation as chat voiceBubbles: his on the right, hers on the left,
+    /// The conversation as bubbles: his on the right, hers on the left,
     /// the last four lines, older ones fading (Oscar, 2026-09-16).
     private var transcript: some View {
         VStack(alignment: .leading, spacing: voiceBubbles ? 8 : 4) {
@@ -575,7 +573,8 @@ struct ContentView: View {
                     if voiceBubbles {
                         ChatBubble(text: m.text, mine: m.mine, voice: voice, mineColor: mineColor)
                     } else {
-                        TerminalLine(text: m.text, mine: m.mine, voice: voice)
+                        TerminalLine(text: m.text, mine: m.mine, voice: voice,
+                                     mineColor: mineColor)
                     }
                 }
                 .opacity(0.4 + 0.6 * Double(i + 1) / Double(messages.count))
@@ -755,10 +754,14 @@ struct TerminalLine: View {
     let mine: Bool
     let voice: Color
 
+    /// His colour, so that who is who never depends on the style. It used to
+    /// draw him in her cyan and her in white (Oscar, 2026-09-29).
+    var mineColor: Color = Skin.mag
+
     var body: some View {
         Text(mine ? "> " + text : text)
             .font(.system(size: 17, weight: mine ? .semibold : .regular, design: .monospaced))
-            .foregroundStyle(mine ? voice : Color.white)
+            .foregroundStyle(mine ? mineColor : voice)
             .shadow(color: .black.opacity(0.85), radius: 4)
             .frame(maxWidth: .infinity, alignment: .leading)
             .textSelection(.enabled)

@@ -9,14 +9,17 @@ import SwiftUI
 enum Skin {
     /// `--cyan`: her, and anything that is on.
     static let cyan = Color(red: 0.27, green: 0.90, blue: 0.97)      // #45E5F7
-    /// `--mag`: him, her name, and anything being edited.
-    static let mag = Color(red: 1.0, green: 0.24, blue: 0.54)        // #FF3D8A
-    /// `--ink`: writing that is not either of them.
-    static let ink = Color(red: 0.49, green: 0.56, blue: 0.72)       // #7E8FB8
+    /// `--mag`: him, her name, and anything being edited. Lifted from
+    /// #FF3D8A on 2026-09-29: on the iPad at full brightness the darker
+    /// magenta on near-black was hard to read across the desk.
+    static let mag = Color(red: 1.0, green: 0.36, blue: 0.62)        // #FF5C9E
+    /// `--ink`: writing that is not either of them. Also lifted, for the
+    /// same reason -- labels at #7E8FB8 were grey on black.
+    static let ink = Color(red: 0.64, green: 0.71, blue: 0.85)       // #A3B5D9
     /// `--void`: the room behind everything.
     static let void = Color(red: 0.02, green: 0.02, blue: 0.05)      // #06050C
     /// Off. Colour means on and grey means off, everywhere.
-    static let off = Color.white.opacity(0.3)
+    static let off = Color.white.opacity(0.45)
     /// A record light, the one colour that is not part of the hologram. It is
     /// also what a failed press wears, for the same reason: it must not read
     /// as a mood.
@@ -28,7 +31,7 @@ enum Skin {
     static let onLit = Color(red: 0.02, green: 0.04, blue: 0.08)
 
     /// The fill of anything raised off the void: a key, a bubble, a bar.
-    static let raised = Color.white.opacity(0.05)
+    static let raised = Color.white.opacity(0.08)
     /// One corner radius. Three of them was the loudest thing about the old
     /// screen without anyone being able to say why.
     static let radius: CGFloat = 10
