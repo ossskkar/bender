@@ -51,17 +51,23 @@ struct Motion {
     /// +1 pushes waves out of her (speaking), -1 pulls them in (listening),
     /// 0 leaves the surface alone. This is the one that reads across a room.
     let flow: Double
+    /// How much she breathes: the whole sphere swelling and settling on a
+    /// four-and-a-half second cycle. Full while she waits, because a thing
+    /// that only twitches at its surface reads as a screensaver and a thing
+    /// that breathes reads as alive (Oscar, 2026-09-29). Nearly off while she
+    /// talks -- her voice is already moving it.
+    let breath: Double
 
     static func of(_ state: VoiceState) -> Motion {
         switch state {
         case .idle:      return Motion(spin: 0.16, wobble: 0.8, depth: 0.35,
-                                       bloom: 0.45, jitter: 0, flow: 0)
+                                       bloom: 0.45, jitter: 0, flow: 0, breath: 1.0)
         case .listening: return Motion(spin: 0.34, wobble: 2.0, depth: 0.85,
-                                       bloom: 0.85, jitter: 0, flow: -1)
+                                       bloom: 0.85, jitter: 0, flow: -1, breath: 0.45)
         case .thinking:  return Motion(spin: 1.40, wobble: 3.6, depth: 0.5,
-                                       bloom: 0.7, jitter: 1, flow: 0)
+                                       bloom: 0.7, jitter: 1, flow: 0, breath: 0.25)
         case .speaking:  return Motion(spin: 0.52, wobble: 4.2, depth: 0.95,
-                                       bloom: 1.25, jitter: 0, flow: 1)
+                                       bloom: 1.25, jitter: 0, flow: 1, breath: 0.15)
         }
     }
 }
@@ -107,6 +113,23 @@ struct VoiceVisual: View {
     }
 
     private var m: Motion { Motion.of(state) }
+
+    /// One breath, as a scale on the whole sphere. Not a sine: a breath is a
+    /// quick draw in and a long let out, and the difference between the two is
+    /// what makes it read as breathing rather than as pulsing. 4.5 s, which is
+    /// a calm adult at rest.
+    private func breath(_ t: Double) -> Double {
+        let p = (t / 4.5).truncatingRemainder(dividingBy: 1)
+        let ease: Double
+        if p < 0.38 {                                   // in
+            let u = p / 0.38
+            ease = u * u * (3 - 2 * u)
+        } else {                                        // out, longer
+            let u = (p - 0.38) / 0.62
+            ease = 1 - u * u * (3 - 2 * u)
+        }
+        return 1 + 0.085 * m.breath * (ease - 0.5) * 2
+    }
 
     /// The wave running through her surface: inward while she listens,
     /// outward while she speaks, nothing while she waits. `u` is where you
@@ -187,7 +210,7 @@ struct VoiceVisual: View {
     /// Lit rings around a globe, the magenta one at her equator.
     private func halo(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
         let a = amp(t)
-        let R = w * 0.30, ry = t * m.spin * 3, rx = sin(t * 0.3) * 0.35
+        let R = w * 0.30 * breath(t), ry = t * m.spin * 3, rx = sin(t * 0.3) * 0.35
         for k in 0..<12 {                               // meridians, faint
             let lon = Double(k) / 12 * .pi * 2
             let pts = (0...60).map { i -> (Double, Double) in
@@ -219,7 +242,7 @@ struct VoiceVisual: View {
     /// Glass shells with a specular and a rim, added together.
     private func bubble(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
         let a = amp(t)
-        let R = w * 0.26
+        let R = w * 0.26 * breath(t)
         var add = ctx
         add.blendMode = .plusLighter
         for i in 0..<5 {
@@ -243,7 +266,7 @@ struct VoiceVisual: View {
     /// The record, wrapped around a globe.
     private func groove(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
         let a = amp(t)
-        let R = w * 0.30, ry = t * m.spin * 2.2, rx = 0.30 + sin(t * 0.25) * 0.2
+        let R = w * 0.30 * breath(t), ry = t * m.spin * 2.2, rx = 0.30 + sin(t * 0.25) * 0.2
         for k in 0..<26 {
             let lat = (Double(k) / 25 - 0.5) * .pi * 0.96
             let cr = cos(lat) * R, cy = sin(lat) * R
@@ -263,7 +286,7 @@ struct VoiceVisual: View {
     /// A light running over the surface, dimming as it passes behind.
     private func trail(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
         let a = amp(t)
-        let R = w * 0.29, ry = t * m.spin * 2.5, rx = 0.25
+        let R = w * 0.29 * breath(t), ry = t * m.spin * 2.5, rx = 0.25
         for k in 0..<10 {                               // the cage it runs on
             let lon = Double(k) / 10 * .pi * 2
             let pts = (0...50).map { i -> (Double, Double) in
@@ -294,7 +317,7 @@ struct VoiceVisual: View {
     /// The lissajous, wrapped on a shell, with her core inside it.
     private func ribbon(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
         let a = amp(t)
-        let R = w * 0.29, ry = t * m.spin * 2.8, rx = sin(t * 0.22) * 0.4
+        let R = w * 0.29 * breath(t), ry = t * m.spin * 2.8, rx = sin(t * 0.22) * 0.4
         for s in 0..<3 {
             let pts = (0...420).map { i -> (Double, Double) in
                 let u = Double(i) / 420 * .pi * 2
