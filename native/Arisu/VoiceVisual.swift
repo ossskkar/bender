@@ -25,8 +25,10 @@ enum FaceStyle: String, CaseIterable, Identifiable {
     case ring, liquid, lissajous, bubbles, aurora
     var id: String { rawValue }
 
-    static let offered: [FaceStyle] = [.ribbon, .halo, .bubble, .groove, .trail,
-                                       .ring, .liquid, .lissajous, .bubbles, .aurora]
+    /// The five he kept (Oscar, 2026-09-29): halo, groove, trail, bubble and
+    /// liquid were crossed off the grid. They still draw, so a saved one keeps
+    /// working and putting one back is this line.
+    static let offered: [FaceStyle] = [.ribbon, .ring, .lissajous, .bubbles, .aurora]
 
     var label: String {
         switch self {
