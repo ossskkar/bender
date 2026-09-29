@@ -38,7 +38,11 @@ struct SettingsSheet: View {
     @AppStorage("arisu.faceStyle") private var faceStyle = FaceStyle.ribbon.rawValue
     @AppStorage("arisu.meter") private var showMeter = true
     /// Bubbles or terminal lines, for her subtitles and the typed chat alike.
-    @AppStorage("arisu.bubbles") private var bubbles = true
+    @AppStorage("arisu.bubbles.voice") private var voiceBubbles = true
+    @AppStorage("arisu.bubbles.chat") private var chatBubbles = true
+    @AppStorage("arisu.faceScale") private var faceScale = 1.0
+    @AppStorage("arisu.faceBloom") private var faceBloom = 1.0
+    @AppStorage("arisu.faceSpeed") private var faceSpeed = 1.0
     /// Where she stands on the screen, in points from the middle.
     @AppStorage("arisu.faceX") private var faceX = 0.0
     @AppStorage("arisu.faceY") private var faceY = 0.0
@@ -120,22 +124,33 @@ struct SettingsSheet: View {
             positionSection
 
             Section {
-                Picker("Messages", selection: $bubbles) {
+                // One preference for both was the wrong shape: subtitles are
+                // read from across the room and the thread at arm's length
+                // (Oscar, 2026-09-29).
+                Picker("In the room", selection: $voiceBubbles) {
                     Text("Bubbles").tag(true)
                     Text("Terminal").tag(false)
                 }
                 .pickerStyle(.segmented)
-                .font(.system(size: 19))
+                Picker("In the chat", selection: $chatBubbles) {
+                    Text("Bubbles").tag(true)
+                    Text("Terminal").tag(false)
+                }
+                .pickerStyle(.segmented)
             } header: {
                 header("Messages")
             } footer: {
-                footer("How both screens draw the conversation -- her subtitles "
-                       + "over her face, and the typed chat. Bubbles are hers "
-                       + "on the left and yours on the right; terminal is one "
-                       + "line each, as the chat page has always drawn it.")
+                footer("How each mode draws the conversation, separately: her "
+                       + "subtitles over her face, and the typed thread. "
+                       + "Bubbles are hers on the left and yours on the right; "
+                       + "terminal is one line each.")
             }
 
-            if live2dFace { glowSection }
+            if isVisual { visualSection }
+            // The glow sliders light the portrait and the Live2D model. A
+            // voice visual carries its own light, so they would be four dead
+            // controls there (Oscar, 2026-09-29).
+            if !isVisual && live2dFace { glowSection }
 
             Section {
                 dial("Warmth", "Friendly distance", "Openly fond",
@@ -273,6 +288,45 @@ struct SettingsSheet: View {
                 }
                 .buttonStyle(.plain)
             }
+        }
+        .padding(.vertical, 6)
+    }
+
+    /// Is she drawn as a voice visual rather than as a picture of a person.
+    private var isVisual: Bool {
+        (FaceStyle(rawValue: faceStyle) ?? .ribbon) != .portrait
+    }
+
+    /// The three dials that shape a drawn face. Size and pace are the ones he
+    /// will actually move; the glow is here because the old glow sliders only
+    /// ever reached the portrait.
+    private var visualSection: some View {
+        Section {
+            dial("Size", $faceScale, 0.5...1.8)
+            dial("Glow", $faceBloom, 0...2.2)
+            dial("Pace", $faceSpeed, 0.3...2.0)
+            Button("Back to the middle") { faceScale = 1; faceBloom = 1; faceSpeed = 1 }
+                .font(.system(size: 19))
+        } header: {
+            header("The animation")
+        } footer: {
+            footer("How big she is drawn, how hard she glows, and how fast "
+                   + "everything moves. The state still picks the colour and "
+                   + "the movement; these only scale them.")
+        }
+    }
+
+    private func dial(_ title: String, _ value: Binding<Double>,
+                      _ range: ClosedRange<Double>) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title).font(.system(size: 19, weight: .medium))
+                Spacer()
+                Text(String(format: "%.2f", value.wrappedValue))
+                    .font(.system(size: 15, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.4))
+            }
+            Slider(value: value, in: range)
         }
         .padding(.vertical, 6)
     }

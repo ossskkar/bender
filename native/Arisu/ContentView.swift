@@ -31,7 +31,15 @@ struct ContentView: View {
     /// Bubbles or terminal lines, for her subtitles here and for the typed
     /// chat alike (Oscar, 2026-09-26). One preference, both screens: the chat
     /// page is told which to draw through its query string.
-    @AppStorage("arisu.bubbles") private var bubbles = true
+    /// Bubbles or terminal lines, per mode: her subtitles over the room and
+    /// the typed thread are read at different distances, so one preference
+    /// for both was the wrong shape (Oscar, 2026-09-29).
+    @AppStorage("arisu.bubbles.voice") private var voiceBubbles = true
+    @AppStorage("arisu.bubbles.chat") private var chatBubbles = true
+    /// How the voice visual is drawn: size, glow, pace.
+    @AppStorage("arisu.faceScale") private var faceScale = 1.0
+    @AppStorage("arisu.faceBloom") private var faceBloom = 1.0
+    @AppStorage("arisu.faceSpeed") private var faceSpeed = 1.0
     /// Where she stands. Screen geometry differs per device and the face is a
     /// square tile in the middle of it, so this is a preference of the device
     /// rather than of the character.
@@ -67,9 +75,6 @@ struct ContentView: View {
     @State private var chatHistory = false
     /// The recent lines of both of them, oldest first, as chat bubbles.
     @State private var messages: [Bubble] = []
-    /// Legend and buttons start hidden; a tap on the screen shows them, the
-    /// next hides them (Oscar, 2026-09-17).
-    @State private var chromeShown = false
 
     private struct Bubble: Identifiable, Equatable {
         let id = UUID()
@@ -136,29 +141,6 @@ struct ContentView: View {
     }
 
     /// How strongly the ground under her is lit, per state.
-    /// What each colour means, one row top left, with the current one lit.
-    private var legend: some View {
-        HStack(spacing: 18) {
-            ForEach([(Phase.idle, "idle"), (.listening, "listening"),
-                     (.thinking, "thinking"), (.speaking, "speaking")], id: \.1) { p, name in
-                let (r, g, b) = Self.rgb(p)
-                let c = Color(red: r, green: g, blue: b)
-                HStack(spacing: 8) {
-                    Circle().fill(c).frame(width: 10, height: 10)
-                        .shadow(color: c.opacity(0.8), radius: phase == p ? 6 : 0)
-                    Text(name)
-                        .font(Skin.mono(13, .semibold))
-                        .foregroundStyle(c)
-                }
-                .opacity(phase == p ? 1 : 0.45)
-            }
-        }
-        .shadow(color: .black.opacity(0.85), radius: 4)
-        .padding(.leading, 26)
-        .padding(.top, 16)
-        .animation(.easeInOut(duration: 0.25), value: phase)
-        .allowsHitTesting(false)
-    }
 
     private var groundLight: Double {
         switch phase {
@@ -202,10 +184,6 @@ struct ContentView: View {
                         seam(total: geo.size.width)
                     }
                     conversation
-                        .overlay(alignment: .topLeading) {
-                            if chromeShown { legend.transition(.opacity) }
-                        }
-                        .animation(.easeOut(duration: 0.2), value: chromeShown)
                 }
             }
         }
@@ -298,7 +276,6 @@ struct ContentView: View {
             .contentShape(Rectangle())
             // Double tap: the conversation on or off. Single tap: the chrome.
             .onTapGesture(count: 2) { pet.toggleRunning() }
-            .onTapGesture { chromeShown.toggle() }
         }
     }
 
@@ -328,15 +305,17 @@ struct ContentView: View {
             // Her level takes the place of what he would be typing. A meter
             // for a microphone that is down would be a lie, so when there is
             // no call it is the state in words instead.
-            Group {
+            // What she is doing, always in words -- this replaced the legend
+            // of four coloured dots in the corner (Oscar, 2026-09-29) -- with
+            // her level beside it when there is a call to measure.
+            HStack(spacing: 12) {
+                Text(pet.running ? stateWord : "not in the room")
+                    .font(Skin.mono(13, .semibold))
+                    .tracking(2.5)
+                    .foregroundStyle(pet.running ? phaseColor : Skin.ink)
+                    .animation(.easeInOut(duration: 0.25), value: phaseColor)
+                    .fixedSize()
                 if pet.running && showMeter { meter }
-                else {
-                    Text(pet.running ? stateWord : "not in the room")
-                        .font(Skin.mono(13))
-                        .tracking(2)
-                        .foregroundStyle(pet.running ? phaseColor.opacity(0.9) : Skin.ink)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                }
             }
             .frame(maxWidth: .infinity)
             squareButton(live.muted || !pet.running ? "mic.slash" : "mic.fill",
@@ -382,16 +361,22 @@ struct ContentView: View {
 
     private var masthead: some View {
         let cyan = Skin.cyan
-        return VStack(alignment: .leading, spacing: 3) {
+        // One line, not two: the title row is a row (Oscar, 2026-09-29). The
+        // tagline drops out first when the window is narrow, as the
+        // dashboard's own wordmark does.
+        return HStack(alignment: .firstTextBaseline, spacing: 14) {
             Text("Arisuへようこそ！")
                 .font(Skin.mono(17, .bold))
                 .tracking(4.5)
                 .foregroundStyle(Self.mag)
                 .shadow(color: Self.mag.opacity(0.55 * flicker), radius: 10)
+                .fixedSize()
             Text("PRESENT DAY · PRESENT TIME")
                 .font(Skin.mono(10))
                 .tracking(2.8)
                 .foregroundStyle(cyan.opacity(0.8))
+                .lineLimit(1)
+                .layoutPriority(-1)
         }
         .opacity(flicker)
         .shadow(color: .black.opacity(0.85), radius: 4)
@@ -536,7 +521,8 @@ struct ContentView: View {
                 .allowsHitTesting(false)
         } else {
             VoiceVisual(style: style, state: voiceState,
-                        amplitude: Double(pet.level), tint: phaseColor)
+                        amplitude: Double(pet.level), tint: phaseColor,
+                        scale: faceScale, bloom: faceBloom, speed: faceSpeed)
                 .offset(x: faceX, y: faceY)
         }
     }
@@ -580,13 +566,13 @@ struct ContentView: View {
         .animation(.easeInOut(duration: 0.25), value: room.holder)
     }
 
-    /// The conversation as chat bubbles: his on the right, hers on the left,
+    /// The conversation as chat voiceBubbles: his on the right, hers on the left,
     /// the last four lines, older ones fading (Oscar, 2026-09-16).
     private var transcript: some View {
-        VStack(alignment: .leading, spacing: bubbles ? 8 : 4) {
+        VStack(alignment: .leading, spacing: voiceBubbles ? 8 : 4) {
             ForEach(Array(messages.enumerated()), id: \.element.id) { i, m in
                 Group {
-                    if bubbles {
+                    if voiceBubbles {
                         ChatBubble(text: m.text, mine: m.mine, voice: voice, mineColor: mineColor)
                     } else {
                         TerminalLine(text: m.text, mine: m.mine, voice: voice)

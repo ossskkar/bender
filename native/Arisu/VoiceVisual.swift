@@ -91,14 +91,21 @@ struct VoiceVisual: View {
     /// cyan talking. It is the whole state cue here, so it is never mixed
     /// with the character's mood.
     let tint: Color
+    /// His three dials (Settings ▸ Face). How big she is drawn, how hard she
+    /// glows, and how fast everything moves -- a desk at arm's length and a
+    /// room across the sofa want different answers, and the glow sliders that
+    /// already existed only ever reached the portrait (Oscar, 2026-09-29).
+    var scale: Double = 1
+    var bloom: Double = 1
+    var speed: Double = 1
 
     var body: some View {
         TimelineView(.animation) { timeline in
             Canvas { ctx, size in
-                let t = timeline.date.timeIntervalSinceReferenceDate
+                let t = timeline.date.timeIntervalSinceReferenceDate * max(0.1, speed)
                 let w = min(size.width, size.height)
                 ctx.translateBy(x: size.width / 2, y: size.height / 2)
-                draw(ctx, w: w, t: t)
+                draw(ctx, w: w * max(0.2, scale), t: t)
                 // The dashboard's own finish, over whatever was drawn.
                 vignette(ctx, w: w)
                 scanlines(ctx, w: w)
@@ -121,7 +128,13 @@ struct VoiceVisual: View {
         return max(breath, live)
     }
 
-    private var m: Motion { Motion.of(state) }
+    private var m: Motion {
+        let base = Motion.of(state)
+        guard bloom != 1 else { return base }
+        return Motion(spin: base.spin, wobble: base.wobble, depth: base.depth,
+                      bloom: base.bloom * bloom, jitter: base.jitter,
+                      flow: base.flow, breath: base.breath)
+    }
 
     /// One breath, as a scale on the whole sphere. Not a sine: a breath is a
     /// quick draw in and a long let out, and the difference between the two is

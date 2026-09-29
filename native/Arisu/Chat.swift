@@ -149,6 +149,8 @@ struct ChatPane: View {
     /// The app's title row is above this view now, not over it.
     var topInset: CGFloat = 0
 
+    /// Bubbles or terminal lines, the chat's own answer.
+    @AppStorage("arisu.bubbles.chat") private var bubbles = true
     @State private var typing = ""
     @State private var showHistory = false
     @FocusState private var writing: Bool
@@ -220,9 +222,17 @@ struct ChatPane: View {
                     .textSelection(.enabled)
             }
             .opacity(line.spoken ? 0.72 : 1)
-            .padding(.horizontal, 14).padding(.vertical, 10)
-            .raised(line.mine ? mag : cyan, stroke: line.spoken ? 0.18 : 0.3,
-                    fill: (line.mine ? mag : cyan).opacity(0.08))
+            .padding(.horizontal, bubbles ? 14 : 0)
+            .padding(.vertical, bubbles ? 10 : 1)
+            .background {
+                if bubbles {
+                    RoundedRectangle(cornerRadius: Skin.radius)
+                        .fill((line.mine ? mag : cyan).opacity(0.08))
+                        .overlay(RoundedRectangle(cornerRadius: Skin.radius)
+                            .stroke((line.mine ? mag : cyan)
+                                .opacity(line.spoken ? 0.18 : 0.3)))
+                }
+            }
             if !line.mine { Spacer(minLength: 40) }
         }
         .frame(maxWidth: .infinity, alignment: line.mine ? .trailing : .leading)
