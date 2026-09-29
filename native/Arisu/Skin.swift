@@ -17,8 +17,13 @@ enum Skin {
     static let void = Color(red: 0.02, green: 0.02, blue: 0.05)      // #06050C
     /// Off. Colour means on and grey means off, everywhere.
     static let off = Color.white.opacity(0.3)
-    /// A record light, the one colour that is not part of the hologram.
+    /// A record light, the one colour that is not part of the hologram. It is
+    /// also what a failed press wears, for the same reason: it must not read
+    /// as a mood.
     static let recording = Color(red: 1.0, green: 0.27, blue: 0.31)
+    /// It worked. The same green the room wears while it is hearing him, so
+    /// the app has one "yes" colour and not two.
+    static let good = Color(red: 0.30, green: 1.0, blue: 0.50)
     /// Text on a filled control.
     static let onLit = Color(red: 0.02, green: 0.04, blue: 0.08)
 

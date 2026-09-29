@@ -478,3 +478,39 @@ struct VoiceVisual: View {
         }
     }
 }
+
+/// A face, small, moving, to choose from. The picker was a list of words and
+/// none of them told him what he was choosing (Oscar, 2026-09-29); each tile
+/// cycles the four states so the colour and the movement are both on show.
+struct FacePreview: View {
+    let style: FaceStyle
+    var side: CGFloat = 92
+
+    @State private var step = 0
+    private static let states: [(VoiceState, Color)] = [
+        (.idle,      Color(red: 0.50, green: 0.55, blue: 1.0)),
+        (.listening, Color(red: 0.30, green: 1.0, blue: 0.50)),
+        (.thinking,  Color(red: 1.0, green: 0.22, blue: 0.78)),
+        (.speaking,  Color(red: 0.27, green: 0.90, blue: 0.97)),
+    ]
+    private let clock = Timer.publish(every: 2.4, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        let (state, tint) = Self.states[step % Self.states.count]
+        return ZStack {
+            Skin.void
+            if style == .portrait {
+                Image(systemName: "person.crop.square")
+                    .font(.system(size: side * 0.42, weight: .thin))
+                    .foregroundStyle(Skin.cyan.opacity(0.7))
+            } else {
+                // A level she never actually holds, so a still glance shows
+                // the shape at work rather than at rest.
+                VoiceVisual(style: style, state: state, amplitude: 0.55, tint: tint)
+            }
+        }
+        .frame(width: side, height: side)
+        .clipShape(RoundedRectangle(cornerRadius: Skin.radius))
+        .onReceive(clock) { _ in step += 1 }
+    }
+}

@@ -56,8 +56,10 @@ struct DeckRail: View {
                         .padding(.horizontal, 12)
                         .padding(.vertical, 14)
                         .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
-                        .raised(Skin.cyan, stroke: here ? 0 : 0.3,
-                                fill: here ? Skin.cyan : Skin.raised)
+                        .raised(deck.outcome[app] == false ? Skin.recording : Skin.cyan,
+                                stroke: here ? 0 : (deck.outcome[app] == nil ? 0.3 : 0.95),
+                                fill: here ? Skin.cyan : tintFill(deck.outcome[app]))
+                        .animation(.easeOut(duration: 0.2), value: deck.outcome[app])
                     }
                     .buttonStyle(.plain)
                 }
@@ -98,7 +100,9 @@ struct DeckRail: View {
             else if deck.buttons.isEmpty && deck.loading {
                 ProgressView().tint(cyan).padding(.bottom, 30).frame(maxWidth: .infinity)
             } else {
-                if let said = deck.said { answer(said) }
+                // The colour on the button says done or failed; only a
+                // failure with words left to say still prints them.
+                if let said = deck.said, !said.ok, !said.detail.isEmpty { answer(said) }
                 appStrip.padding(.bottom, 14)
                 groups
                 keys.padding(.bottom, 18)
@@ -201,8 +205,23 @@ struct DeckRail: View {
         .padding(.horizontal, 12)
     }
 
+    /// Cyan while nothing has happened, cyan-bright while it runs, green when
+    /// it worked, red when it did not. The receipt that used to print under
+    /// the rail is this colour now (Oscar, 2026-09-29) -- except for a failure
+    /// with something to say, which still says it.
+    private func outcomeInk(_ id: String, busy: Bool, editing: Bool) -> (Color, Double) {
+        if editing { return (mag, 0.3) }
+        if busy { return (cyan, 0.95) }
+        switch deck.outcome[id] {
+        case .some(true):  return (Skin.good, 0.95)
+        case .some(false): return (Skin.recording, 0.95)
+        case nil:          return (cyan, 0.3)
+        }
+    }
+
     private func key(_ b: DeckButton) -> some View {
         let busy = deck.running == b.id
+        let ink = outcomeInk(b.id, busy: busy, editing: editing)
         return Button {
             if editing { sheet = b } else { Task { await deck.run(b) } }
         } label: {
@@ -217,6 +236,10 @@ struct DeckRail: View {
                     if busy { ProgressView().tint(cyan).scaleEffect(0.55) }
                     else if editing {
                         Image(systemName: "pencil").font(.system(size: 10)).foregroundStyle(mag)
+                    } else if let ok = deck.outcome[b.id] {
+                        Image(systemName: ok ? "checkmark" : "exclamationmark.triangle.fill")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(ok ? Skin.good : Skin.recording)
                     }
                 }
                 Text(b.action.summary)
@@ -228,9 +251,21 @@ struct DeckRail: View {
             .padding(.vertical, 14)
             // A thumb, not a stylus: 72pt is what he presses without looking.
             .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
-            .raised(editing ? mag : cyan, stroke: busy ? 0.9 : 0.3)
+            .raised(ink.0, stroke: ink.1,
+                    fill: tintFill(deck.outcome[b.id]))
+            .animation(.easeOut(duration: 0.2), value: deck.outcome[b.id])
         }
         .buttonStyle(.plain)
+    }
+
+    /// A wash of the result colour inside the button, so it reads from across
+    /// the desk and not only at arm's length.
+    private func tintFill(_ outcome: Bool?) -> Color {
+        switch outcome {
+        case .some(true):  return Skin.good.opacity(0.14)
+        case .some(false): return Skin.recording.opacity(0.16)
+        case nil:          return Skin.raised
+        }
     }
 
     /// What the Mac said about the last press. Kept on screen rather than

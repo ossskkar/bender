@@ -104,6 +104,24 @@ struct DeckButton: Codable, Equatable, Identifiable {
     @Published var frontApp = ""
     /// The applications he switches between, from the Mac's own list.
     @Published var apps: [String] = []
+    /// How the last press of each button went, and when. The rail colours the
+    /// button itself from this -- cyan while it runs, green when it worked,
+    /// red when it did not -- instead of printing a receipt underneath
+    /// (Oscar, 2026-09-29). It clears itself, because a button that stays
+    /// green is a button that is lying by the time he looks again.
+    @Published var outcome: [String: Bool] = [:]
+
+    private func mark(_ id: String, _ ok: Bool) {
+        outcome[id] = ok
+        Task { [weak self] in
+            // Long enough to catch out of the corner of an eye; a failure
+            // stays longer because it is the one he has to act on.
+            try? await Task.sleep(for: .seconds(ok ? 2.5 : 7))
+            guard let self, self.outcome[id] == ok else { return }
+            self.outcome[id] = nil
+        }
+    }
+
     /// The id that is running, and the last answer, for the row to show.
     @Published var running: String?
     @Published var said: (id: String, ok: Bool, detail: String)?
@@ -176,9 +194,11 @@ struct DeckButton: Codable, Equatable, Identifiable {
         guard let (data, _) = try? await session.data(for: r),
               let got = try? JSONDecoder().decode(Answer.self, from: data) else {
             said = (app, false, "the Mac did not answer")
+            mark(app, false)
             return
         }
-        if let wrong = got.error { said = (app, false, wrong) }
+        if let wrong = got.error { said = (app, false, wrong); mark(app, false) }
+        else { mark(app, true) }
     }
 
     func run(_ b: DeckButton) async {
@@ -192,9 +212,12 @@ struct DeckButton: Codable, Equatable, Identifiable {
         do {
             let (data, _) = try await session.data(for: r)
             let got = try JSONDecoder().decode(Answer.self, from: data)
-            said = (b.id, got.ok ?? false, got.detail ?? got.error ?? "")
+            let ok = got.ok ?? false
+            said = (b.id, ok, got.detail ?? got.error ?? "")
+            mark(b.id, ok)
         } catch {
             said = (b.id, false, "the Mac did not answer")
+            mark(b.id, false)
         }
     }
 

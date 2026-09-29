@@ -95,14 +95,10 @@ struct SettingsSheet: View {
             if let cast, cast.characters.count > 1 { castSection(cast) }
 
             Section {
-                // A picture of a person, or a picture of a voice. The five
-                // spheres are drawn by the app itself and need no desk.
-                Picker("Face", selection: $faceStyle) {
-                    ForEach(FaceStyle.allCases) { style in
-                        Text(style.label).tag(style.rawValue)
-                    }
-                }
-                .font(.system(size: 19))
+                // A picture of a person, or a picture of a voice. Shown as
+                // moving tiles rather than as a list of words: the names mean
+                // nothing until you have seen them (Oscar, 2026-09-29).
+                faceStyleGrid
                 if faceStyle == FaceStyle.portrait.rawValue {
                     Toggle("Live2D face", isOn: $live2dFace)
                         .font(.system(size: 19))
@@ -254,6 +250,31 @@ struct SettingsSheet: View {
             _ = try? await brain.setPersona(["model": m])
             await pet.refreshCast()
         }
+    }
+
+    /// The ten voice visuals and the portrait, each one moving, with the
+    /// chosen one ringed. Every tile cycles the four states on its own clock,
+    /// so a glance shows both the colour and the movement.
+    private var faceStyleGrid: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 12)], spacing: 12) {
+            ForEach(FaceStyle.allCases) { style in
+                let on = style.rawValue == faceStyle
+                Button { faceStyle = style.rawValue } label: {
+                    VStack(spacing: 6) {
+                        FacePreview(style: style)
+                            .overlay(RoundedRectangle(cornerRadius: Skin.radius)
+                                .stroke(on ? Skin.mag : Color.white.opacity(0.18),
+                                        lineWidth: on ? 2 : 1))
+                        Text(style.label)
+                            .font(Skin.mono(11, on ? .semibold : .regular))
+                            .foregroundStyle(on ? Skin.mag : Skin.ink)
+                            .lineLimit(1).minimumScaleFactor(0.75)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.vertical, 6)
     }
 
     /// Where she stands on the screen. Kept on the device, not on the

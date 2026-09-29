@@ -307,6 +307,13 @@ struct ContentView: View {
     /// and his hands are nowhere near the corner of a 13-inch iPad.
     private var roomControls: some View {
         HStack(spacing: 18) {
+            // Subtitles are a thing about the room, so they sit with the
+            // room's own controls rather than in the app's title row -- and
+            // the microphone was in both places until now (Oscar, 2026-09-29).
+            round(showTranscript ? "text.bubble.fill" : "text.bubble", "Subtitles",
+                  ink: showTranscript ? glow : off, fill: false) {
+                showTranscript.toggle()
+            }
             round(live.muted || !pet.running ? "mic.slash.fill" : "mic.fill",
                   "Microphone",
                   ink: pet.running && !live.muted ? listener : off,
@@ -393,27 +400,12 @@ struct ContentView: View {
         return HStack(alignment: .top, spacing: 10) {
             masthead
             Spacer(minLength: 12)
-            // Her subtitles are a thing about the room, so they are offered
-            // where there is a room to read them over.
-            if !showChat {
-                squareButton(showTranscript ? "text.bubble.fill" : "text.bubble",
-                             "Subtitles", tint: showTranscript ? glow : off) {
-                    showTranscript.toggle()
-                }
-            }
             // Is the microphone hot. Its own control since 2026-09-27, because
             // "mode" is no longer a screen he leaves: typing while she is
             // listening is legal now, and so is shutting the room up without
             // ending the conversation. Off when there is no conversation to
             // mute rather than hidden -- a control that comes and goes is one
             // he has to hunt for.
-            if !showChat {
-                squareButton(live.muted || !pet.running ? "mic.slash" : "mic.fill",
-                             "Microphone",
-                             tint: pet.running && !live.muted ? listener : off) {
-                    if pet.running { live.muted.toggle() }
-                }
-            }
             // Which device is listening. Shown as soon as there is anyone else
             // to hand it to rather than only in a group: hiding it until the
             // mode is switched means the one control he needs to fix a room
