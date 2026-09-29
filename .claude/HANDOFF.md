@@ -25,7 +25,31 @@ State and progress: Backlog project **Arisu**.
   app, and the Claude group now carries away / homelab / model / omni.
 - lain suite 357, with one pre-existing failure (`test_reader`, a date test).
 
+## The look, settled 2026-09-29
+- **Palette lifted** because the first one was unreadable on the iPad at full
+  brightness: magenta `#FF5C9E`, ink `#A3B5D9`, "off" white at 0.45, panel
+  fills at 0.08. The title is 19pt on a lit row, and its flicker dips to
+  45–75% — a dip to 15% read as a fault, not as a tube.
+- **One colour rule**: she is cyan, he is magenta, in bubbles and in terminal,
+  in both modes. Terminal puts every line at the left margin with `>` on his.
+- **Bubbles or terminal is two preferences**, one per mode.
+- **Settings ▸ Face** is a grid of moving tiles (`FacePreview`), each cycling
+  the four states. **Settings ▸ The animation** draws the chosen face with
+  Size, Glow and Pace on it. The old glow sliders show only for Portrait —
+  they never reached a drawn face.
+- **The room's bar is the chat's bar**: History · New · Subtitles · her level ·
+  Mic · Keyboard. The legend of coloured dots and the floating circles are
+  gone; the bar says the state in words.
+- **The deck's application buttons carry the real app icons**
+  (`GET /deck/icon`, sips on the bundle's .icns, cached on the Mac), and a
+  press colours the button — cyan running, green worked, red failed.
+- Checked in the simulator: chat, the face grid and the animation preview all
+  draw as intended (screenshots under /tmp/claude-501/mock/ui-*.png).
+
 ## Gotchas
+- **A `const` in its temporal dead zone throws even on `typeof`.** The web
+  page broke twice this way (face position, then the face dials); declare
+  shared state above everything that reads it.
 - **The browser pane is hidden, so rAF is paused and layout is 0×0 there.**
   Canvases cannot be judged by screenshot in it; drive the draw functions
   directly (`SHAPES[name](m, w, t, a)` on a resized canvas) and count ink.
