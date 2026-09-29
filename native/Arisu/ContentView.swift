@@ -273,7 +273,7 @@ struct ContentView: View {
                         .padding(.trailing, 24)
                     }
                     // What she is doing, in words, under her.
-                    Text(pet.running ? stateWord : "not in the room")
+                    Text(pet.running ? stateWord : "not listening")
                         .font(Skin.mono(13, .semibold))
                         .tracking(3)
                         .foregroundStyle(pet.running ? phaseColor : Skin.ink)
