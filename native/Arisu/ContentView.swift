@@ -479,6 +479,16 @@ struct ContentView: View {
     /// The renderer's own vocabulary. `Phase` already says all of it except
     /// asleep, which is not a phase of a conversation but the absence of one:
     /// the microphone is down and there is nothing to be idle about.
+    /// The same four states the legend and the glow use, for the sphere.
+    private var voiceState: VoiceState {
+        switch phase {
+        case .idle:      return .idle
+        case .listening: return .listening
+        case .thinking:  return .thinking
+        case .speaking:  return .speaking
+        }
+    }
+
     private var faceState: String {
         // Muted is not asleep: she still thinks and speaks what was asked
         // before the mute; `phase` already keeps her from looking like she is
@@ -506,7 +516,8 @@ struct ContentView: View {
                 .offset(x: faceX, y: faceY)
                 .allowsHitTesting(false)
         } else {
-            VoiceVisual(style: style, amplitude: Double(pet.level), tint: phaseColor)
+            VoiceVisual(style: style, state: voiceState,
+                        amplitude: Double(pet.level), tint: phaseColor)
                 .offset(x: faceX, y: faceY)
         }
     }
