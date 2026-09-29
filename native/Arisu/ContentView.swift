@@ -272,6 +272,14 @@ struct ContentView: View {
                         .padding(.leading, 34)
                         .padding(.trailing, 24)
                     }
+                    // What she is doing, in words, under her.
+                    Text(pet.running ? stateWord : "not in the room")
+                        .font(Skin.mono(13, .semibold))
+                        .tracking(3)
+                        .foregroundStyle(pet.running ? phaseColor : Skin.ink)
+                        .animation(.easeInOut(duration: 0.25), value: phaseColor)
+                        .shadow(color: .black.opacity(0.9), radius: 8)
+                        .padding(.bottom, 10)
                     roomBar
                 }
             }
@@ -308,19 +316,10 @@ struct ContentView: View {
             // Her level takes the place of what he would be typing. A meter
             // for a microphone that is down would be a lie, so when there is
             // no call it is the state in words instead.
-            // What she is doing, always in words -- this replaced the legend
-            // of four coloured dots in the corner (Oscar, 2026-09-29) -- with
-            // her level beside it when there is a call to measure.
-            HStack(spacing: 12) {
-                Text(pet.running ? stateWord : "not in the room")
-                    .font(Skin.mono(13, .semibold))
-                    .tracking(2.5)
-                    .foregroundStyle(pet.running ? phaseColor : Skin.ink)
-                    .animation(.easeInOut(duration: 0.25), value: phaseColor)
-                    .fixedSize()
-                if pet.running { meter }
-            }
-            .frame(maxWidth: .infinity)
+            // The bar keeps only what he presses; what she is doing is drawn
+            // under her, where he is already looking (Oscar, 2026-09-29).
+            if pet.running { meter.frame(maxWidth: .infinity) }
+            else { Color.clear.frame(height: 36).frame(maxWidth: .infinity) }
             squareButton(live.muted || !pet.running ? "mic.slash" : "mic.fill",
                          "Microphone",
                          tint: pet.running && !live.muted ? listener : off) {
