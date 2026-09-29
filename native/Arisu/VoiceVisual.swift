@@ -447,35 +447,34 @@ struct VoiceVisual: View {
         }
     }
 
-    /// Curtains of light across a disc. The quietest of the ten, and the one
-    /// that looks least like a machine.
+    /// Curtains of light across a disc. Strokes, not filled bands: filled
+    /// ones stacked into a solid muddy shape (checked in the simulator,
+    /// 2026-09-29), and an aurora is light you can see through.
     private func aurora(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
         let a = amp(t)
         let R = w * 0.34 * breath(t)
         var disc = ctx
         disc.clip(to: Path(ellipseIn: CGRect(x: -R, y: -R, width: R * 2, height: R * 2)))
         disc.blendMode = .plusLighter
-        for k in 0..<5 {
-            let base = (Double(k) - 2) * R * 0.22
-            var band = Path()
-            band.move(to: CGPoint(x: -R, y: R))
-            for i in 0...60 {
-                let x = -R + Double(i) / 60 * R * 2
-                let y = base + sin(x * 0.018 + t * (0.6 + m.wobble * 0.25) + Double(k))
-                    * R * 0.22 * (0.3 + a * 1.2 * m.depth)
-                    + flow(Double(k) / 5, t, a) * R
-                band.addLine(to: CGPoint(x: x, y: y))
+        for k in 0..<6 {
+            let base = (Double(k) - 2.5) * R * 0.28
+            var curtain = Path()
+            for i in 0...70 {
+                let x = -R * 1.1 + Double(i) / 70 * R * 2.2
+                let y = base
+                    + sin(x * 0.014 + t * (0.5 + m.wobble * 0.22) + Double(k) * 1.1)
+                        * R * 0.18 * (0.35 + a * 1.1 * m.depth)
+                    + flow(Double(k) / 6, t, a) * R * 0.8
+                let pt = CGPoint(x: x, y: y)
+                i == 0 ? curtain.move(to: pt) : curtain.addLine(to: pt)
             }
-            band.addLine(to: CGPoint(x: R, y: R))
-            band.closeSubpath()
             let col = k % 2 == 1 ? mag : tint
-            disc.fill(band, with: .linearGradient(
-                Gradient(stops: [
-                    .init(color: col.opacity(0), location: 0),
-                    .init(color: col.opacity(0.16 + a * 0.2), location: 0.35),
-                    .init(color: col.opacity(0), location: 1)]),
-                startPoint: CGPoint(x: 0, y: base - R * 0.3),
-                endPoint: CGPoint(x: 0, y: base + R * 0.5)))
+            var soft = disc
+            soft.addFilter(.blur(radius: R * 0.09))
+            soft.stroke(curtain, with: .color(col.opacity(0.16 + a * 0.16 * m.bloom)),
+                        lineWidth: R * 0.13)
+            disc.stroke(curtain, with: .color(col.opacity(0.10 + a * 0.10)),
+                        lineWidth: R * 0.03)
         }
     }
 }
