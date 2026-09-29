@@ -288,10 +288,7 @@ struct ContentView: View {
                         .padding(.leading, 34)
                         .padding(.trailing, 24)
                     }
-                    // A meter for a microphone that is down would be a lie.
-                    if pet.running && showMeter { meter.padding(.bottom, 14) }
-                    else { Color.clear.frame(height: 36).padding(.bottom, 14) }
-                    roomControls.padding(.bottom, 26)
+                    roomBar
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
@@ -305,39 +302,55 @@ struct ContentView: View {
     /// Mute, and the way back to the keyboard. Centred under her rather than
     /// in the top row: in voice mode these are the only two things he does,
     /// and his hands are nowhere near the corner of a 13-inch iPad.
-    private var roomControls: some View {
-        HStack(spacing: 18) {
-            // Subtitles are a thing about the room, so they sit with the
-            // room's own controls rather than in the app's title row -- and
-            // the microphone was in both places until now (Oscar, 2026-09-29).
-            round(showTranscript ? "text.bubble.fill" : "text.bubble", "Subtitles",
-                  ink: showTranscript ? glow : off, fill: false) {
+    /// The room's bottom bar. The chat's composer, with the room's controls in
+    /// it and her level where the text field is (Oscar, 2026-09-29): one bar
+    /// in the same place in both modes, so switching does not move the floor.
+    private var roomBar: some View {
+        HStack(spacing: 10) {
+            squareButton(showTranscript ? "text.bubble.fill" : "text.bubble",
+                         "Subtitles", tint: showTranscript ? glow : off) {
                 showTranscript.toggle()
             }
-            round(live.muted || !pet.running ? "mic.slash.fill" : "mic.fill",
-                  "Microphone",
-                  ink: pet.running && !live.muted ? listener : off,
-                  fill: pet.running && !live.muted) {
+            // Her level takes the place of what he would be typing. A meter
+            // for a microphone that is down would be a lie, so when there is
+            // no call it is the state in words instead.
+            Group {
+                if pet.running && showMeter { meter }
+                else {
+                    Text(pet.running ? stateWord : "not in the room")
+                        .font(Skin.mono(13))
+                        .tracking(2)
+                        .foregroundStyle(pet.running ? phaseColor.opacity(0.9) : Skin.ink)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            squareButton(live.muted || !pet.running ? "mic.slash" : "mic.fill",
+                         "Microphone",
+                         tint: pet.running && !live.muted ? listener : off) {
                 if pet.running { live.muted.toggle() }
             }
-            round("keyboard", "Back to the chat", ink: Self.mag, fill: false) { toChat() }
+            squareButton("keyboard", "Back to the chat", tint: Self.mag) { toChat() }
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 10)
+        .padding(.bottom, 14)
+        .background(Color.white.opacity(0.03))
+        .overlay(Rectangle().frame(height: 1).foregroundStyle(Color.white.opacity(0.08)),
+                 alignment: .top)
+    }
+
+    /// What she is doing, in a word, for the bar when the meter is off.
+    private var stateWord: String {
+        switch phase {
+        case .idle:      return "waiting"
+        case .listening: return "listening"
+        case .thinking:  return "thinking"
+        case .speaking:  return "speaking"
         }
     }
 
-    /// The room's two controls are the same button as everywhere else, only
-    /// bigger: a circle under her and a square at the top was two apps.
-    private func round(_ symbol: String, _ label: String, ink: Color, fill: Bool,
-                       action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 22, weight: .semibold))
-                .foregroundStyle(fill ? Skin.onLit : ink)
-                .frame(width: 78, height: 58)
-                .raised(ink, stroke: fill ? 0 : 0.4,
-                        fill: fill ? ink : Color.black.opacity(0.35))
-        }
-        .accessibilityLabel(label)
-    }
+
 
     /// Off. Colour means on and grey means off everywhere on this screen --
     /// before, the pause button went magenta when it was *stopped*, which made
