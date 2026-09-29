@@ -84,9 +84,12 @@ struct ContentView: View {
     /// the words themselves stay one colour -- "hot" rendered them at
     /// (1.0, 0.30, 0.42), which reads as magenta and collided with the
     /// magenta the meter once used to mean she is working.
-    private let voice = Skin.cyan
+    /// She is white and he is cyan (Oscar, 2026-09-29). Her words are the
+    /// thing being read; his are the prompt beside them, and the state colour
+    /// is busy saying what she is doing.
+    private let voice = Color.white
     /// His chat bubbles: the legend's thinking magenta.
-    private let mineColor = Skin.mag
+    private let mineColor = Skin.cyan
 
     /// Recording red. The one colour on this screen that is not part of the
     /// hologram's palette, on purpose: a record light should look like a
@@ -142,10 +145,12 @@ struct ContentView: View {
 
     private var groundLight: Double {
         switch phase {
-        case .idle:      return 0.06
-        case .listening: return 0.12
-        case .thinking:  return 0.1
-        case .speaking:  return 0.15
+        // Halved on 2026-09-29: a drawn face carries its own light, and the
+        // two together turned the whole screen one colour.
+        case .idle:      return 0.03
+        case .listening: return 0.06
+        case .thinking:  return 0.05
+        case .speaking:  return 0.07
         }
     }
 

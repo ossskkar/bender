@@ -155,8 +155,9 @@ struct ChatPane: View {
     @State private var showHistory = false
     @FocusState private var writing: Bool
 
-    private let cyan = Skin.cyan
-    private let mag = Skin.mag
+    /// She is white, he is cyan -- the same rule the room's subtitles follow.
+    private let cyan = Color.white
+    private let mag = Skin.cyan
 
     var body: some View {
         VStack(spacing: 0) {
@@ -299,8 +300,8 @@ struct ChatHistory: View {
     @State private var open: [Chat.Line] = []
     @State private var title = ""
 
-    private let cyan = Skin.cyan
-    private let mag = Skin.mag
+    private let cyan = Color.white
+    private let mag = Skin.cyan
 
     var body: some View {
         NavigationStack {
