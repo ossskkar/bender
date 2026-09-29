@@ -15,9 +15,18 @@ enum FaceStyle: String, CaseIterable, Identifiable {
     /// The five spheres, then the five flat ones he picked out of the same
     /// page (25, 11, 9, 3, 40 there; 2026-09-29). A sphere reads as a body in
     /// a room; a flat one reads as a signal on a screen, and he wanted both.
+    ///
+    /// `portrait` is what the still, the Live2D models and the VRM were drawn
+    /// as. He took them out of the picker on 2026-09-29 -- her face is one of
+    /// the drawn ten now -- so the case stays only to read an old saved
+    /// choice, and `offered` is what the picker shows. `FaceView` and the
+    /// model pages are untouched on disk: bringing them back is this list.
     case portrait, halo, bubble, groove, trail, ribbon
     case ring, liquid, lissajous, bubbles, aurora
     var id: String { rawValue }
+
+    static let offered: [FaceStyle] = [.ribbon, .halo, .bubble, .groove, .trail,
+                                       .ring, .liquid, .lissajous, .bubbles, .aurora]
 
     var label: String {
         switch self {

@@ -504,25 +504,16 @@ struct ContentView: View {
         }
     }
 
-    @ViewBuilder private var face: some View {
-        let style = FaceStyle(rawValue: faceStyle) ?? .ribbon
-        if style == .portrait {
-            // No shadow, no mask, no drift. The colour-split, the bloom and the
-            // soft bottom edge are all things the renderer does itself now, and
-            // stacking SwiftUI's versions on top only muddied them.
-            FaceView(face: pet.face, state: faceState, amplitude: Double(pet.level),
-                     live2d: live2dFace, model: pet.model,
-                     glow: [phaseRGB.0, phaseRGB.1, phaseRGB.2]
-                         .map { String(Int($0 * 255)) }.joined(separator: ","),
-                     tune: pet.glow)
-                .offset(x: faceX, y: faceY)
-                .allowsHitTesting(false)
-        } else {
-            VoiceVisual(style: style, state: voiceState,
-                        amplitude: Double(pet.level), tint: phaseColor,
-                        scale: faceScale, bloom: faceBloom, speed: faceSpeed)
-                .offset(x: faceX, y: faceY)
-        }
+    private var face: some View {
+        // Her face is one of the drawn ten. `FaceView` and the model pages it
+        // loads are untouched on disk; they are simply not offered any more
+        // (Oscar, 2026-09-29), and an old saved portrait reads as the default.
+        let saved = FaceStyle(rawValue: faceStyle) ?? .ribbon
+        return VoiceVisual(style: saved == .portrait ? .ribbon : saved,
+                           state: voiceState, amplitude: Double(pet.level),
+                           tint: phaseColor,
+                           scale: faceScale, bloom: faceBloom, speed: faceSpeed)
+            .offset(x: faceX, y: faceY)
     }
 
     private var scanlines: some View {

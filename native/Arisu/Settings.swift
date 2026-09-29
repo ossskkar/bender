@@ -102,20 +102,13 @@ struct SettingsSheet: View {
                 // moving tiles rather than as a list of words: the names mean
                 // nothing until you have seen them (Oscar, 2026-09-29).
                 faceStyleGrid
-                if faceStyle == FaceStyle.portrait.rawValue {
-                    Toggle("Live2D face", isOn: $live2dFace)
-                        .font(.system(size: 19))
-                }
-                if faceStyle == FaceStyle.portrait.rawValue && live2dFace { modelGrid }
             } header: {
                 header("Face")
             } footer: {
-                footer("Portrait draws her as herself -- a still, or a moving "
-                       + "Live2D model loaded from the desk, saved to the "
-                       + "character so the web page shows the same one. The "
-                       + "spheres draw her voice instead: the state is the "
-                       + "colour, her level is the movement, and they need "
-                       + "nothing from the desk.")
+                footer("Her voice, drawn: the state is the colour and the "
+                       + "movement, her level is how far it moves, and none "
+                       + "of it needs the desk. The portrait and the models "
+                       + "were taken out on 2026-09-29.")
             }
 
             positionSection
@@ -278,7 +271,7 @@ struct SettingsSheet: View {
     /// so a glance shows both the colour and the movement.
     private var faceStyleGrid: some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 12)], spacing: 12) {
-            ForEach(FaceStyle.allCases) { style in
+            ForEach(FaceStyle.offered) { style in
                 let on = style.rawValue == faceStyle
                 Button { faceStyle = style.rawValue } label: {
                     VStack(spacing: 6) {
