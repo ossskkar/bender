@@ -35,11 +35,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import plistlib
 import ssl
 import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -335,6 +337,74 @@ def front_group(groups) -> str:
     return next((g for g in groups if g and g.lower() in app), "")
 
 
+# Where the applications live, and where their icons are cached once they have
+# been converted. The iPad draws the real icon on its button (Oscar,
+# 2026-09-29); an SF Symbol of a window told him nothing about which app it was.
+ICON_CACHE = os.path.expanduser("~/.cache/arisu-deck/icons")
+APP_DIRS = ("/Applications", "/System/Applications",
+            "/System/Applications/Utilities", "/Applications/Utilities",
+            os.path.expanduser("~/Applications"))
+
+
+def app_bundle(name: str):
+    """The .app for a display name, or None. Plain directory lookups first --
+    `mdfind` needs Spotlight to be up and is the slow path."""
+    for base in APP_DIRS:
+        path = os.path.join(base, name + ".app")
+        if os.path.isdir(path):
+            return path
+    ok, out = _run(["mdfind", "-name", name + ".app", "-onlyin", "/Applications"],
+                   timeout=5)
+    for line in (out or "").splitlines():
+        if line.endswith(name + ".app"):
+            return line
+    return None
+
+
+def app_icon(name: str):
+    """A PNG of the application's icon, cached. Returns bytes or None.
+
+    `sips` does the conversion, which is in the OS and needs no consent; the
+    alternative (AppKit through pyobjc) is a dependency and a GUI session.
+    """
+    png = os.path.join(ICON_CACHE, name.replace("/", "_") + ".png")
+    try:
+        if os.path.exists(png) and os.path.getsize(png) > 0:
+            return open(png, "rb").read()
+    except OSError:
+        pass
+    bundle = app_bundle(name)
+    if not bundle:
+        return None
+    try:
+        with open(os.path.join(bundle, "Contents", "Info.plist"), "rb") as f:
+            info = plistlib.load(f)
+    except (OSError, ValueError):
+        return None
+    icon = info.get("CFBundleIconFile") or info.get("CFBundleIconName") or ""
+    if icon and not icon.endswith(".icns"):
+        icon += ".icns"
+    src = os.path.join(bundle, "Contents", "Resources", icon)
+    if not icon or not os.path.exists(src):
+        # Some bundles keep the icon in an asset catalog instead; the generic
+        # application icon is a better answer than a broken image.
+        src = "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericApplicationIcon.icns"
+        if not os.path.exists(src):
+            return None
+    try:
+        os.makedirs(ICON_CACHE, exist_ok=True)
+    except OSError:
+        return None
+    ok, _ = _run(["sips", "-s", "format", "png", "-Z", "180", src, "--out", png],
+                 timeout=20)
+    if not ok:
+        return None
+    try:
+        return open(png, "rb").read()
+    except OSError:
+        return None
+
+
 class Handler(BaseHTTPRequestHandler):
     path_to_buttons = BUTTONS
     quiet = False
@@ -362,7 +432,9 @@ class Handler(BaseHTTPRequestHandler):
         return json.loads(self.rfile.read(length).decode("utf-8"))
 
     def do_GET(self):
-        path = self.path.rstrip("/") or "/"
+        # The query is not part of the path: /deck/icon?name=… matched nothing
+        # until this split existed (2026-09-29).
+        path = urllib.parse.urlparse(self.path).path.rstrip("/") or "/"
         try:
             data = load(self.path_to_buttons)
         except (OSError, ValueError) as exc:
@@ -373,6 +445,27 @@ class Handler(BaseHTTPRequestHandler):
         # app and nothing else -- the buttons have not changed.
         if path == "/deck/front":
             return self.reply(200, {"app": front_app(), "group": front_group(groups)})
+        # The application's own icon, for its button on the iPad. Only for the
+        # names buttons.json lists: this is a socket on the tailnet, and a name
+        # off the wire must not reach the filesystem.
+        if path == "/deck/icon":
+            want = urllib.parse.parse_qs(
+                urllib.parse.urlparse(self.path).query).get("name", [""])[0]
+            if want not in (data.get("apps") or []):
+                return self.reply(404, {"error": "not one of his apps"})
+            png = app_icon(want)
+            if not png:
+                return self.reply(404, {"error": "no icon"})
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(png)))
+            self.send_header("Cache-Control", "max-age=86400")
+            self.end_headers()
+            try:
+                self.wfile.write(png)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            return
         if path != "/deck":
             return self.reply(404, {"error": "no such path"})
         self.reply(200, {"buttons": buttons, "front": front_group(groups),
@@ -495,8 +588,8 @@ def selftest() -> int:
 
     data = load()
     buttons = clean(data["buttons"])
-    assert len(buttons) == 36, f"expected the pad's 36 buttons, got {len(buttons)}"
-    assert len({b["id"] for b in buttons}) == 36, "button ids are not unique"
+    assert len(buttons) >= 36, f"expected at least the pad's 36 buttons, got {len(buttons)}"
+    assert len({b["id"] for b in buttons}) == len(buttons), "button ids are not unique"
 
     for kind in ACTION_TYPES:
         if kind == "compound":
@@ -541,7 +634,7 @@ def selftest() -> int:
     with tempfile.TemporaryDirectory() as box:
         path = os.path.join(box, "buttons.json")
         save({"buttons": buttons}, path)
-        assert len(load(path)["buttons"]) == 36, "did not survive a save and load"
+        assert len(load(path)["buttons"]) == len(buttons), "did not survive a save and load"
 
     print("deck selftest ok")
     return 0

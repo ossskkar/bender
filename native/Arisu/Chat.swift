@@ -141,6 +141,9 @@ struct ChatPane: View {
     @ObservedObject var chat: Chat
     /// Her state, so the composer can carry the same colour the room does.
     let phase: Color
+    /// Set from the room's History button: show the sheet as soon as the
+    /// chat appears, so one press crosses both.
+    @Binding var openHistory: Bool
     /// Press Voice: the caller draws her instead of this.
     let toVoice: () -> Void
     /// The app's title row is above this view now, not over it.
@@ -161,6 +164,7 @@ struct ChatPane: View {
         .padding(.top, topInset)
         .background(Color.black)
         .task { await chat.load() }
+        .onAppear { if openHistory { showHistory = true; openHistory = false } }
         .sheet(isPresented: $showHistory) { ChatHistory(chat: chat) }
     }
 

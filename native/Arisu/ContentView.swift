@@ -62,6 +62,9 @@ struct ContentView: View {
     /// survives switching to her voice and back -- the conversation is one
     /// thing, and re-fetching it every time he speaks would make it blink.
     @StateObject private var chat = Chat()
+    /// Open the chat on its history the moment it is shown -- the room's
+    /// History button leaves the room and lands there.
+    @State private var chatHistory = false
     /// The recent lines of both of them, oldest first, as chat bubbles.
     @State private var messages: [Bubble] = []
     /// Legend and buttons start hidden; a tap on the screen shows them, the
@@ -252,7 +255,7 @@ struct ContentView: View {
     /// draws no chrome of its own here: the row along the top is the app's.
     @ViewBuilder private var conversation: some View {
         if showChat {
-            ChatPane(chat: chat, phase: phaseColor) { toVoice() }
+            ChatPane(chat: chat, phase: phaseColor, openHistory: $chatHistory) { toVoice() }
         } else {
             hologram
         }
@@ -307,6 +310,17 @@ struct ContentView: View {
     /// in the same place in both modes, so switching does not move the floor.
     private var roomBar: some View {
         HStack(spacing: 10) {
+            // The same two the composer has, in the same corner, because
+            // "what did we say" and "start again" are things he wants in the
+            // room as much as at the keyboard (Oscar, 2026-09-29).
+            squareButton("clock", "History", tint: off) {
+                toChat()
+                chatHistory = true
+            }
+            squareButton("plus", "New conversation", tint: off) {
+                Task { await chat.new() }
+                messages.removeAll()
+            }
             squareButton(showTranscript ? "text.bubble.fill" : "text.bubble",
                          "Subtitles", tint: showTranscript ? glow : off) {
                 showTranscript.toggle()

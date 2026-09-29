@@ -43,10 +43,20 @@ struct DeckRail: View {
                 ForEach(deck.apps, id: \.self) { app in
                     let here = app.lowercased() == deck.frontApp.lowercased()
                     Button { Task { await deck.open(app: app) } } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: here ? "macwindow.on.rectangle" : "macwindow")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(here ? Skin.onLit : Skin.cyan.opacity(0.7))
+                        HStack(spacing: 8) {
+                            // The application's own icon, from the Mac
+                            // (GET /deck/icon). A window glyph said nothing
+                            // about which app it was (Oscar, 2026-09-29).
+                            AsyncImage(url: DeckAPI.base
+                                .appendingPathComponent("deck/icon")
+                                .appending(queryItems: [URLQueryItem(name: "name", value: app)])) {
+                                    $0.resizable().scaledToFit()
+                                } placeholder: {
+                                    Image(systemName: "macwindow")
+                                        .font(.system(size: 15, weight: .semibold))
+                                        .foregroundStyle(Skin.cyan.opacity(0.5))
+                                }
+                                .frame(width: 26, height: 26)
                             Text(short(app))
                                 .font(Skin.mono(15, .semibold))
                                 .foregroundStyle(here ? Skin.onLit : .white)
