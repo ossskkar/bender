@@ -102,6 +102,86 @@
       }
     },
     {
+      "id": "claude-code.k7",
+      "group": "claude-code",
+      "label": "away",
+      "icon": "✈",
+      "action": {
+        "type": "compound",
+        "steps": [
+          {
+            "type": "text",
+            "text": "/away",
+            "paste": true
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          }
+        ]
+      }
+    },
+    {
+      "id": "claude-code.k8",
+      "group": "claude-code",
+      "label": "homelab",
+      "icon": "🏠",
+      "action": {
+        "type": "compound",
+        "steps": [
+          {
+            "type": "text",
+            "text": "/homelab",
+            "paste": true
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          }
+        ]
+      }
+    },
+    {
+      "id": "claude-code.k9",
+      "group": "claude-code",
+      "label": "model",
+      "icon": "◆",
+      "action": {
+        "type": "compound",
+        "steps": [
+          {
+            "type": "text",
+            "text": "/model",
+            "paste": true
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          }
+        ]
+      }
+    },
+    {
+      "id": "claude-code.k10",
+      "group": "claude-code",
+      "label": "omni",
+      "icon": "⚡",
+      "action": {
+        "type": "compound",
+        "steps": [
+          {
+            "type": "text",
+            "text": "/omni",
+            "paste": true
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          }
+        ]
+      }
+    },
+    {
       "id": "mac.k1",
       "group": "mac",
       "label": "Lock screen",

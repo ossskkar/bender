@@ -36,18 +36,28 @@ struct DeckRail: View {
         VStack(alignment: .leading, spacing: 6) {
             Skin.caption("apps", Skin.ink)
                 .padding(.horizontal, 12)
-            FlowRow(spacing: 6) {
+            // The same button as a key, in the same grid: an application is
+            // something he presses, and two sizes of press on one rail made
+            // the smaller one look like a label (Oscar, 2026-09-29).
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 10)], spacing: 10) {
                 ForEach(deck.apps, id: \.self) { app in
                     let here = app.lowercased() == deck.frontApp.lowercased()
                     Button { Task { await deck.open(app: app) } } label: {
-                        Text(short(app))
-                            .font(Skin.mono(12, .semibold))
-                            .foregroundStyle(here ? Skin.onLit : Skin.cyan.opacity(0.75))
-                            .lineLimit(1)
-                            .padding(.horizontal, 12)
-                            .frame(height: 40)
-                            .raised(Skin.cyan, stroke: here ? 0 : 0.3,
-                                    fill: here ? Skin.cyan : Skin.raised)
+                        HStack(spacing: 6) {
+                            Image(systemName: here ? "macwindow.on.rectangle" : "macwindow")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(here ? Skin.onLit : Skin.cyan.opacity(0.7))
+                            Text(short(app))
+                                .font(Skin.mono(15, .semibold))
+                                .foregroundStyle(here ? Skin.onLit : .white)
+                                .lineLimit(1).minimumScaleFactor(0.8)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 14)
+                        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+                        .raised(Skin.cyan, stroke: here ? 0 : 0.3,
+                                fill: here ? Skin.cyan : Skin.raised)
                     }
                     .buttonStyle(.plain)
                 }

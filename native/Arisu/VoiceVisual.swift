@@ -12,17 +12,26 @@ import SwiftUI
 /// mockups he narrowed down. Anything changed here should be changed there
 /// too, or the next round of picking is done against the wrong picture.
 enum FaceStyle: String, CaseIterable, Identifiable {
+    /// The five spheres, then the five flat ones he picked out of the same
+    /// page (25, 11, 9, 3, 40 there; 2026-09-29). A sphere reads as a body in
+    /// a room; a flat one reads as a signal on a screen, and he wanted both.
     case portrait, halo, bubble, groove, trail, ribbon
+    case ring, liquid, lissajous, bubbles, aurora
     var id: String { rawValue }
 
     var label: String {
         switch self {
-        case .portrait: return "Portrait"
-        case .halo:     return "Halo sphere"
-        case .bubble:   return "Bubble sphere"
-        case .groove:   return "Groove sphere"
-        case .trail:    return "Trail sphere"
-        case .ribbon:   return "Ribbon sphere"
+        case .portrait:  return "Portrait"
+        case .halo:      return "Halo sphere"
+        case .bubble:    return "Bubble sphere"
+        case .groove:    return "Groove sphere"
+        case .trail:     return "Trail sphere"
+        case .ribbon:    return "Ribbon sphere"
+        case .ring:      return "Halo ring"
+        case .liquid:    return "Liquid"
+        case .lissajous: return "Lissajous"
+        case .bubbles:   return "Bubbles"
+        case .aurora:    return "Aurora"
         }
     }
 }
@@ -116,10 +125,10 @@ struct VoiceVisual: View {
 
     /// One breath, as a scale on the whole sphere. Not a sine: a breath is a
     /// quick draw in and a long let out, and the difference between the two is
-    /// what makes it read as breathing rather than as pulsing. 4.5 s, which is
-    /// a calm adult at rest.
+    /// what makes it read as breathing rather than as pulsing. 5.5 s -- eleven
+    /// a minute, a calm adult at rest; 4.5 read as slightly hurried.
     private func breath(_ t: Double) -> Double {
-        let p = (t / 4.5).truncatingRemainder(dividingBy: 1)
+        let p = (t / 5.5).truncatingRemainder(dividingBy: 1)
         let ease: Double
         if p < 0.38 {                                   // in
             let u = p / 0.38
@@ -204,6 +213,11 @@ struct VoiceVisual: View {
         case .groove:          groove(&c, w, t)
         case .trail:           trail(&c, w, t)
         case .ribbon:          ribbon(&c, w, t)
+        case .ring:            ring(&c, w, t)
+        case .liquid:          liquid(&c, w, t)
+        case .lissajous:       lissajous(&c, w, t)
+        case .bubbles:         bubbles(&c, w, t)
+        case .aurora:          aurora(&c, w, t)
         }
     }
 
@@ -340,6 +354,128 @@ struct VoiceVisual: View {
         glow(&ctx, w, tint) { g in
             g.fill(Path(ellipseIn: CGRect(x: -core, y: -core, width: core * 2, height: core * 2)),
                    with: .color(tint.opacity(0.5 + a * 0.4)))
+        }
+    }
+
+    // ------------------------------------------------------- the flat five
+
+    /// One lit ring with a soft core: the whole state in a single shape,
+    /// which is what makes it readable from the sofa.
+    private func ring(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
+        let a = amp(t)
+        let R = w * 0.29 * breath(t) * (1 + a * 0.12 * m.depth)
+        glow(&ctx, w, tint) { g in
+            g.stroke(Path(ellipseIn: CGRect(x: -R, y: -R, width: R * 2, height: R * 2)),
+                     with: .color(tint.opacity(0.85)),
+                     lineWidth: w * 0.018 * (1 + a * 0.9 * m.depth))
+        }
+        let halo = R * 1.5
+        ctx.fill(Path(ellipseIn: CGRect(x: -halo, y: -halo, width: halo * 2, height: halo * 2)),
+                 with: .radialGradient(
+                    Gradient(colors: [tint.opacity(0.16 + a * 0.2 * m.bloom), tint.opacity(0)]),
+                    center: .zero, startRadius: 0, endRadius: halo))
+        // A second, thinner ring carries the flow, so listening and speaking
+        // are told apart on a shape that has nothing else to move.
+        if m.flow != 0 {
+            let r2 = R * (0.62 + flow(0.5, t, a) * 2)
+            ctx.stroke(Path(ellipseIn: CGRect(x: -r2, y: -r2, width: r2 * 2, height: r2 * 2)),
+                       with: .color(mag.opacity(0.55)), lineWidth: w * 0.006)
+        }
+    }
+
+    /// A drop of her, holding its own shape against the noise.
+    private func liquid(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
+        let a = amp(t)
+        let R = w * 0.30 * breath(t)
+        var p = Path()
+        for i in 0...180 {
+            let an = Double(i) / 180 * .pi * 2
+            let n = sin(an * 3 + t * m.wobble * 0.4) * 0.5
+                  + sin(an * 5 - t * m.wobble * 0.6) * 0.3
+                  + sin(an * 2 + t * 0.7) * 0.4
+            let r = R * (1 + n * a * 0.45 * m.depth + flow(an / (.pi * 2), t, a))
+            let pt = CGPoint(x: cos(an) * r, y: sin(an) * r)
+            i == 0 ? p.move(to: pt) : p.addLine(to: pt)
+        }
+        p.closeSubpath()
+        ctx.fill(p, with: .radialGradient(
+            Gradient(colors: [tint.opacity(0.55), tint.opacity(0.05)]),
+            center: .zero, startRadius: R * 0.1, endRadius: R * 1.3))
+        glow(&ctx, w, tint) { g in
+            g.stroke(p, with: .color(tint.opacity(0.9)), lineWidth: w * 0.005)
+        }
+    }
+
+    /// Ribbons crossing, in two colours: the shape that reads as thinking
+    /// even before the colour says so.
+    private func lissajous(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
+        let a = amp(t)
+        let R = w * 0.33 * breath(t)
+        for k in 0..<5 {
+            let pts = (0...240).map { i -> (Double, Double) in
+                let u = Double(i) / 240 * .pi * 2
+                let scale = R * (0.6 + a * 0.5 * m.depth)
+                return (sin(u * (2 + Double(k) * 0.1) + t * m.spin * 3) * scale,
+                        sin(u * 3 + t * (0.35 + m.spin) + Double(k) * 0.6) * scale)
+            }
+            let col = k % 2 == 1 ? mag : tint
+            ctx.stroke(ring(pts, closed: false),
+                       with: .color(col.opacity(0.12 + 0.4 * (1 - Double(k) / 5))),
+                       lineWidth: w * 0.004)
+        }
+    }
+
+    /// Glass shells, flat: the softest of them, and the one that does least
+    /// when she is quiet.
+    private func bubbles(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
+        let a = amp(t)
+        let R = w * 0.30 * breath(t)
+        var add = ctx
+        add.blendMode = .plusLighter
+        for i in 0..<5 {
+            let an = t * (0.5 + m.spin) + Double(i) * 1.26
+            let off = R * (0.12 + a * 0.34 * m.depth + flow(Double(i) / 5, t, a))
+            let x = cos(an) * off, y = sin(an * 1.3) * off
+            let hue = i % 2 == 0 ? tint : mag
+            let rect = CGRect(x: x - R, y: y - R, width: R * 2, height: R * 2)
+            add.fill(Path(ellipseIn: rect), with: .radialGradient(
+                Gradient(stops: [
+                    .init(color: hue.opacity(0.02), location: 0),
+                    .init(color: hue.opacity(0.22 + a * 0.2), location: 0.75),
+                    .init(color: hue.opacity(0), location: 1)]),
+                center: CGPoint(x: x, y: y), startRadius: R * 0.2, endRadius: R))
+        }
+    }
+
+    /// Curtains of light across a disc. The quietest of the ten, and the one
+    /// that looks least like a machine.
+    private func aurora(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
+        let a = amp(t)
+        let R = w * 0.34 * breath(t)
+        var disc = ctx
+        disc.clip(to: Path(ellipseIn: CGRect(x: -R, y: -R, width: R * 2, height: R * 2)))
+        disc.blendMode = .plusLighter
+        for k in 0..<5 {
+            let base = (Double(k) - 2) * R * 0.22
+            var band = Path()
+            band.move(to: CGPoint(x: -R, y: R))
+            for i in 0...60 {
+                let x = -R + Double(i) / 60 * R * 2
+                let y = base + sin(x * 0.018 + t * (0.6 + m.wobble * 0.25) + Double(k))
+                    * R * 0.22 * (0.3 + a * 1.2 * m.depth)
+                    + flow(Double(k) / 5, t, a) * R
+                band.addLine(to: CGPoint(x: x, y: y))
+            }
+            band.addLine(to: CGPoint(x: R, y: R))
+            band.closeSubpath()
+            let col = k % 2 == 1 ? mag : tint
+            disc.fill(band, with: .linearGradient(
+                Gradient(stops: [
+                    .init(color: col.opacity(0), location: 0),
+                    .init(color: col.opacity(0.16 + a * 0.2), location: 0.35),
+                    .init(color: col.opacity(0), location: 1)]),
+                startPoint: CGPoint(x: 0, y: base - R * 0.3),
+                endPoint: CGPoint(x: 0, y: base + R * 0.5)))
         }
     }
 }
