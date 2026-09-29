@@ -368,7 +368,9 @@ struct ContentView: View {
         // dashboard's own wordmark does.
         return HStack(alignment: .firstTextBaseline, spacing: 14) {
             Text("Arisuへようこそ！")
-                .font(Skin.mono(19, .bold))
+                // As tall as the button beside it: the title is the other half
+                // of that row, not a caption over it (Oscar, 2026-09-29).
+                .font(Skin.mono(26, .bold))
                 .tracking(4.5)
                 .foregroundStyle(Self.mag)
                 .shadow(color: Self.mag.opacity(0.7 * flicker), radius: 12)
