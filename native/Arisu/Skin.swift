@@ -32,9 +32,9 @@ enum Skin {
 
     /// The fill of anything raised off the void: a key, a bubble, a bar.
     static let raised = Color.white.opacity(0.08)
-    /// One corner radius. Three of them was the loudest thing about the old
-    /// screen without anyone being able to say why.
-    static let radius: CGFloat = 10
+    /// One corner radius, and it is none: the Record panel's square neon
+    /// boxes became the whole app's look (Oscar, 2026-09-30).
+    static let radius: CGFloat = 0
 
     /// Everything is typed in the same face. She is a terminal.
     static func mono(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
@@ -59,10 +59,18 @@ struct Raised: ViewModifier {
         content
             .background(RoundedRectangle(cornerRadius: Skin.radius).fill(fill))
             .overlay(RoundedRectangle(cornerRadius: Skin.radius).stroke(tint.opacity(stroke)))
+            // A lit edge glows; a quiet one does not, or every box would shout.
+            .shadow(color: stroke >= 0.6 ? tint.opacity(0.6) : .clear, radius: 5)
     }
 }
 
 extension View {
+    /// A panel in the Record panel's style: grid and scanlines behind, neon
+    /// corner brackets over the top.
+    func console(_ grid: Color = Skin.cyan, brackets: Color = Skin.mag) -> some View {
+        background(Grid(tint: grid)).overlay(Brackets(tint: brackets))
+    }
+
     func raised(_ tint: Color = Skin.cyan, stroke: Double = 0.3,
                 fill: Color = Skin.raised) -> some View {
         modifier(Raised(tint: tint, stroke: stroke, fill: fill))
@@ -88,5 +96,46 @@ struct IconButton: View {
                         fill: lit ? tint : Color.black.opacity(0.35))
         }
         .accessibilityLabel(label)
+    }
+}
+
+/// A faint neon grid with scanlines, behind the panel (and the deck below it).
+struct Grid: View {
+    let tint: Color
+    var body: some View {
+        Canvas { ctx, size in
+            var grid = Path()
+            for x in stride(from: 0, through: size.width, by: 28) {
+                grid.move(to: CGPoint(x: x, y: 0)); grid.addLine(to: CGPoint(x: x, y: size.height))
+            }
+            for y in stride(from: 0, through: size.height, by: 28) {
+                grid.move(to: CGPoint(x: 0, y: y)); grid.addLine(to: CGPoint(x: size.width, y: y))
+            }
+            ctx.stroke(grid, with: .color(tint.opacity(0.07)), lineWidth: 1)
+            for y in stride(from: 0, through: size.height, by: 3) {
+                ctx.fill(Path(CGRect(x: 0, y: y, width: size.width, height: 1)),
+                         with: .color(.black.opacity(0.25)))
+            }
+        }
+        .background(Color.black)
+    }
+}
+
+/// Neon corner brackets instead of a box.
+struct Brackets: View {
+    let tint: Color
+    var body: some View {
+        GeometryReader { g in
+            let w = g.size.width, h = g.size.height, l: CGFloat = 22
+            Path { p in
+                p.move(to: CGPoint(x: 0, y: l)); p.addLine(to: .zero); p.addLine(to: CGPoint(x: l, y: 0))
+                p.move(to: CGPoint(x: w - l, y: 0)); p.addLine(to: CGPoint(x: w, y: 0)); p.addLine(to: CGPoint(x: w, y: l))
+                p.move(to: CGPoint(x: w, y: h - l)); p.addLine(to: CGPoint(x: w, y: h)); p.addLine(to: CGPoint(x: w - l, y: h))
+                p.move(to: CGPoint(x: l, y: h)); p.addLine(to: CGPoint(x: 0, y: h)); p.addLine(to: CGPoint(x: 0, y: h - l))
+            }
+            .stroke(tint, lineWidth: 2)
+            .shadow(color: tint, radius: 5)
+        }
+        .allowsHitTesting(false)
     }
 }

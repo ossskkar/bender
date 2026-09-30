@@ -198,6 +198,7 @@ struct ContentView: View {
             }
         }
         .background(Color.black)
+        .fontDesign(.monospaced)
         .ignoresSafeArea()
         // A page she was asked to show. The desk already decided how it can be
         // shown, so this only draws it.
@@ -262,7 +263,7 @@ struct ContentView: View {
             // itself -- a fixed radius left unlit corners on the wide screen.
             let reach = max(geo.size.width, geo.size.height)
             ZStack {
-                Color.black
+                Grid(tint: Skin.cyan)
                 // The ground under her carries the same colour as the meter,
                 // so the state is readable from across the room, where the
                 // twenty bars are not.
@@ -285,18 +286,11 @@ struct ContentView: View {
                         .padding(.leading, 34)
                         .padding(.trailing, 24)
                     }
-                    // What she is doing, in words, under her.
-                    Text(pet.running ? stateWord : "not listening")
-                        .font(Skin.mono(13, .semibold))
-                        .tracking(3)
-                        .foregroundStyle(pet.running ? phaseColor : Skin.ink)
-                        .animation(.easeInOut(duration: 0.25), value: phaseColor)
-                        .shadow(color: .black.opacity(0.9), radius: 8)
-                        .padding(.bottom, 10)
                     roomBar
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
+            .overlay(Brackets(tint: Skin.mag).padding(10))
             .contentShape(Rectangle())
             // Double tap: the conversation on or off. Single tap: the chrome.
             .onTapGesture(count: 2) { pet.toggleRunning() }
@@ -331,8 +325,15 @@ struct ContentView: View {
             // no call it is the state in words instead.
             // The bar keeps only what he presses; what she is doing is drawn
             // under her, where he is already looking (Oscar, 2026-09-29).
-            if pet.running { meter.frame(maxWidth: .infinity) }
-            else { Color.clear.frame(height: 36).frame(maxWidth: .infinity) }
+            // Her state in words where the bars were: the bars moved, the
+            // words said which way (Oscar, 2026-09-30).
+            Text("> " + (pet.running ? stateWord : "not listening").uppercased() + "_")
+                .font(Skin.mono(16, .bold)).tracking(3)
+                .foregroundStyle(pet.running ? phaseColor : Skin.ink)
+                .shadow(color: pet.running ? phaseColor.opacity(0.8) : .clear, radius: 6)
+                .animation(.easeInOut(duration: 0.25), value: phaseColor)
+                .lineLimit(1).minimumScaleFactor(0.6)
+                .frame(maxWidth: .infinity, minHeight: 36)
             squareButton(live.muted || !pet.running ? "mic.slash" : "mic.fill",
                          "Microphone",
                          tint: pet.running && !live.muted ? listener : off) {
@@ -343,8 +344,7 @@ struct ContentView: View {
         .padding(.horizontal, 18)
         .padding(.top, 10)
         .padding(.bottom, 14)
-        .background(Color.white.opacity(0.03))
-        .overlay(Rectangle().frame(height: 1).foregroundStyle(Color.white.opacity(0.08)),
+        .overlay(Rectangle().frame(height: 1).foregroundStyle(Skin.cyan.opacity(0.35)),
                  alignment: .top)
     }
 
@@ -454,8 +454,9 @@ struct ContentView: View {
         }
         .padding(.vertical, 14)
         .padding(.horizontal, 22)
-        .background(Color.white.opacity(0.05))
-        .overlay(Rectangle().frame(height: 1).foregroundStyle(Self.mag.opacity(0.35)),
+        .background(Grid(tint: Skin.mag))
+        .overlay(Rectangle().frame(height: 1).foregroundStyle(Self.mag.opacity(0.6))
+                    .shadow(color: Self.mag, radius: 4),
                  alignment: .bottom)
     }
 
@@ -622,48 +623,6 @@ struct ContentView: View {
         messages.append(Bubble(mine: mine, text: t))
         if messages.count > 4 { messages.removeFirst(messages.count - 4) }
     }
-
-    /// The same twenty bars all the way through, because a second widget
-    /// appearing elsewhere on the screen was the thing that made her look
-    /// busy in a different place from where she listens. No word under it:
-    /// the legend top left already names the colour (Oscar, 2026-09-16).
-    private var meter: some View {
-        Group {
-            switch phase {
-            // One travelling wave for every state. Thinking and speaking
-            // run it at full height; listening scales it by his
-            // microphone, so it is a mic light; idle holds it flat.
-            case .thinking, .speaking: wave(phaseColor, gain: 1)
-            case .listening: wave(phaseColor, gain: Double(live.micLevel))
-            case .idle:      wave(phaseColor, gain: 0)
-            }
-        }
-        .frame(height: 36)
-    }
-
-    /// A wave running left to right. `TimelineView` drives it off the frame
-    /// clock rather than an animation on a `@State` flag: twenty bars each
-    /// with their own phase is exactly the shape SwiftUI's implicit
-    /// animation cannot express.
-    private func wave(_ tint: Color, gain: Double) -> some View {
-        TimelineView(.animation) { tl in
-            let t = tl.date.timeIntervalSinceReferenceDate
-            // She speaks faster than she thinks, and the bars should say so
-            // before the colour does.
-            let speed = phase == .speaking ? 1.5 : 0.85
-            HStack(spacing: 5) {
-                ForEach(0..<20, id: \.self) { i in
-                    let offset = Double(i) / 20 - t * speed
-                    let w = (sin(offset * .pi * 2) + 1) / 2 * gain
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(tint.opacity(0.18 + w * 0.82))
-                        .frame(width: 9, height: 6 + w * 30)
-                }
-            }
-            .shadow(color: tint.opacity(0.7 * max(gain, 0.3)), radius: 10)
-            .animation(.easeOut(duration: 0.12), value: gain)
-        }
-    }
 }
 
 // MARK: - her screen
@@ -740,15 +699,19 @@ struct ChatBubble: View {
     var body: some View {
         HStack {
             if mine { Spacer(minLength: 80) }
+            // The Record panel's log row: a lit bar on the speaker's side,
+            // a square box, a thin neon edge (Oscar, 2026-09-30).
+            let ink = mine ? mineColor : voice
             Text(conversationLinks(text))
-                .font(.system(size: 19, weight: .medium))
-                .foregroundStyle(mine ? mineColor : voice)
+                .font(Skin.mono(18, .medium))
+                .foregroundStyle(ink)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 9)
-                .background(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(solid ? Color.black.opacity(0.62) : Color.white.opacity(0.12)))
-                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke((mine ? mineColor : voice).opacity(0.35)))
+                .background(Rectangle().fill(solid ? Color.black.opacity(0.62) : ink.opacity(0.08)))
+                .overlay(Rectangle().stroke(ink.opacity(0.45), lineWidth: 1))
+                .overlay(alignment: mine ? .trailing : .leading) {
+                    Rectangle().fill(ink).frame(width: 3).shadow(color: ink, radius: 4)
+                }
                 .textSelection(.enabled)
             if !mine { Spacer(minLength: 80) }
         }

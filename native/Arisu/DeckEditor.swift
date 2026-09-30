@@ -55,7 +55,8 @@ struct DeckEditor: View {
                     }
                 }
             }
-            .background(Color.black.ignoresSafeArea())
+            .background(Grid(tint: Skin.cyan).ignoresSafeArea())
+            .fontDesign(.monospaced)
             .navigationTitle(isNew ? "New button" : button.label)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

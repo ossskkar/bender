@@ -148,8 +148,7 @@ struct RecordPanel: View {
             }
         }
         .padding(14)
-        .background(Grid(tint: wire))
-        .overlay(Brackets(tint: neon))
+        .console(wire, brackets: neon)
         .padding(10)
         .task { await rec.load() }
     }
@@ -291,46 +290,5 @@ struct RecordPanel: View {
                 .textSelection(.enabled)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-/// A faint neon grid with scanlines, behind the panel (and the deck below it).
-struct Grid: View {
-    let tint: Color
-    var body: some View {
-        Canvas { ctx, size in
-            var grid = Path()
-            for x in stride(from: 0, through: size.width, by: 28) {
-                grid.move(to: CGPoint(x: x, y: 0)); grid.addLine(to: CGPoint(x: x, y: size.height))
-            }
-            for y in stride(from: 0, through: size.height, by: 28) {
-                grid.move(to: CGPoint(x: 0, y: y)); grid.addLine(to: CGPoint(x: size.width, y: y))
-            }
-            ctx.stroke(grid, with: .color(tint.opacity(0.07)), lineWidth: 1)
-            for y in stride(from: 0, through: size.height, by: 3) {
-                ctx.fill(Path(CGRect(x: 0, y: y, width: size.width, height: 1)),
-                         with: .color(.black.opacity(0.25)))
-            }
-        }
-        .background(Color.black)
-    }
-}
-
-/// Neon corner brackets instead of a box.
-struct Brackets: View {
-    let tint: Color
-    var body: some View {
-        GeometryReader { g in
-            let w = g.size.width, h = g.size.height, l: CGFloat = 22
-            Path { p in
-                p.move(to: CGPoint(x: 0, y: l)); p.addLine(to: .zero); p.addLine(to: CGPoint(x: l, y: 0))
-                p.move(to: CGPoint(x: w - l, y: 0)); p.addLine(to: CGPoint(x: w, y: 0)); p.addLine(to: CGPoint(x: w, y: l))
-                p.move(to: CGPoint(x: w, y: h - l)); p.addLine(to: CGPoint(x: w, y: h)); p.addLine(to: CGPoint(x: w - l, y: h))
-                p.move(to: CGPoint(x: l, y: h)); p.addLine(to: CGPoint(x: 0, y: h)); p.addLine(to: CGPoint(x: 0, y: h - l))
-            }
-            .stroke(tint, lineWidth: 2)
-            .shadow(color: tint, radius: 5)
-        }
-        .allowsHitTesting(false)
     }
 }

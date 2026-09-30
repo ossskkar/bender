@@ -166,7 +166,7 @@ struct ChatPane: View {
             composer
         }
         .padding(.top, topInset)
-        .background(Color.black)
+        .console(Skin.cyan, brackets: Skin.mag)
         .task { await chat.load() }
         .onAppear { if openHistory { showHistory = true; openHistory = false } }
         .sheet(isPresented: $showHistory) { ChatHistory(chat: chat) }
@@ -230,11 +230,18 @@ struct ChatPane: View {
             .padding(.vertical, bubbles ? 10 : 1)
             .background {
                 if bubbles {
-                    RoundedRectangle(cornerRadius: Skin.radius)
+                    Rectangle()
                         .fill((line.mine ? mag : cyan).opacity(0.08))
-                        .overlay(RoundedRectangle(cornerRadius: Skin.radius)
+                        .overlay(Rectangle()
                             .stroke((line.mine ? mag : cyan)
-                                .opacity(line.spoken ? 0.18 : 0.3)))
+                                .opacity(line.spoken ? 0.25 : 0.45)))
+                }
+            }
+            // The Record panel's log row: a lit bar on the speaker's side.
+            .overlay(alignment: line.mine ? .trailing : .leading) {
+                if bubbles {
+                    let ink = line.mine ? mag : cyan
+                    Rectangle().fill(ink).frame(width: 3).shadow(color: ink, radius: 4)
                 }
             }
             if !line.mine || !bubbles { Spacer(minLength: 40) }
@@ -279,8 +286,7 @@ struct ChatPane: View {
         .padding(.horizontal, 18)
         .padding(.top, 10)
         .padding(.bottom, 14)
-        .background(Color.white.opacity(0.03))
-        .overlay(Rectangle().frame(height: 1).foregroundStyle(Color.white.opacity(0.08)),
+        .overlay(Rectangle().frame(height: 1).foregroundStyle(Skin.cyan.opacity(0.35)),
                  alignment: .top)
     }
 
@@ -309,7 +315,8 @@ struct ChatHistory: View {
             Group {
                 if open.isEmpty { list } else { transcript }
             }
-            .background(Color.black)
+            .background(Grid(tint: Skin.cyan).ignoresSafeArea())
+            .fontDesign(.monospaced)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     if open.isEmpty {
@@ -351,7 +358,8 @@ struct ChatHistory: View {
                         .lineLimit(2)
                 }
             }
-            .listRowBackground(Color.white.opacity(0.04))
+            .listRowBackground(Rectangle().fill(Skin.cyan.opacity(0.05))
+                .overlay(Rectangle().stroke(Skin.cyan.opacity(0.3))))
         }
         .scrollContentBackground(.hidden)
     }

@@ -142,8 +142,7 @@ struct DeckRail: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         // The Record panel's look, so the two halves of the left side read as
         // one console (Oscar, 2026-09-30).
-        .background(Grid(tint: cyan))
-        .overlay(Brackets(tint: mag))
+        .console(cyan, brackets: mag)
         .padding(10)
         .task { await deck.load() }
         .task { await deck.watchFront() }

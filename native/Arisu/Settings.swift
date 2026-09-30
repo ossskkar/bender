@@ -54,7 +54,8 @@ struct SettingsSheet: View {
             Group {
                 if draft != nil { form } else if failed { retry } else { loading }
             }
-            .background(Color.black.ignoresSafeArea())
+            .background(Grid(tint: Skin.cyan).ignoresSafeArea())
+            .fontDesign(.monospaced)
             .navigationTitle(draft?.name.map { "How \($0) is" } ?? "How she is")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -247,9 +248,9 @@ struct SettingsSheet: View {
                             .foregroundStyle(m == current ? .white : .white.opacity(0.6))
                     }
                     .padding(6)
-                    .background(RoundedRectangle(cornerRadius: 10)
+                    .background(RoundedRectangle(cornerRadius: Skin.radius)
                         .fill(m == current ? accent.opacity(0.12) : Color.white.opacity(0.03)))
-                    .overlay(RoundedRectangle(cornerRadius: 10)
+                    .overlay(RoundedRectangle(cornerRadius: Skin.radius)
                         .stroke(m == current ? accent : .white.opacity(0.1)))
                 }
                 .buttonStyle(.plain)
