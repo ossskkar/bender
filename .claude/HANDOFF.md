@@ -1,71 +1,52 @@
-# Handoff — one screen on the iPad, and the same screen on the web (2026-09-29)
+# Handoff — deck rework, Record panel, history fix (2026-09-30)
 
-The iPad app (`native/`) and lain's `/arisu/` now do and look like the same
-thing. The deck is the iPad's alone and is not on the web, on purpose.
-State and progress: Backlog project **Arisu**.
+State and progress: Backlog project **Arisu** (journeys "I record a brain dump
+on the iPad…" and "I pick up the Pencil and scribble on the iPad").
 
-## State — built, installed on his iPad, deployed to architect
-- **One screen, both places.** The typed thread is the page; Send and Voice sit
-  by the text box; Voice draws her and opens the microphone; a keyboard button
-  under her comes back and ends the call; 5 minutes of silence closes the room.
-  Past conversations are a panel in the same screen (web) / a sheet (app).
-- **Her face can be a voice visual**, ten of them, in `native/Arisu/VoiceVisual.swift`
-  and `lain/arisu/sphere.html` — the same motion table in both.
-  Spheres: halo, bubble, groove, trail, **ribbon (default both places)**.
-  Flat: ring, liquid, lissajous, bubbles, aurora.
-  **Colour says which state, movement says what she is doing**: idle breathes
-  (5.5 s, quick in, long out), listening pulls waves inward, thinking spins
-  fast and jitters, speaking pushes waves outward on her own level.
-- **Portrait is still there** — Settings ▸ Face, with Live2D and the models
-  untouched. On the web it now saves as `portrait` rather than as empty.
-- **Where she stands** moves the drawn face: app Settings, and a web section
-  kept per device in localStorage.
-- **Deck (iPad only)**: left, draggable seam, keys and application buttons the
-  same 72pt button, swipe between groups, the rail follows the Mac's frontmost
-  app, and the Claude group now carries away / homelab / model / omni.
-- lain suite 357, with one pre-existing failure (`test_reader`, a date test).
+## State
+- **Installed on the iPad, pushed** (arisu `f358dd5`):
+  - Left half of the screen: **Record on top, deck below**, a quarter each.
+  - Deck in rows of three; **sleep pinned bottom right** on every group
+    (`pmset sleepnow` on the Mac; the iPad goes to brightness 0 + black cover,
+    idle timer released so Auto-Lock takes it; tap wakes).
+  - Claude group top-down: away/continue/screenshot, recap/explain/guide,
+    clear/handoff/sleep. Apps top-down: Safari/Xcode/Citrix,
+    Claude/Codex/DSH, Chrome/Spotify/Terminal.
+  - Icons = kind of action (SF Symbols from `DeckAction.symbol`), all cyan;
+    labels centred. Long press = explanation (`about` field); press-drag
+    reorders keys and apps (saved via `POST /deck`, apps reorder-only).
+  - Chat history opens again (the `session` field is an object on the wire).
+  - A call Arisu starts herself switches the screen to voice.
+- Mac deck (`deck/deck.py`, store `~/.local/share/arisu-deck/buttons.json`)
+  keeps `about` and accepts app reorders; restarted, answering 200.
+- Skills `/recap`, `/explain`, `/guide` in `~/.claude/skills/`.
+- **Broken: Record returns 404.** lain `6e3e4b9` (`server/dumps.py`,
+  `/dumps` routes) is pushed to both remotes but **not live**: architect's
+  `~/lain` holds someone's uncommitted chat-import work (server.py, chats.py,
+  systems/chat.html, tests/test_chats.py, staged arisu/index.html), so
+  `pull --ff-only` refuses. Claude was denied the stash/pull/pop.
+- Codex and DSH are not installed on the Mac; those buttons go red.
 
-## The look, settled 2026-09-29
-- **Palette lifted** because the first one was unreadable on the iPad at full
-  brightness: magenta `#FF5C9E`, ink `#A3B5D9`, "off" white at 0.45, panel
-  fills at 0.08. The title is 19pt on a lit row, and its flicker dips to
-  45–75% — a dip to 15% read as a fault, not as a tube.
-- **One colour rule**: she is cyan, he is magenta, in bubbles and in terminal,
-  in both modes. Terminal puts every line at the left margin with `>` on his.
-- **Bubbles or terminal is two preferences**, one per mode.
-- **Settings ▸ Face** is a grid of moving tiles (`FacePreview`), each cycling
-  the four states. **Settings ▸ The animation** draws the chosen face with
-  Size, Glow and Pace on it. The old glow sliders show only for Portrait —
-  they never reached a drawn face.
-- **The room's bar is the chat's bar**: History · New · Subtitles · her level ·
-  Mic · Keyboard. The legend of coloured dots and the floating circles are
-  gone; the bar says the state in words.
-- **The deck's application buttons carry the real app icons**
-  (`GET /deck/icon`, sips on the bundle's .icns, cached on the Mac), and a
-  press colours the button — cyan running, green worked, red failed.
-- Checked in the simulator: chat, the face grid and the animation preview all
-  draw as intended (screenshots under /tmp/claude-501/mock/ui-*.png).
-
-## Gotchas
-- **A `const` in its temporal dead zone throws even on `typeof`.** The web
-  page broke twice this way (face position, then the face dials); declare
-  shared state above everything that reads it.
-- **The browser pane is hidden, so rAF is paused and layout is 0×0 there.**
-  Canvases cannot be judged by screenshot in it; drive the draw functions
-  directly (`SHAPES[name](m, w, t, a)` on a resized canvas) and count ink.
-- Simulator screenshots need ~6 s after launch or you photograph the splash.
-- A launch on his iPad fails while the iPad is locked; the install still lands.
-- The deck's live store is `~/.local/share/arisu-deck/buttons.json`; the repo's
-  copy is only the seed. Edit both.
-- `lsappinfo`, never AppleScript, for anything about the Mac.
+## Decisions
+- Record audio is transcribed by architect's whisper-server (never leaves his
+  machines); insights are Gemini via `llm.ask`; data in data.json `"dumps"`.
+- Per-kind colours on deck keys were tried and reverted at his request.
 
 ## Next steps
-1. He picks a face on each device (Settings ▸ Face) and says which stays.
-2. Watch one real call: the visuals are untested against a live `pet.level`
-   and against 60 fps on the 2020 iPad Pro. If it drops frames, cut the bloom
-   (`glow()` draws each path twice).
-3. `chat.html` is now only the phones' fallback; if he wants, fold it into
-   `index.html` and redirect.
+1. Oscar (or Claude with permission) deploys lain:
+   `ssh architect 'cd lain && git stash && git pull --ff-only && git stash pop && sudo -n systemctl restart lain.service && sudo -n systemctl restart lain-mcp.service'`
+2. Check `curl -s https://architect-server.tailaa64e9.ts.net:8443/dumps` → `{"dumps": [...]}`.
+3. Oscar presses [RETRY] on the kept recording, then [RUN ANALYSIS].
+4. Deck in landscape: only checked in portrait (simulator would not rotate);
+   confirm keys fit the bottom quarter on the real iPad.
+5. Pencil scribble idea: see its Backlog journey; decide where saves go first.
+
+## Gotchas
+- lain test `test_reader.test_a_stale_feed_is_not_read_as_todays_news` fails;
+  unrelated to this work.
+- New Swift files must be added to `project.pbxproj` by hand (explicit refs).
+- iPad install: `xcodebuild … -destination id=085B9100-31D5-5A2D-B44C-82D143A30ACA`
+  then `xcrun devicectl device install app --device <id> <.app>`.
 
 ## Resume
-Read this file. The app on his iPad and the page on architect are both current.
+"Read arisu/.claude/HANDOFF.md and deploy the Record backend."
