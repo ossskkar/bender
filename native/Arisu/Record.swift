@@ -116,91 +116,152 @@ import SwiftUI
     }
 }
 
-/// The panel beside the deck: history or insights on top, the button at the
-/// bottom where his thumb is, like the deck's keys.
+/// The panel above the deck (Oscar, 2026-09-30): a quarter of the screen,
+/// wide and short, so the button sits left and the log runs right. Cyberpunk
+/// on purpose -- neon on black, a grid, corner brackets, a ring that breathes
+/// while it listens.
 struct RecordPanel: View {
     /// Arisu lets go of the microphone while he dumps.
     var onStart: () -> Void = {}
     @StateObject private var rec = Recorder()
     @State private var showInsights = false
+    @State private var pulse = false
+
+    private let neon = Skin.mag
+    private let wire = Skin.cyan
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Skin.caption("record", Skin.mag.opacity(0.85))
-                Spacer()
-                Picker("", selection: $showInsights) {
-                    Text("history").tag(false)
-                    Text("insights").tag(true)
+            header
+            HStack(alignment: .top, spacing: 16) {
+                VStack(spacing: 10) {
+                    Spacer(minLength: 0)
+                    button
+                    status
+                    Spacer(minLength: 0)
                 }
-                .pickerStyle(.segmented).frame(width: 170)
-            }
-            .padding(.top, 14)
-
-            ScrollView {
-                if showInsights { insights } else { history }
-            }
-            .defaultScrollAnchor(showInsights ? .top : .bottom)
-
-            if let p = rec.problem {
-                HStack {
-                    Text(p).font(Skin.mono(11)).foregroundStyle(Skin.recording)
-                    Spacer()
-                    if let file = rec.pending {
-                        Button("Retry") { Task { await rec.send(file) } }
-                            .font(Skin.mono(12, .semibold)).tint(Skin.cyan)
-                    }
+                .frame(width: 170)
+                ScrollView {
+                    if showInsights { insights } else { history }
                 }
+                .defaultScrollAnchor(showInsights ? .top : .bottom)
             }
-            button.frame(maxWidth: .infinity).padding(.bottom, 18)
         }
-        .padding(.horizontal, 12)
+        .padding(14)
+        .background(Grid(tint: wire))
+        .overlay(Brackets(tint: neon))
+        .padding(10)
         .task { await rec.load() }
+    }
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            Text("REC//BRAIN_DUMP")
+                .font(Skin.mono(14, .bold)).tracking(2)
+                .foregroundStyle(neon)
+                .shadow(color: neon.opacity(0.9), radius: 6)
+            Text(String(format: "%03d LOGS", rec.dumps.count))
+                .font(Skin.mono(10)).foregroundStyle(wire.opacity(0.8))
+            Spacer()
+            tab("HISTORY", false)
+            tab("INSIGHTS", true)
+        }
+    }
+
+    private func tab(_ name: String, _ value: Bool) -> some View {
+        let on = showInsights == value
+        return Button { showInsights = value } label: {
+            Text("[\(name)]")
+                .font(Skin.mono(12, .semibold))
+                .foregroundStyle(on ? wire : wire.opacity(0.45))
+                .shadow(color: on ? wire : .clear, radius: 5)
+        }
+        .buttonStyle(.plain)
     }
 
     private var button: some View {
         let on = rec.started != nil
+        let ink = on ? Skin.recording : neon
         return Button {
             if on { Task { await rec.finish() } } else { onStart(); rec.start() }
         } label: {
             ZStack {
-                Circle().fill(on ? Skin.recording : Skin.recording.opacity(0.18))
-                Circle().stroke(Skin.recording, lineWidth: 3)
-                if rec.sending { ProgressView().tint(.white).scaleEffect(1.4) }
+                Circle().fill(ink.opacity(on ? 0.35 : 0.12))
+                Circle().stroke(ink, lineWidth: 3)
+                    .shadow(color: ink, radius: on && pulse ? 22 : 9)
+                Circle().inset(by: -9)
+                    .stroke(wire.opacity(0.7), style: StrokeStyle(lineWidth: 1.5, dash: [4, 7]))
+                    .rotationEffect(.degrees(on && pulse ? 180 : 0))
+                if rec.sending { ProgressView().tint(wire).scaleEffect(1.4) }
                 else if let t = rec.started {
                     TimelineView(.periodic(from: t, by: 1)) { ctx in
                         let s = Int(ctx.date.timeIntervalSince(t))
-                        Text(String(format: "%d:%02d", s / 60, s % 60))
-                            .font(Skin.mono(26, .semibold)).foregroundStyle(.white)
+                        Text(String(format: "%02d:%02d", s / 60, s % 60))
+                            .font(Skin.mono(26, .bold)).foregroundStyle(.white)
+                            .shadow(color: ink, radius: 6)
                     }
                 } else {
-                    Image(systemName: "mic.fill").font(.system(size: 44)).foregroundStyle(.white)
+                    VStack(spacing: 4) {
+                        Image(systemName: "mic.fill").font(.system(size: 34))
+                        Text("REC").font(Skin.mono(12, .bold)).tracking(3)
+                    }
+                    .foregroundStyle(neon)
+                    .shadow(color: neon, radius: 6)
                 }
             }
-            .frame(width: 150, height: 150)
+            .frame(width: 120, height: 120)
         }
         .buttonStyle(.plain)
         .disabled(rec.sending)
+        .onChange(of: on) { _, now in
+            if now {
+                withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { pulse = true }
+            } else {
+                withAnimation(.default) { pulse = false }
+            }
+        }
         .accessibilityLabel(on ? "Stop and save" : "Record a brain dump")
+    }
+
+    @ViewBuilder private var status: some View {
+        if let p = rec.problem {
+            Text("! " + p).font(Skin.mono(10)).foregroundStyle(Skin.recording)
+                .multilineTextAlignment(.center)
+            if let file = rec.pending {
+                Button("[RETRY]") { Task { await rec.send(file) } }
+                    .font(Skin.mono(11, .bold)).tint(wire)
+            }
+        } else {
+            Text(rec.started != nil ? "> LISTENING_" : rec.sending ? "> DECODING_" : "> READY_")
+                .font(Skin.mono(10)).foregroundStyle(wire.opacity(0.8))
+        }
+    }
+
+    private func stamp(_ ms: Double) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy.MM.dd // HH:mm"
+        return f.string(from: Date(timeIntervalSince1970: ms / 1000))
     }
 
     private var history: some View {
         LazyVStack(alignment: .leading, spacing: 8) {
             if rec.dumps.isEmpty {
-                Text("Nothing yet. Press the button and talk.")
-                    .font(Skin.mono(12)).foregroundStyle(Skin.ink)
+                Text("> NO LOGS. PRESS REC AND TALK_")
+                    .font(Skin.mono(11)).foregroundStyle(wire.opacity(0.7))
             }
             ForEach(rec.dumps) { d in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(Date(timeIntervalSince1970: d.ts / 1000),
-                         format: .dateTime.weekday().day().month().hour().minute())
-                        .font(Skin.mono(10)).foregroundStyle(Skin.ink)
-                    Text(d.text).font(.system(size: 14)).foregroundStyle(.white)
-                        .textSelection(.enabled)
+                HStack(spacing: 0) {
+                    Rectangle().fill(neon).frame(width: 3).shadow(color: neon, radius: 4)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(stamp(d.ts)).font(Skin.mono(10)).foregroundStyle(neon)
+                        Text(d.text).font(Skin.mono(13)).foregroundStyle(.white)
+                            .textSelection(.enabled)
+                    }
+                    .padding(10)
+                    Spacer(minLength: 0)
                 }
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .raised(Skin.cyan, stroke: 0.6)
+                .background(wire.opacity(0.06))
+                .overlay(Rectangle().stroke(wire.opacity(0.5), lineWidth: 1))
                 .contextMenu {
                     Button("Delete", systemImage: "trash", role: .destructive) {
                         Task { await rec.remove(d) }
@@ -215,15 +276,61 @@ struct RecordPanel: View {
             Button {
                 Task { await rec.think() }
             } label: {
-                Label(rec.insight.isEmpty ? "Read my dumps" : "Refresh", systemImage: "sparkles")
-                    .font(Skin.mono(13, .semibold))
+                Text(rec.insight.isEmpty ? "[ RUN ANALYSIS ]" : "[ REFRESH ]")
+                    .font(Skin.mono(12, .bold)).foregroundStyle(wire)
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .overlay(Rectangle().stroke(wire, lineWidth: 1))
+                    .shadow(color: wire, radius: 4)
             }
-            .tint(Skin.cyan).disabled(rec.thinking)
-            if rec.thinking { ProgressView().tint(Skin.cyan) }
+            .buttonStyle(.plain).disabled(rec.thinking)
+            if rec.thinking {
+                Text("> PARSING LOGS_").font(Skin.mono(11)).foregroundStyle(neon)
+            }
             Text(LocalizedStringKey(rec.insight))
-                .font(.system(size: 14)).foregroundStyle(.white)
+                .font(Skin.mono(13)).foregroundStyle(.white)
                 .textSelection(.enabled)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// A faint neon grid with scanlines, behind the panel.
+private struct Grid: View {
+    let tint: Color
+    var body: some View {
+        Canvas { ctx, size in
+            var grid = Path()
+            for x in stride(from: 0, through: size.width, by: 28) {
+                grid.move(to: CGPoint(x: x, y: 0)); grid.addLine(to: CGPoint(x: x, y: size.height))
+            }
+            for y in stride(from: 0, through: size.height, by: 28) {
+                grid.move(to: CGPoint(x: 0, y: y)); grid.addLine(to: CGPoint(x: size.width, y: y))
+            }
+            ctx.stroke(grid, with: .color(tint.opacity(0.07)), lineWidth: 1)
+            for y in stride(from: 0, through: size.height, by: 3) {
+                ctx.fill(Path(CGRect(x: 0, y: y, width: size.width, height: 1)),
+                         with: .color(.black.opacity(0.25)))
+            }
+        }
+        .background(Color.black)
+    }
+}
+
+/// Neon corner brackets instead of a box.
+private struct Brackets: View {
+    let tint: Color
+    var body: some View {
+        GeometryReader { g in
+            let w = g.size.width, h = g.size.height, l: CGFloat = 22
+            Path { p in
+                p.move(to: CGPoint(x: 0, y: l)); p.addLine(to: .zero); p.addLine(to: CGPoint(x: l, y: 0))
+                p.move(to: CGPoint(x: w - l, y: 0)); p.addLine(to: CGPoint(x: w, y: 0)); p.addLine(to: CGPoint(x: w, y: l))
+                p.move(to: CGPoint(x: w, y: h - l)); p.addLine(to: CGPoint(x: w, y: h)); p.addLine(to: CGPoint(x: w - l, y: h))
+                p.move(to: CGPoint(x: l, y: h)); p.addLine(to: CGPoint(x: 0, y: h)); p.addLine(to: CGPoint(x: 0, y: h - l))
+            }
+            .stroke(tint, lineWidth: 2)
+            .shadow(color: tint, radius: 5)
+        }
+        .allowsHitTesting(false)
     }
 }

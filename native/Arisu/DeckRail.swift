@@ -72,8 +72,8 @@ struct DeckRail: View {
                             Spacer(minLength: 0)
                         }
                         .padding(.horizontal, 12)
-                        .padding(.vertical, 14)
-                        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
                         .raised(deck.outcome[app] == false ? Skin.recording : Skin.cyan,
                                 stroke: here ? 0 : (deck.outcome[app] == nil ? 0.7 : 0.95),
                                 fill: here ? Skin.cyan : tintFill(deck.outcome[app]))
@@ -228,7 +228,7 @@ struct DeckRail: View {
         let blanks = deck.sleep == nil ? 0 : (3 - (mine.count + 1) % 3) % 3
         return LazyVGrid(columns: three, spacing: 10) {
             ForEach(mine) { key($0) }
-            ForEach(0..<blanks, id: \.self) { _ in Color.clear.frame(minHeight: 72) }
+            ForEach(0..<blanks, id: \.self) { _ in Color.clear.frame(minHeight: 50) }
             if let sleep = deck.sleep { key(sleep) }
         }
         .padding(.horizontal, 12)
@@ -292,15 +292,11 @@ struct DeckRail: View {
                             .foregroundStyle(ok ? Skin.good : Skin.recording)
                     }
                 }
-                Text(b.action.summary)
-                    .font(Skin.mono(10))
-                    .foregroundStyle(Skin.ink)
-                    .lineLimit(1).truncationMode(.middle)
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 14)
+            .padding(.vertical, 10)
             // A thumb, not a stylus: 72pt is what he presses without looking.
-            .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
             .raised(ink.0, stroke: ink.1,
                     fill: tintFill(deck.outcome[b.id]))
             .animation(.easeOut(duration: 0.2), value: deck.outcome[b.id])
