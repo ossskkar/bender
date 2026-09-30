@@ -229,12 +229,14 @@ struct DeckRail: View {
         // As many columns as the seam leaves room for. It was two across a
         // fixed 196pt rail; the rail is his to widen now, and a two-column
         // grid on half an iPad is six buttons swimming in black.
-        // Blanks push the sleep key into the last column of the last row.
+        // Filled bottom up (Oscar, 2026-10-01): the blanks go first, so the
+        // short row is the top one and the rows under his hand are full, with
+        // sleep in the last column of the last row.
         let mine = deck.buttons.filter { $0.group == shown && $0.id != DeckButton.sleepID }
-        let blanks = deck.sleep == nil ? 0 : (3 - (mine.count + 1) % 3) % 3
+        let blanks = (3 - (mine.count + (deck.sleep == nil ? 0 : 1)) % 3) % 3
         return LazyVGrid(columns: three, spacing: 10) {
-            ForEach(mine) { key($0) }
             ForEach(0..<blanks, id: \.self) { _ in Color.clear.frame(minHeight: 50) }
+            ForEach(mine) { key($0) }
             if let sleep = deck.sleep { key(sleep) }
         }
         .padding(.horizontal, 12)
