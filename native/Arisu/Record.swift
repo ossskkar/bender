@@ -394,7 +394,18 @@ struct ScribbleCanvas: View {
             bar
         }
         .overlay(Brackets(tint: neon).padding(10).ignoresSafeArea())
+        // The page stays as he left it -- through cancel, save and a restart
+        // of the app -- until he presses CLEAR (Oscar, 2026-10-01).
+        .onAppear {
+            if let data = try? Data(contentsOf: Self.kept),
+               let d = try? PKDrawing(data: data) { canvas.drawing = d }
+        }
+        .onDisappear { try? canvas.drawing.dataRepresentation().write(to: Self.kept) }
     }
+
+    private static let kept = FileManager.default
+        .urls(for: .documentDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("scribble.drawing")
 
     private var bar: some View {
         HStack(spacing: 14) {
@@ -407,7 +418,10 @@ struct ScribbleCanvas: View {
             Spacer()
             tab("PEN", on: !erasing) { erasing = false }
             tab("ERASE", on: erasing) { erasing = true }
-            tab("CLEAR", on: false) { canvas.drawing = PKDrawing() }
+            tab("CLEAR", on: false) {
+                canvas.drawing = PKDrawing()
+                try? FileManager.default.removeItem(at: Self.kept)
+            }
             tab("CANCEL", on: false, action: close)
             Button { Task { await save() } } label: {
                 Text(saving ? "[ SAVING_ ]" : "[ SAVE ]")
