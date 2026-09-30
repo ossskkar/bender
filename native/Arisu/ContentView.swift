@@ -740,7 +740,7 @@ struct ChatBubble: View {
     var body: some View {
         HStack {
             if mine { Spacer(minLength: 80) }
-            Text(text)
+            Text(conversationLinks(text))
                 .font(.system(size: 19, weight: .medium))
                 .foregroundStyle(mine ? mineColor : voice)
                 .padding(.horizontal, 14)
@@ -769,7 +769,7 @@ struct TerminalLine: View {
     var mineColor: Color = Skin.mag
 
     var body: some View {
-        Text(mine ? "> " + text : text)
+        Text(conversationLinks(mine ? "> " + text : text))
             .font(.system(size: 17, weight: mine ? .semibold : .regular, design: .monospaced))
             .foregroundStyle(mine ? mineColor : voice)
             .shadow(color: .black.opacity(0.85), radius: 4)

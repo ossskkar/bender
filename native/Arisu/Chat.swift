@@ -220,7 +220,7 @@ struct ChatPane: View {
                         .foregroundStyle((line.mine ? mag : cyan).opacity(0.6))
                         .padding(.top, 4)
                 }
-                Text((bubbles ? "" : (line.mine ? "> " : "")) + line.text)
+                Text(conversationLinks((bubbles ? "" : (line.mine ? "> " : "")) + line.text))
                     .font(Skin.mono(15))
                     .foregroundStyle(line.mine ? mag : cyan)
                     .textSelection(.enabled)
@@ -360,7 +360,7 @@ struct ChatHistory: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(open) { line in
-                    Text(line.text)
+                    Text(conversationLinks(line.text))
                         .font(Skin.mono(14))
                         .foregroundStyle(line.mine ? mag : cyan)
                         .frame(maxWidth: .infinity,
@@ -376,4 +376,22 @@ struct ChatHistory: View {
         return d.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)
             .hour().minute())
     }
+}
+
+/// Detect web links without interpreting Markdown or HTML in the conversation.
+func conversationLinks(_ text: String) -> AttributedString {
+    var result = AttributedString(text)
+    guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else {
+        return result
+    }
+    for match in detector.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
+        guard let url = match.url,
+              ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              let range = Range(match.range, in: text),
+              let start = AttributedString.Index(range.lowerBound, within: result),
+              let end = AttributedString.Index(range.upperBound, within: result) else { continue }
+        result[start..<end].link = url
+        result[start..<end].underlineStyle = .single
+    }
+    return result
 }
