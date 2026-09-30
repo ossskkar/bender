@@ -209,7 +209,13 @@ struct ContentView: View {
         .onChange(of: pet.line) { _, t in
             lastSpoke = Date(); say(t, mine: false); record(t, "answer")
         }
-        .onChange(of: pet.running) { _, on in record(on ? "call started" : "call ended", "call") }
+        .onChange(of: pet.running) { _, on in
+            record(on ? "call started" : "call ended", "call")
+            // A call she starts herself -- a queued brief on arrival -- is
+            // voice, so the screen goes to her rather than staying on the
+            // typed thread while she talks (Oscar, 2026-09-30).
+            if on && showChat { showChat = false; lastSpoke = Date() }
+        }
         .animation(.easeInOut(duration: 0.25), value: pet.thinking)
         .animation(.easeInOut(duration: 0.25), value: live.thinking)
         .animation(.easeInOut(duration: 0.25), value: pet.running)
