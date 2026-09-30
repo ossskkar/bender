@@ -20,11 +20,9 @@ on the iPad…" and "I pick up the Pencil and scribble on the iPad").
 - Mac deck (`deck/deck.py`, store `~/.local/share/arisu-deck/buttons.json`)
   keeps `about` and accepts app reorders; restarted, answering 200.
 - Skills `/recap`, `/explain`, `/guide` in `~/.claude/skills/`.
-- **Broken: Record returns 404.** lain `6e3e4b9` (`server/dumps.py`,
-  `/dumps` routes) is pushed to both remotes but **not live**: architect's
-  `~/lain` holds someone's uncommitted chat-import work (server.py, chats.py,
-  systems/chat.html, tests/test_chats.py, staged arisu/index.html), so
-  `pull --ff-only` refuses. Claude was denied the stash/pull/pop.
+- **Record backend live** (lain `6e3e4b9`, `/dumps` → 200). The chat-import
+  work on architect was stashed, pulled over and popped back cleanly; it is
+  still uncommitted in `~/lain` (backup `~/lain-uncommitted-2026-09-30.patch`).
 - Codex and DSH are not installed on the Mac; those buttons go red.
 
 ## Decisions
@@ -33,9 +31,13 @@ on the iPad…" and "I pick up the Pencil and scribble on the iPad").
 - Per-kind colours on deck keys were tried and reverted at his request.
 
 ## Next steps
-1. Oscar (or Claude with permission) deploys lain:
-   `ssh architect 'cd lain && git stash && git pull --ff-only && git stash pop && sudo -n systemctl restart lain.service && sudo -n systemctl restart lain-mcp.service'`
-2. Check `curl -s https://architect-server.tailaa64e9.ts.net:8443/dumps` → `{"dumps": [...]}`.
+1. (done) lain deployed, `/dumps` answers. whisper-server now runs ON architect
+   (user unit `whisper.service`, `~/whisper.cpp`, 127.0.0.1:20301; it was only
+   ever on the Mac before, so the first retry read as silence and was deleted).
+   lain `7c4b341` makes a dead ear a 503 (iPad keeps the WAV) -- needs Oscar's
+   `sudo systemctl restart lain.service` to be live.
+   Deck restyled in the Record panel's look (arisu `2119e4e`), installed.
+2. Whoever owns the chat-import work on architect commits it.
 3. Oscar presses [RETRY] on the kept recording, then [RUN ANALYSIS].
 4. Deck in landscape: only checked in portrait (simulator would not rotate);
    confirm keys fit the bottom quarter on the real iPad.
