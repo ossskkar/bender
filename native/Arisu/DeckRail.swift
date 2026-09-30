@@ -42,7 +42,8 @@ struct DeckRail: View {
     /// deck arrives on its own a moment later.
     private var appStrip: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Skin.caption("apps", Skin.ink)
+            Text("> APPS_")
+                .font(Skin.mono(10)).foregroundStyle(cyan.opacity(0.8))
                 .padding(.horizontal, 12)
             // The same button as a key, in the same grid: an application is
             // something he presses, and two sizes of press on one rail made
@@ -73,9 +74,9 @@ struct DeckRail: View {
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
                         .frame(maxWidth: .infinity, minHeight: 50)
-                        .raised(deck.outcome[app] == false ? Skin.recording : Skin.cyan,
-                                stroke: here ? 0 : (deck.outcome[app] == nil ? 0.7 : 0.95),
-                                fill: here ? Skin.cyan : tintFill(deck.outcome[app]))
+                        .neon(deck.outcome[app] == false ? Skin.recording : Skin.cyan,
+                              stroke: here ? 0 : (deck.outcome[app] == nil ? 0.5 : 0.95),
+                              fill: here ? Skin.cyan : tintFill(deck.outcome[app]))
                         .animation(.easeOut(duration: 0.2), value: deck.outcome[app])
                     }
                     .buttonStyle(.plain)
@@ -139,7 +140,11 @@ struct DeckRail: View {
                 }
         )
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.03))
+        // The Record panel's look, so the two halves of the left side read as
+        // one console (Oscar, 2026-09-30).
+        .background(Grid(tint: cyan))
+        .overlay(Brackets(tint: mag))
+        .padding(10)
         .task { await deck.load() }
         .task { await deck.watchFront() }
         // The Mac changed app: bring that deck up. Only on the change, never
@@ -172,11 +177,15 @@ struct DeckRail: View {
     /// above this one now, so this is only "which panel is this".
     private var head: some View {
         HStack(spacing: 6) {
-            Skin.caption("deck", mag.opacity(0.85))
+            Text("DECK//" + (shown.isEmpty ? "MAC" : shown.uppercased()))
+                .font(Skin.mono(14, .bold)).tracking(2)
+                .foregroundStyle(mag)
+                .shadow(color: mag.opacity(0.9), radius: 6)
+                .lineLimit(1)
             if !deck.frontApp.isEmpty {
-                Text(deck.frontApp)
+                Text(deck.frontApp.uppercased())
                     .font(Skin.mono(10))
-                    .foregroundStyle(Skin.ink)
+                    .foregroundStyle(cyan.opacity(0.8))
                     .lineLimit(1)
             }
             Spacer(minLength: 0)
@@ -204,12 +213,11 @@ struct DeckRail: View {
             ForEach(deck.groups, id: \.self) { name in
                 let on = name == shown
                 Button { group = name } label: {
-                    Text(name)
+                    Text("[\(name.uppercased())]")
                         .font(Skin.mono(13, .semibold))
-                        .foregroundStyle(on ? Skin.onLit : cyan.opacity(0.7))
-                        .padding(.horizontal, 12).padding(.vertical, 7)
-                        .background(Capsule().fill(on ? cyan : .clear))
-                        .overlay(Capsule().stroke(cyan.opacity(on ? 0 : 0.7)))
+                        .foregroundStyle(on ? cyan : cyan.opacity(0.45))
+                        .shadow(color: on ? cyan : .clear, radius: 5)
+                        .padding(.horizontal, 4).padding(.vertical, 6)
                 }
                 .buttonStyle(.plain)
             }
@@ -243,7 +251,7 @@ struct DeckRail: View {
         switch deck.outcome[id] {
         case .some(true):  return (Skin.good, 0.95)
         case .some(false): return (Skin.recording, 0.95)
-        case nil:          return (cyan, 0.7)
+        case nil:          return (cyan, 0.5)
         }
     }
 
@@ -284,8 +292,7 @@ struct DeckRail: View {
                 }
                 .padding(.trailing, 10)
             }
-            .raised(ink.0, stroke: ink.1,
-                    fill: tintFill(deck.outcome[b.id]))
+            .neon(ink.0, stroke: ink.1, fill: tintFill(deck.outcome[b.id]))
             .animation(.easeOut(duration: 0.2), value: deck.outcome[b.id])
         }
         .buttonStyle(.plain)
@@ -336,7 +343,7 @@ struct DeckRail: View {
         switch outcome {
         case .some(true):  return Skin.good.opacity(0.14)
         case .some(false): return Skin.recording.opacity(0.16)
-        case nil:          return Skin.raised
+        case nil:          return cyan.opacity(0.06)
         }
     }
 
@@ -457,5 +464,15 @@ struct Held: ViewModifier {
         } else {
             content.contextMenu { Text(about) }
         }
+    }
+}
+
+extension View {
+    /// The Record panel's box: square, a thin neon edge, a glow once it has
+    /// something to say (lit, done or failed).
+    func neon(_ tint: Color, stroke: Double, fill: Color) -> some View {
+        background(Rectangle().fill(fill))
+            .overlay(Rectangle().stroke(tint.opacity(stroke), lineWidth: 1))
+            .shadow(color: stroke > 0.9 || stroke == 0 ? tint.opacity(0.7) : .clear, radius: 5)
     }
 }

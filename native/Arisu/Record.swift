@@ -294,8 +294,8 @@ struct RecordPanel: View {
     }
 }
 
-/// A faint neon grid with scanlines, behind the panel.
-private struct Grid: View {
+/// A faint neon grid with scanlines, behind the panel (and the deck below it).
+struct Grid: View {
     let tint: Color
     var body: some View {
         Canvas { ctx, size in
@@ -317,7 +317,7 @@ private struct Grid: View {
 }
 
 /// Neon corner brackets instead of a box.
-private struct Brackets: View {
+struct Brackets: View {
     let tint: Color
     var body: some View {
         GeometryReader { g in
