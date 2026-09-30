@@ -69,11 +69,10 @@ struct DeckRail: View {
                                 .font(Skin.mono(15, .semibold))
                                 .foregroundStyle(here ? Skin.onLit : .white)
                                 .lineLimit(1).minimumScaleFactor(0.6)
-                            Spacer(minLength: 0)
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
-                        .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
+                        .frame(maxWidth: .infinity, minHeight: 50)
                         .raised(deck.outcome[app] == false ? Skin.recording : Skin.cyan,
                                 stroke: here ? 0 : (deck.outcome[app] == nil ? 0.7 : 0.95),
                                 fill: here ? Skin.cyan : tintFill(deck.outcome[app]))
@@ -238,51 +237,42 @@ struct DeckRail: View {
     /// it worked, red when it did not. The receipt that used to print under
     /// the rail is this colour now (Oscar, 2026-09-29) -- except for a failure
     /// with something to say, which still says it.
-    private func outcomeInk(_ id: String, kind: Color, busy: Bool, editing: Bool) -> (Color, Double) {
+    private func outcomeInk(_ id: String, busy: Bool, editing: Bool) -> (Color, Double) {
         if editing { return (mag, 0.6) }
         if busy { return (cyan, 0.95) }
         switch deck.outcome[id] {
         case .some(true):  return (Skin.good, 0.95)
         case .some(false): return (Skin.recording, 0.95)
-        case nil:          return (kind, 0.7)
-        }
-    }
-
-    /// One colour per kind of action, on the icon and the edge -- nothing on
-    /// the rail is grey (Oscar, 2026-09-30).
-    static func kindColor(_ symbol: String) -> Color {
-        switch symbol {
-        case "character.cursor.ibeam": return Skin.cyan                              // input text
-        case "command": return Color(red: 0.70, green: 0.55, blue: 1.0)             // shortcut
-        case "macwindow": return Color(red: 0.35, green: 0.95, blue: 0.55)          // open app
-        case "link": return Color(red: 0.40, green: 0.65, blue: 1.0)                // open link
-        case "moon.zzz": return Skin.mag                                             // sleep
-        default: return Color(red: 1.0, green: 0.70, blue: 0.25)                    // process
+        case nil:          return (cyan, 0.7)
         }
     }
 
     private func key(_ b: DeckButton) -> some View {
         let busy = deck.running == b.id
         let symbol = b.id == DeckButton.sleepID ? "moon.zzz" : b.action.symbol
-        let kind = Self.kindColor(symbol)
-        let ink = outcomeInk(b.id, kind: kind, busy: busy, editing: editing)
+        let ink = outcomeInk(b.id, busy: busy, editing: editing)
         return Button {
             if editing { sheet = b } else {
                 Task { await deck.run(b) }
                 if b.id == DeckButton.sleepID { goSleep() }
             }
         } label: {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 5) {
-                    Image(systemName: symbol)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(kind)
-                        .frame(width: 24)
-                    Text(b.label)
-                        .font(Skin.mono(15, .semibold))
-                        .foregroundStyle(.white)
-                        .lineLimit(1).minimumScaleFactor(0.6)
-                    Spacer(minLength: 0)
+            HStack(spacing: 6) {
+                Image(systemName: symbol)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(cyan)
+                Text(b.label)
+                    .font(Skin.mono(15, .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1).minimumScaleFactor(0.6)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            // A thumb, not a stylus: 72pt is what he presses without looking.
+            .frame(maxWidth: .infinity, minHeight: 50)
+            // The result mark sits in the corner so the label stays centred.
+            .overlay(alignment: .trailing) {
+                Group {
                     if busy { ProgressView().tint(cyan).scaleEffect(0.55) }
                     else if editing {
                         Image(systemName: "pencil").font(.system(size: 10)).foregroundStyle(mag)
@@ -292,11 +282,8 @@ struct DeckRail: View {
                             .foregroundStyle(ok ? Skin.good : Skin.recording)
                     }
                 }
+                .padding(.trailing, 10)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            // A thumb, not a stylus: 72pt is what he presses without looking.
-            .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
             .raised(ink.0, stroke: ink.1,
                     fill: tintFill(deck.outcome[b.id]))
             .animation(.easeOut(duration: 0.2), value: deck.outcome[b.id])
