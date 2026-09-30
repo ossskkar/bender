@@ -45,7 +45,8 @@ import SwiftUI
             let t: Double?
             let via: String?
         }
-        let session: String?
+        // `session` is an object on the wire; decoding it as a string failed
+        // the whole thread, so no old conversation would open (2026-09-30).
         let messages: [Message]
     }
 

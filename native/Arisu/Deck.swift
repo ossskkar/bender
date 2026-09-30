@@ -82,6 +82,21 @@ struct DeckAction: Codable, Equatable {
         default: return type
         }
     }
+
+    /// The kind of thing the button does, as the icon on it: input text, a
+    /// shortcut, open an app, a link, a process (Oscar, 2026-09-30). A
+    /// compound is named by its first step -- typing into Claude is input.
+    var symbol: String {
+        switch type {
+        case "text": return "character.cursor.ibeam"
+        case "keys": return "command"
+        case "open": return "link"
+        case "applescript": return (script ?? "").contains("activate") ? "macwindow" : "gearshape.2"
+        case "notify": return "bell"
+        case "compound": return steps?.first?.symbol ?? "square.stack"
+        default: return "gearshape.2"
+        }
+    }
 }
 
 struct DeckButton: Codable, Equatable, Identifiable {
@@ -89,7 +104,14 @@ struct DeckButton: Codable, Equatable, Identifiable {
     var group = ""
     var label = ""
     var icon = ""
+    /// What a long press says the button does. Optional so a store without
+    /// it still decodes.
+    var about: String?
     var action = DeckAction()
+
+    /// The one button every deck ends with, bottom right: sleep the Mac and
+    /// black out the iPad (Oscar, 2026-09-30).
+    static let sleepID = "sleep"
 }
 
 /// The set, and the two things he does to it: press one, save them all.
@@ -139,7 +161,9 @@ struct DeckButton: Codable, Equatable, Identifiable {
 
     var groups: [String] {
         var seen: [String] = []
-        for b in buttons where !seen.contains(b.group) { seen.append(b.group) }
+        for b in buttons where b.id != DeckButton.sleepID && !seen.contains(b.group) {
+            seen.append(b.group)
+        }
         return seen
     }
 
@@ -221,14 +245,18 @@ struct DeckButton: Codable, Equatable, Identifiable {
         }
     }
 
+    var sleep: DeckButton? { buttons.first { $0.id == DeckButton.sleepID } }
+
     /// The whole set, every time: the Mac's `POST /deck` replaces it, so an
-    /// add, an edit and a delete are all this one call.
+    /// add, an edit, a delete and a drag are all this one call. The apps go
+    /// too, for their order; the Mac refuses any other change to that list.
     func save() async -> String? {
         struct Answer: Decodable { let ok: Bool?; let error: String? }
         var r = URLRequest(url: DeckAPI.base.appendingPathComponent("deck"))
         r.httpMethod = "POST"
         r.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        r.httpBody = try? JSONEncoder().encode(["buttons": buttons])
+        struct Body: Encodable { let buttons: [DeckButton]; let apps: [String] }
+        r.httpBody = try? JSONEncoder().encode(Body(buttons: buttons, apps: apps))
         do {
             let (data, _) = try await session.data(for: r)
             let got = try JSONDecoder().decode(Answer.self, from: data)

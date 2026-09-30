@@ -18,6 +18,14 @@ struct DeckRail: View {
     @State private var group: String?
     @State private var sheet: DeckButton?
     @State private var saveError: String?
+    /// Blacked out by the sleep key, with the brightness to go back to.
+    @State private var asleep = false
+    @State private var wasBright: CGFloat = 0.5
+    @Environment(\.scenePhase) private var phase
+
+    /// Three across, always: he lays the deck out in rows of three and the
+    /// sleep key has to land bottom right (Oscar, 2026-09-30).
+    private let three = Array(repeating: GridItem(.flexible(), spacing: 10), count: 3)
 
     private let cyan = Skin.cyan
     private let mag = Skin.mag
@@ -39,7 +47,7 @@ struct DeckRail: View {
             // The same button as a key, in the same grid: an application is
             // something he presses, and two sizes of press on one rail made
             // the smaller one look like a label (Oscar, 2026-09-29).
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 10)], spacing: 10) {
+            LazyVGrid(columns: three, spacing: 10) {
                 ForEach(deck.apps, id: \.self) { app in
                     let here = app.lowercased() == deck.frontApp.lowercased()
                     Button { Task { await deck.open(app: app) } } label: {
@@ -54,24 +62,26 @@ struct DeckRail: View {
                                 } placeholder: {
                                     Image(systemName: "macwindow")
                                         .font(.system(size: 15, weight: .semibold))
-                                        .foregroundStyle(Skin.cyan.opacity(0.5))
+                                        .foregroundStyle(Skin.cyan)
                                 }
                                 .frame(width: 26, height: 26)
                             Text(short(app))
                                 .font(Skin.mono(15, .semibold))
                                 .foregroundStyle(here ? Skin.onLit : .white)
-                                .lineLimit(1).minimumScaleFactor(0.8)
+                                .lineLimit(1).minimumScaleFactor(0.6)
                             Spacer(minLength: 0)
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 14)
                         .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
                         .raised(deck.outcome[app] == false ? Skin.recording : Skin.cyan,
-                                stroke: here ? 0 : (deck.outcome[app] == nil ? 0.3 : 0.95),
+                                stroke: here ? 0 : (deck.outcome[app] == nil ? 0.7 : 0.95),
                                 fill: here ? Skin.cyan : tintFill(deck.outcome[app]))
                         .animation(.easeOut(duration: 0.2), value: deck.outcome[app])
                     }
                     .buttonStyle(.plain)
+                    .modifier(Held(about: "Brings \(app) to the front on the Mac.",
+                                   id: app, move: moveApp))
                 }
             }
             .padding(.horizontal, 12)
@@ -140,6 +150,10 @@ struct DeckRail: View {
             guard !now.isEmpty, deck.groups.contains(now) else { return }
             withAnimation(.easeOut(duration: 0.18)) { group = now }
         }
+        .fullScreenCover(isPresented: $asleep) {
+            Color.black.ignoresSafeArea().onTapGesture { wake() }
+        }
+        .onChange(of: phase) { _, now in if now == .active { wake() } }
         .sheet(item: $sheet) { button in
             DeckEditor(button: button, isNew: !deck.buttons.contains { $0.id == button.id },
                        groups: deck.groups) { edited in
@@ -196,7 +210,7 @@ struct DeckRail: View {
                         .foregroundStyle(on ? Skin.onLit : cyan.opacity(0.7))
                         .padding(.horizontal, 12).padding(.vertical, 7)
                         .background(Capsule().fill(on ? cyan : .clear))
-                        .overlay(Capsule().stroke(cyan.opacity(on ? 0 : 0.3)))
+                        .overlay(Capsule().stroke(cyan.opacity(on ? 0 : 0.7)))
                 }
                 .buttonStyle(.plain)
             }
@@ -205,12 +219,17 @@ struct DeckRail: View {
         .padding(.bottom, 8)
     }
 
-    private var keys: some View {
+    @ViewBuilder private var keys: some View {
         // As many columns as the seam leaves room for. It was two across a
         // fixed 196pt rail; the rail is his to widen now, and a two-column
         // grid on half an iPad is six buttons swimming in black.
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 10)], spacing: 10) {
-            ForEach(deck.buttons.filter { $0.group == shown }) { key($0) }
+        // Blanks push the sleep key into the last column of the last row.
+        let mine = deck.buttons.filter { $0.group == shown && $0.id != DeckButton.sleepID }
+        let blanks = deck.sleep == nil ? 0 : (3 - (mine.count + 1) % 3) % 3
+        return LazyVGrid(columns: three, spacing: 10) {
+            ForEach(mine) { key($0) }
+            ForEach(0..<blanks, id: \.self) { _ in Color.clear.frame(minHeight: 72) }
+            if let sleep = deck.sleep { key(sleep) }
         }
         .padding(.horizontal, 12)
     }
@@ -219,29 +238,50 @@ struct DeckRail: View {
     /// it worked, red when it did not. The receipt that used to print under
     /// the rail is this colour now (Oscar, 2026-09-29) -- except for a failure
     /// with something to say, which still says it.
-    private func outcomeInk(_ id: String, busy: Bool, editing: Bool) -> (Color, Double) {
-        if editing { return (mag, 0.3) }
+    private func outcomeInk(_ id: String, kind: Color, busy: Bool, editing: Bool) -> (Color, Double) {
+        if editing { return (mag, 0.6) }
         if busy { return (cyan, 0.95) }
         switch deck.outcome[id] {
         case .some(true):  return (Skin.good, 0.95)
         case .some(false): return (Skin.recording, 0.95)
-        case nil:          return (cyan, 0.3)
+        case nil:          return (kind, 0.7)
+        }
+    }
+
+    /// One colour per kind of action, on the icon and the edge -- nothing on
+    /// the rail is grey (Oscar, 2026-09-30).
+    static func kindColor(_ symbol: String) -> Color {
+        switch symbol {
+        case "character.cursor.ibeam": return Skin.cyan                              // input text
+        case "command": return Color(red: 0.70, green: 0.55, blue: 1.0)             // shortcut
+        case "macwindow": return Color(red: 0.35, green: 0.95, blue: 0.55)          // open app
+        case "link": return Color(red: 0.40, green: 0.65, blue: 1.0)                // open link
+        case "moon.zzz": return Skin.mag                                             // sleep
+        default: return Color(red: 1.0, green: 0.70, blue: 0.25)                    // process
         }
     }
 
     private func key(_ b: DeckButton) -> some View {
         let busy = deck.running == b.id
-        let ink = outcomeInk(b.id, busy: busy, editing: editing)
+        let symbol = b.id == DeckButton.sleepID ? "moon.zzz" : b.action.symbol
+        let kind = Self.kindColor(symbol)
+        let ink = outcomeInk(b.id, kind: kind, busy: busy, editing: editing)
         return Button {
-            if editing { sheet = b } else { Task { await deck.run(b) } }
+            if editing { sheet = b } else {
+                Task { await deck.run(b) }
+                if b.id == DeckButton.sleepID { goSleep() }
+            }
         } label: {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 5) {
-                    if !b.icon.isEmpty { Text(b.icon).font(.system(size: 20)) }
+                    Image(systemName: symbol)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(kind)
+                        .frame(width: 24)
                     Text(b.label)
                         .font(Skin.mono(15, .semibold))
                         .foregroundStyle(.white)
-                        .lineLimit(1).minimumScaleFactor(0.8)
+                        .lineLimit(1).minimumScaleFactor(0.6)
                     Spacer(minLength: 0)
                     if busy { ProgressView().tint(cyan).scaleEffect(0.55) }
                     else if editing {
@@ -266,6 +306,45 @@ struct DeckRail: View {
             .animation(.easeOut(duration: 0.2), value: deck.outcome[b.id])
         }
         .buttonStyle(.plain)
+        // The sleep key stays where it is: bottom right, on every deck.
+        .modifier(Held(about: b.about ?? b.action.summary,
+                       id: b.id == DeckButton.sleepID ? nil : b.id, move: moveKey))
+    }
+
+    /// A dragged key lands where the key it was dropped on was.
+    private func moveKey(_ id: String, onto target: String) -> Bool {
+        guard id != target,
+              let from = deck.buttons.firstIndex(where: { $0.id == id }),
+              let to = deck.buttons.firstIndex(where: { $0.id == target }) else { return false }
+        withAnimation { deck.buttons.move(fromOffsets: [from], toOffset: to > from ? to + 1 : to) }
+        Task { saveError = await deck.save() }
+        return true
+    }
+
+    private func moveApp(_ app: String, onto target: String) -> Bool {
+        guard app != target,
+              let from = deck.apps.firstIndex(of: app),
+              let to = deck.apps.firstIndex(of: target) else { return false }
+        withAnimation { deck.apps.move(fromOffsets: [from], toOffset: to > from ? to + 1 : to) }
+        Task { saveError = await deck.save() }
+        return true
+    }
+
+    /// iPadOS will not let an app lock the iPad, so this is the nearest: the
+    /// screen goes to zero and black, and the wake lock is let go so the
+    /// iPad's own Auto-Lock takes it from there. A tap brings it back.
+    private func goSleep() {
+        wasBright = UIScreen.main.brightness
+        UIScreen.main.brightness = 0
+        UIApplication.shared.isIdleTimerDisabled = false
+        asleep = true
+    }
+
+    private func wake() {
+        guard asleep else { return }
+        UIScreen.main.brightness = wasBright
+        UIApplication.shared.isIdleTimerDisabled = true
+        asleep = false
     }
 
     /// A wash of the result colour inside the button, so it reads from across
@@ -371,6 +450,29 @@ struct FlowRow: Layout {
             s.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
             x += size.width + spacing
             line = max(line, size.height)
+        }
+    }
+}
+
+/// Long press says what the button does; press and drag moves it onto
+/// another's place (Oscar, 2026-09-30). The context menu and the drag are the
+/// system's own pair: hold to read it, keep moving to carry it. A nil id is a
+/// button that explains itself but stays put.
+struct Held: ViewModifier {
+    let about: String
+    let id: String?
+    let move: (String, String) -> Bool
+
+    func body(content: Content) -> some View {
+        if let id {
+            content
+                .contextMenu { Text(about) }
+                .draggable(id)
+                .dropDestination(for: String.self) { got, _ in
+                    got.first.map { move($0, id) } ?? false
+                }
+        } else {
+            content.contextMenu { Text(about) }
         }
     }
 }

@@ -3,105 +3,6 @@
   "port": 8887,
   "buttons": [
     {
-      "id": "claude-code.k1",
-      "group": "claude-code",
-      "label": "handoff",
-      "icon": "⇥",
-      "action": {
-        "type": "compound",
-        "steps": [
-          {
-            "type": "text",
-            "text": "/handoff",
-            "paste": true
-          },
-          {
-            "type": "keys",
-            "keys": "return"
-          }
-        ]
-      }
-    },
-    {
-      "id": "claude-code.k2",
-      "group": "claude-code",
-      "label": "clear",
-      "icon": "✳",
-      "action": {
-        "type": "compound",
-        "steps": [
-          {
-            "type": "text",
-            "text": "/clear",
-            "paste": true
-          },
-          {
-            "type": "keys",
-            "keys": "return"
-          }
-        ]
-      }
-    },
-    {
-      "id": "claude-code.k3",
-      "group": "claude-code",
-      "label": "continue",
-      "icon": "▶",
-      "action": {
-        "type": "compound",
-        "steps": [
-          {
-            "type": "text",
-            "text": "continue",
-            "paste": true
-          },
-          {
-            "type": "keys",
-            "keys": "return"
-          }
-        ]
-      }
-    },
-    {
-      "id": "claude-code.k4",
-      "group": "claude-code",
-      "label": "submit",
-      "icon": "⏎",
-      "action": {
-        "type": "keys",
-        "keys": "return"
-      }
-    },
-    {
-      "id": "claude-code.k5",
-      "group": "claude-code",
-      "label": "screenshot",
-      "icon": "📷",
-      "action": {
-        "type": "compound",
-        "steps": [
-          {
-            "type": "shell",
-            "cmd": "screencapture -i -c"
-          },
-          {
-            "type": "keys",
-            "keys": "cmd+v"
-          }
-        ]
-      }
-    },
-    {
-      "id": "claude-code.k6",
-      "group": "claude-code",
-      "label": "Terminal",
-      "icon": "▮",
-      "action": {
-        "type": "applescript",
-        "script": "tell application \"Terminal\" to activate"
-      }
-    },
-    {
       "id": "claude-code.k7",
       "group": "claude-code",
       "label": "away",
@@ -119,19 +20,62 @@
             "keys": "return"
           }
         ]
-      }
+      },
+      "about": "Types /away: Claude works on without asking you."
     },
     {
-      "id": "claude-code.k8",
+      "id": "claude-code.k3",
       "group": "claude-code",
-      "label": "homelab",
-      "icon": "🏠",
+      "label": "continue",
+      "icon": "▶",
+      "action": {
+        "steps": [
+          {
+            "type": "text",
+            "text": "continue",
+            "paste": true
+          },
+          {
+            "keys": "return",
+            "type": "keys"
+          }
+        ],
+        "type": "compound"
+      },
+      "about": "Types continue and sends it."
+    },
+    {
+      "id": "claude-code.k5",
+      "group": "claude-code",
+      "label": "screenshot",
+      "icon": "📷",
+      "action": {
+        "steps": [
+          {
+            "cmd": "screencapture -i -c",
+            "type": "shell"
+          },
+          {
+            "keys": "cmd+v",
+            "type": "keys"
+          }
+        ],
+        "type": "compound"
+      },
+      "about": "Lets you pick a screen area, then pastes the capture into Claude."
+    },
+    {
+      "id": "claude-code.recap",
+      "group": "claude-code",
+      "label": "recap",
+      "icon": "",
+      "about": "Types /recap: a short structured recap of the last message and where things stand.",
       "action": {
         "type": "compound",
         "steps": [
           {
             "type": "text",
-            "text": "/homelab",
+            "text": "/recap",
             "paste": true
           },
           {
@@ -142,16 +86,17 @@
       }
     },
     {
-      "id": "claude-code.k9",
+      "id": "claude-code.explain",
       "group": "claude-code",
-      "label": "model",
-      "icon": "◆",
+      "label": "explain",
+      "icon": "",
+      "about": "Types /explain: a clear, short explanation of the previous message.",
       "action": {
         "type": "compound",
         "steps": [
           {
             "type": "text",
-            "text": "/model",
+            "text": "/explain",
             "paste": true
           },
           {
@@ -162,16 +107,17 @@
       }
     },
     {
-      "id": "claude-code.k10",
+      "id": "claude-code.guide",
       "group": "claude-code",
-      "label": "omni",
-      "icon": "⚡",
+      "label": "guide",
+      "icon": "",
+      "about": "Types /guide: every step you must do, numbered, with exact actions.",
       "action": {
         "type": "compound",
         "steps": [
           {
             "type": "text",
-            "text": "/omni",
+            "text": "/guide",
             "paste": true
           },
           {
@@ -180,6 +126,48 @@
           }
         ]
       }
+    },
+    {
+      "id": "claude-code.k2",
+      "group": "claude-code",
+      "label": "clear",
+      "icon": "✳",
+      "action": {
+        "steps": [
+          {
+            "type": "text",
+            "text": "/clear",
+            "paste": true
+          },
+          {
+            "keys": "return",
+            "type": "keys"
+          }
+        ],
+        "type": "compound"
+      },
+      "about": "Types /clear: starts a fresh conversation."
+    },
+    {
+      "id": "claude-code.k1",
+      "group": "claude-code",
+      "label": "handoff",
+      "icon": "⇥",
+      "action": {
+        "steps": [
+          {
+            "type": "text",
+            "text": "/handoff",
+            "paste": true
+          },
+          {
+            "keys": "return",
+            "type": "keys"
+          }
+        ],
+        "type": "compound"
+      },
+      "about": "Types /handoff: saves the session state to HANDOFF.md."
     },
     {
       "id": "mac.k1",
@@ -187,9 +175,10 @@
       "label": "Lock screen",
       "icon": "🔒",
       "action": {
-        "type": "keys",
-        "keys": "ctrl+cmd+q"
-      }
+        "keys": "ctrl+cmd+q",
+        "type": "keys"
+      },
+      "about": "Locks the Mac (ctrl+cmd+Q)."
     },
     {
       "id": "mac.k2",
@@ -197,9 +186,10 @@
       "label": "Sleep screen",
       "icon": "☾",
       "action": {
-        "type": "shell",
-        "cmd": "pmset displaysleepnow"
-      }
+        "cmd": "pmset displaysleepnow",
+        "type": "shell"
+      },
+      "about": "Turns the Mac's display off."
     },
     {
       "id": "mac.k3",
@@ -207,9 +197,10 @@
       "label": "Screenshot",
       "icon": "▣",
       "action": {
-        "type": "shell",
-        "cmd": "screencapture -i -c"
-      }
+        "cmd": "screencapture -i -c",
+        "type": "shell"
+      },
+      "about": "Lets you pick a screen area and copies it."
     },
     {
       "id": "mac.k4",
@@ -217,9 +208,10 @@
       "label": "Downloads",
       "icon": "⇩",
       "action": {
-        "type": "shell",
-        "cmd": "open ~/Downloads"
-      }
+        "cmd": "open ~/Downloads",
+        "type": "shell"
+      },
+      "about": "Opens the Downloads folder."
     },
     {
       "id": "mac.k5",
@@ -227,9 +219,10 @@
       "label": "Empty trash",
       "icon": "🗑",
       "action": {
-        "type": "applescript",
-        "script": "tell application \"Finder\"\n  empty trash\n  return \"trash emptied\"\nend tell"
-      }
+        "script": "tell application \"Finder\"\n  empty trash\n  return \"trash emptied\"\nend tell",
+        "type": "applescript"
+      },
+      "about": "Empties the Mac's Trash. Cannot be undone."
     },
     {
       "id": "mac.k6",
@@ -237,9 +230,10 @@
       "label": "Terminal",
       "icon": "▮",
       "action": {
-        "type": "applescript",
-        "script": "tell application \"Terminal\" to activate"
-      }
+        "script": "tell application \"Terminal\" to activate",
+        "type": "applescript"
+      },
+      "about": "Brings Terminal to the front."
     },
     {
       "id": "lain.k1",
@@ -247,9 +241,10 @@
       "label": "Dashboard",
       "icon": "◈",
       "action": {
-        "type": "open",
-        "url": "https://architect-server.tailaa64e9.ts.net:8443/"
-      }
+        "url": "https://architect-server.tailaa64e9.ts.net:8443/",
+        "type": "open"
+      },
+      "about": "Opens the lain dashboard."
     },
     {
       "id": "lain.k2",
@@ -257,9 +252,10 @@
       "label": "Systems",
       "icon": "▦",
       "action": {
-        "type": "open",
-        "url": "https://architect-server.tailaa64e9.ts.net:8443/systems/systems.html"
-      }
+        "url": "https://architect-server.tailaa64e9.ts.net:8443/systems/systems.html",
+        "type": "open"
+      },
+      "about": "Opens lain Systems."
     },
     {
       "id": "lain.k3",
@@ -267,9 +263,10 @@
       "label": "Backlog",
       "icon": "▤",
       "action": {
-        "type": "open",
-        "url": "https://architect-server.tailaa64e9.ts.net:8443/#backlog"
-      }
+        "url": "https://architect-server.tailaa64e9.ts.net:8443/#backlog",
+        "type": "open"
+      },
+      "about": "Opens the Backlog."
     },
     {
       "id": "lain.k4",
@@ -277,9 +274,10 @@
       "label": "Processes",
       "icon": "◉",
       "action": {
-        "type": "open",
-        "url": "https://architect-server.tailaa64e9.ts.net:8443/#ops"
-      }
+        "url": "https://architect-server.tailaa64e9.ts.net:8443/#ops",
+        "type": "open"
+      },
+      "about": "Opens the processes view."
     },
     {
       "id": "lain.k5",
@@ -287,9 +285,10 @@
       "label": "Health",
       "icon": "🩺",
       "action": {
-        "type": "open",
-        "url": "https://architect-server.tailaa64e9.ts.net:8443/systems/health.html"
-      }
+        "url": "https://architect-server.tailaa64e9.ts.net:8443/systems/health.html",
+        "type": "open"
+      },
+      "about": "Opens the health page."
     },
     {
       "id": "lain.k6",
@@ -297,9 +296,10 @@
       "label": "Diary",
       "icon": "📝",
       "action": {
-        "type": "open",
-        "url": "https://architect-server.tailaa64e9.ts.net:8443/systems/diary.html"
-      }
+        "url": "https://architect-server.tailaa64e9.ts.net:8443/systems/diary.html",
+        "type": "open"
+      },
+      "about": "Opens the diary."
     },
     {
       "id": "hermes.k1",
@@ -307,9 +307,10 @@
       "label": "Chat",
       "icon": "💬",
       "action": {
-        "type": "applescript",
-        "script": "tell application \"Terminal\"\n  activate\n  do script \"ssh -t architect '~/.local/bin/hermes chat'\"\nend tell"
-      }
+        "script": "tell application \"Terminal\"\n  activate\n  do script \"ssh -t architect '~/.local/bin/hermes chat'\"\nend tell",
+        "type": "applescript"
+      },
+      "about": "Opens a Hermes chat in Terminal."
     },
     {
       "id": "hermes.k2",
@@ -317,9 +318,10 @@
       "label": "Status",
       "icon": "◉",
       "action": {
-        "type": "shell",
-        "cmd": "ssh -o ConnectTimeout=8 architect '~/.local/bin/hermes status'"
-      }
+        "cmd": "ssh -o ConnectTimeout=8 architect '~/.local/bin/hermes status'",
+        "type": "shell"
+      },
+      "about": "Shows Hermes status."
     },
     {
       "id": "hermes.k3",
@@ -327,9 +329,10 @@
       "label": "Logs",
       "icon": "📜",
       "action": {
-        "type": "applescript",
-        "script": "tell application \"Terminal\"\n  activate\n  do script \"ssh -t architect '~/.local/bin/hermes logs -f'\"\nend tell"
-      }
+        "script": "tell application \"Terminal\"\n  activate\n  do script \"ssh -t architect '~/.local/bin/hermes logs -f'\"\nend tell",
+        "type": "applescript"
+      },
+      "about": "Follows Hermes logs in Terminal."
     },
     {
       "id": "hermes.k4",
@@ -337,9 +340,10 @@
       "label": "Restart",
       "icon": "⟳",
       "action": {
-        "type": "shell",
-        "cmd": "ssh -o ConnectTimeout=8 architect '~/.local/bin/hermes gateway restart'"
-      }
+        "cmd": "ssh -o ConnectTimeout=8 architect '~/.local/bin/hermes gateway restart'",
+        "type": "shell"
+      },
+      "about": "Restarts the Hermes gateway."
     },
     {
       "id": "hermes.k5",
@@ -347,9 +351,10 @@
       "label": "Gateway",
       "icon": "⇄",
       "action": {
-        "type": "shell",
-        "cmd": "ssh -o ConnectTimeout=8 architect '~/.local/bin/hermes gateway status'"
-      }
+        "cmd": "ssh -o ConnectTimeout=8 architect '~/.local/bin/hermes gateway status'",
+        "type": "shell"
+      },
+      "about": "Shows the Hermes gateway status."
     },
     {
       "id": "hermes.k6",
@@ -357,9 +362,10 @@
       "label": "Doctor",
       "icon": "🩺",
       "action": {
-        "type": "shell",
-        "cmd": "ssh -o ConnectTimeout=8 architect '~/.local/bin/hermes doctor'"
-      }
+        "cmd": "ssh -o ConnectTimeout=8 architect '~/.local/bin/hermes doctor'",
+        "type": "shell"
+      },
+      "about": "Runs Hermes doctor."
     },
     {
       "id": "spotify.k1",
@@ -367,9 +373,10 @@
       "label": "Play/Pause",
       "icon": "⏯",
       "action": {
-        "type": "applescript",
-        "script": "tell application \"Spotify\" to playpause"
-      }
+        "script": "tell application \"Spotify\" to playpause",
+        "type": "applescript"
+      },
+      "about": "Play or pause Spotify."
     },
     {
       "id": "spotify.k2",
@@ -377,9 +384,10 @@
       "label": "Previous",
       "icon": "⏮",
       "action": {
-        "type": "applescript",
-        "script": "tell application \"Spotify\" to previous track"
-      }
+        "script": "tell application \"Spotify\" to previous track",
+        "type": "applescript"
+      },
+      "about": "Previous track."
     },
     {
       "id": "spotify.k3",
@@ -387,9 +395,10 @@
       "label": "Next",
       "icon": "⏭",
       "action": {
-        "type": "applescript",
-        "script": "tell application \"Spotify\" to next track"
-      }
+        "script": "tell application \"Spotify\" to next track",
+        "type": "applescript"
+      },
+      "about": "Next track."
     },
     {
       "id": "spotify.k4",
@@ -397,9 +406,10 @@
       "label": "Shuffle",
       "icon": "🔀",
       "action": {
-        "type": "applescript",
-        "script": "tell application \"Spotify\" to set shuffling to not shuffling"
-      }
+        "script": "tell application \"Spotify\" to set shuffling to not shuffling",
+        "type": "applescript"
+      },
+      "about": "Toggles shuffle."
     },
     {
       "id": "spotify.k5",
@@ -407,9 +417,10 @@
       "label": "Repeat",
       "icon": "🔁",
       "action": {
-        "type": "applescript",
-        "script": "tell application \"Spotify\" to set repeating to not repeating"
-      }
+        "script": "tell application \"Spotify\" to set repeating to not repeating",
+        "type": "applescript"
+      },
+      "about": "Toggles repeat."
     },
     {
       "id": "spotify.k6",
@@ -417,9 +428,10 @@
       "label": "Vol -6 / +6",
       "icon": "🔊",
       "action": {
-        "type": "applescript",
-        "script": "set v to output volume of (get volume settings)\nif v > 0 then\n  set volume output volume (v - 6)\nelse\n  set volume output volume 55\nend if"
-      }
+        "script": "set v to output volume of (get volume settings)\nif v > 0 then\n  set volume output volume (v - 6)\nelse\n  set volume output volume 55\nend if",
+        "type": "applescript"
+      },
+      "about": "Volume down 6; at zero, back to 55."
     },
     {
       "id": "chrome.k1",
@@ -427,9 +439,10 @@
       "label": "New tab",
       "icon": "⊕",
       "action": {
-        "type": "keys",
-        "keys": "cmd+t"
-      }
+        "keys": "cmd+t",
+        "type": "keys"
+      },
+      "about": "New tab."
     },
     {
       "id": "chrome.k2",
@@ -437,9 +450,10 @@
       "label": "Close tab",
       "icon": "⊗",
       "action": {
-        "type": "keys",
-        "keys": "cmd+w"
-      }
+        "keys": "cmd+w",
+        "type": "keys"
+      },
+      "about": "Closes the tab."
     },
     {
       "id": "chrome.k3",
@@ -447,9 +461,10 @@
       "label": "Reopen tab",
       "icon": "↩",
       "action": {
-        "type": "keys",
-        "keys": "cmd+shift+t"
-      }
+        "keys": "cmd+shift+t",
+        "type": "keys"
+      },
+      "about": "Reopens the last closed tab."
     },
     {
       "id": "chrome.k4",
@@ -457,9 +472,10 @@
       "label": "Reload",
       "icon": "⟳",
       "action": {
-        "type": "keys",
-        "keys": "cmd+r"
-      }
+        "keys": "cmd+r",
+        "type": "keys"
+      },
+      "about": "Reloads the page."
     },
     {
       "id": "chrome.k5",
@@ -467,9 +483,10 @@
       "label": "Address bar",
       "icon": "🔗",
       "action": {
-        "type": "keys",
-        "keys": "cmd+l"
-      }
+        "keys": "cmd+l",
+        "type": "keys"
+      },
+      "about": "Jumps to the address bar."
     },
     {
       "id": "chrome.k6",
@@ -477,17 +494,32 @@
       "label": "Back",
       "icon": "←",
       "action": {
-        "type": "keys",
-        "keys": "cmd+["
+        "keys": "cmd+[",
+        "type": "keys"
+      },
+      "about": "Goes back."
+    },
+    {
+      "id": "sleep",
+      "group": "",
+      "label": "sleep",
+      "icon": "",
+      "about": "Sleeps the Mac and blacks out the iPad. Tap the iPad to wake it.",
+      "action": {
+        "type": "shell",
+        "cmd": "pmset sleepnow"
       }
     }
   ],
   "apps": [
-    "Claude",
-    "Google Chrome",
-    "Terminal",
+    "Safari",
     "Xcode",
+    "Citrix Workspace",
+    "Claude",
+    "Codex",
+    "DSH",
+    "Google Chrome",
     "Spotify",
-    "Citrix Workspace"
+    "Terminal"
   ]
 }

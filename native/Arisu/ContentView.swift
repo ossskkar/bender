@@ -178,7 +178,13 @@ struct ContentView: View {
                 topBar
                 HStack(spacing: 0) {
                     if deckShown {
-                        DeckRail().frame(width: geo.size.width * deckFraction)
+                        // The deck's share, split down the middle: the deck
+                        // and the Record panel, a quarter each at the default
+                        // half (Oscar, 2026-09-30).
+                        DeckRail().frame(width: geo.size.width * deckFraction / 2)
+                        Rectangle().fill(Color.white.opacity(0.08)).frame(width: 1)
+                        RecordPanel { pet.stop() }
+                            .frame(width: geo.size.width * deckFraction / 2)
                     // The one piece of her state that reads in both modes: the
                     // room's glow is behind the typed thread, so the seam
                     // carries it. It is also the handle -- 2pt of light with a

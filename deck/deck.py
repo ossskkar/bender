@@ -103,6 +103,8 @@ def clean(buttons) -> list:
             "group": str(raw.get("group") or "").strip(),
             "label": str(raw.get("label") or bid).strip(),
             "icon": str(raw.get("icon") or "").strip(),
+            # What a long press on the iPad says the button does.
+            "about": str(raw.get("about") or "").strip(),
             "action": action,
         })
     return out
@@ -517,6 +519,11 @@ class Handler(BaseHTTPRequestHandler):
             except (OSError, ValueError):
                 data = {}
             data["buttons"] = buttons
+            # The apps may be reordered from the iPad, never added to: the
+            # list is what gates `open -a` in /deck/app.
+            apps = payload.get("apps")
+            if isinstance(apps, list) and sorted(apps) == sorted(data.get("apps") or []):
+                data["apps"] = apps
             try:
                 save(data, self.path_to_buttons)
             except OSError as exc:
