@@ -1,4 +1,5 @@
 import AVFoundation
+import PencilKit
 import SwiftUI
 
 /// Brain dumps: one big button, talk, press again (Oscar, 2026-09-30).
@@ -8,7 +9,11 @@ import SwiftUI
 /// machines. History and insights come back from the same place; insights are
 /// Gemini through lain's `llm.ask`, which is where his data is allowed to go.
 @MainActor final class Recorder: ObservableObject {
-    struct Dump: Codable, Identifiable { let id: String; let ts: Double; let text: String }
+    struct Dump: Codable, Identifiable {
+        let id: String; let ts: Double; let text: String
+        /// A Pencil scribble: the picture is at `dumps/image?id=`.
+        var image: Bool? = nil
+    }
 
     @Published var dumps: [Dump] = []
     @Published var started: Date?
@@ -94,6 +99,23 @@ import SwiftUI
         dumps.append(row)
     }
 
+    /// One scribble up to the desk. Nil when it landed, else what went wrong.
+    static func upload(png: Data) async -> String? {
+        var req = URLRequest(url: base.appendingPathComponent("dumps/scribble"))
+        req.httpMethod = "POST"
+        req.setValue("image/png", forHTTPHeaderField: "Content-Type")
+        req.httpBody = png
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let code = (resp as? HTTPURLResponse)?.statusCode else {
+            return "The desk did not answer."
+        }
+        return code == 200 ? nil : "The desk refused it (\(code))."
+    }
+
+    static func imageURL(_ id: String) -> URL {
+        base.appendingPathComponent("dumps/image").appending(queryItems: [URLQueryItem(name: "id", value: id)])
+    }
+
     func remove(_ d: Dump) async {
         var req = URLRequest(url: Self.base.appendingPathComponent("dumps/remove"))
         req.httpMethod = "POST"
@@ -151,6 +173,9 @@ struct RecordPanel: View {
         .console(wire, brackets: neon)
         .padding(10)
         .task { await rec.load() }
+        .onReceive(NotificationCenter.default.publisher(for: .scribbleSaved)) { _ in
+            Task { await rec.load() }
+        }
     }
 
     private var header: some View {
@@ -252,9 +277,17 @@ struct RecordPanel: View {
                 HStack(spacing: 0) {
                     Rectangle().fill(neon).frame(width: 3).shadow(color: neon, radius: 4)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(stamp(d.ts)).font(Skin.mono(10)).foregroundStyle(neon)
-                        Text(d.text).font(Skin.mono(13)).foregroundStyle(.white)
-                            .textSelection(.enabled)
+                        Text(stamp(d.ts) + (d.image == true ? " // SCRIBBLE" : ""))
+                            .font(Skin.mono(10)).foregroundStyle(neon)
+                        if d.image == true {
+                            AsyncImage(url: Recorder.imageURL(d.id)) {
+                                $0.resizable().scaledToFit()
+                            } placeholder: { ProgressView().tint(wire) }
+                            .frame(maxHeight: 180, alignment: .leading)
+                        } else {
+                            Text(d.text).font(Skin.mono(13)).foregroundStyle(.white)
+                                .textSelection(.enabled)
+                        }
                     }
                     .padding(10)
                     Spacer(minLength: 0)
@@ -290,5 +323,155 @@ struct RecordPanel: View {
                 .textSelection(.enabled)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Pencil scribbles (Oscar, 2026-10-01)
+
+extension Notification.Name {
+    /// A scribble reached the desk; the Record history reloads.
+    static let scribbleSaved = Notification.Name("arisu.scribbleSaved")
+}
+
+/// Watches the whole window for the Apple Pencil. iPadOS gives an app no event
+/// for the Pencil being picked up, so its first touch is the trigger. The
+/// touch is swallowed -- a Pencil landing on a deck key must not press it --
+/// and fingers are never seen at all.
+struct PencilWatch: UIViewRepresentable {
+    var enabled: Bool
+    let onPencil: () -> Void
+
+    func makeUIView(context: Context) -> Host { Host(onPencil: onPencil) }
+    func updateUIView(_ v: Host, context: Context) {
+        v.onPencil = onPencil
+        v.press.isEnabled = enabled
+    }
+
+    final class Host: UIView, UIGestureRecognizerDelegate {
+        var onPencil: () -> Void
+        let press = UILongPressGestureRecognizer()
+
+        init(onPencil: @escaping () -> Void) {
+            self.onPencil = onPencil
+            super.init(frame: .zero)
+            isUserInteractionEnabled = false
+            press.minimumPressDuration = 0
+            press.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.pencil.rawValue)]
+            press.delegate = self
+            press.addTarget(self, action: #selector(fire))
+        }
+        required init?(coder: NSCoder) { fatalError() }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            press.view?.removeGestureRecognizer(press)
+            window?.addGestureRecognizer(press)
+        }
+
+        @objc private func fire() { if press.state == .began { onPencil() } }
+
+        func gestureRecognizer(_ g: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+    }
+}
+
+/// The page he scribbles on: the app dims, the Pencil draws, a finger only
+/// presses the controls. Saved as a PNG next to the brain dumps.
+struct ScribbleCanvas: View {
+    let close: () -> Void
+    @State private var canvas = PKCanvasView()
+    @State private var erasing = false
+    @State private var saving = false
+    @State private var problem: String?
+
+    private let neon = Skin.mag
+    private let wire = Skin.cyan
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            Color.black.opacity(0.82).ignoresSafeArea()
+            CanvasHost(canvas: canvas, erasing: erasing).ignoresSafeArea()
+            bar
+        }
+        .overlay(Brackets(tint: neon).padding(10).ignoresSafeArea())
+    }
+
+    private var bar: some View {
+        HStack(spacing: 14) {
+            Text("SCRIBBLE//PENCIL")
+                .font(Skin.mono(14, .bold)).tracking(2)
+                .foregroundStyle(neon).shadow(color: neon.opacity(0.9), radius: 6)
+            if let problem {
+                Text("! " + problem).font(Skin.mono(11)).foregroundStyle(Skin.recording)
+            }
+            Spacer()
+            tab("PEN", on: !erasing) { erasing = false }
+            tab("ERASE", on: erasing) { erasing = true }
+            tab("CLEAR", on: false) { canvas.drawing = PKDrawing() }
+            tab("CANCEL", on: false, action: close)
+            Button { Task { await save() } } label: {
+                Text(saving ? "[ SAVING_ ]" : "[ SAVE ]")
+                    .font(Skin.mono(13, .bold)).foregroundStyle(Skin.onLit)
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(Rectangle().fill(wire))
+                    .shadow(color: wire, radius: 6)
+            }
+            .buttonStyle(.plain).disabled(saving)
+        }
+        .padding(.horizontal, 28).padding(.top, 22)
+    }
+
+    private func tab(_ name: String, on: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text("[\(name)]").font(Skin.mono(13, .semibold))
+                .foregroundStyle(on ? wire : wire.opacity(0.5))
+                .shadow(color: on ? wire : .clear, radius: 5)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func save() async {
+        let drawing = canvas.drawing
+        guard !drawing.strokes.isEmpty else { close(); return }
+        saving = true
+        defer { saving = false }
+        // The ink on black, cropped to what he drew: the history is black too,
+        // and a transparent PNG of cyan ink is unreadable anywhere else.
+        let rect = drawing.bounds.insetBy(dx: -24, dy: -24)
+        var ink = UIImage()
+        UITraitCollection(userInterfaceStyle: .dark).performAsCurrent {
+            ink = drawing.image(from: rect, scale: 2)
+        }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 2
+        let png = UIGraphicsImageRenderer(size: rect.size, format: format).pngData { ctx in
+            UIColor.black.setFill()
+            ctx.fill(CGRect(origin: .zero, size: rect.size))
+            ink.draw(at: .zero)
+        }
+        if let failed = await Recorder.upload(png: png) {
+            problem = failed        // kept on screen, so the drawing is not lost
+            return
+        }
+        NotificationCenter.default.post(name: .scribbleSaved, object: nil)
+        close()
+    }
+}
+
+private struct CanvasHost: UIViewRepresentable {
+    let canvas: PKCanvasView
+    let erasing: Bool
+
+    func makeUIView(context: Context) -> PKCanvasView {
+        canvas.drawingPolicy = .pencilOnly
+        canvas.backgroundColor = .clear
+        canvas.isOpaque = false
+        canvas.overrideUserInterfaceStyle = .dark
+        return canvas
+    }
+
+    func updateUIView(_ v: PKCanvasView, context: Context) {
+        v.tool = erasing ? PKEraserTool(.vector)
+                         : PKInkingTool(.pen, color: UIColor(Skin.cyan), width: 4)
     }
 }

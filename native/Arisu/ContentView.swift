@@ -73,6 +73,8 @@ struct ContentView: View {
     @State private var chatHistory = false
     /// The recent lines of both of them, oldest first, as chat bubbles.
     @State private var messages: [Bubble] = []
+    /// The Pencil touched the screen: the scribble canvas is up.
+    @State private var scribbling = false
 
     private struct Bubble: Identifiable, Equatable {
         let id = UUID()
@@ -198,6 +200,8 @@ struct ContentView: View {
             }
         }
         .background(Color.black)
+        .background(PencilWatch(enabled: !scribbling) { scribbling = true })
+        .overlay { if scribbling { ScribbleCanvas { scribbling = false } } }
         .fontDesign(.monospaced)
         .ignoresSafeArea()
         // A page she was asked to show. The desk already decided how it can be
