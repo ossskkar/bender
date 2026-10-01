@@ -381,7 +381,9 @@ def front_group(groups) -> str:
 ICON_CACHE = os.path.expanduser("~/.cache/arisu-deck/icons")
 APP_DIRS = ("/Applications", "/System/Applications",
             "/System/Applications/Utilities", "/Applications/Utilities",
-            os.path.expanduser("~/Applications"))
+            os.path.expanduser("~/Applications"),
+            # Chrome's installed web apps (DeepSeek Harness, 2026-10-02)
+            os.path.expanduser("~/Applications/Chrome Apps.localized"))
 
 
 def app_bundle(name: str):
