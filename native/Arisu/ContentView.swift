@@ -177,6 +177,18 @@ struct ContentView: View {
     var body: some View {
         ZStack {
         if look == .classic {
+        // Free form (Oscar, 2026-10-02): she is always there, large and dim in
+        // the middle of the whole screen, behind the controls, breathing
+        // slowly. In voice mode she comes forward into her own pane instead.
+        if freeForm && showChat {
+            VoiceVisual(style: (FaceStyle(rawValue: faceStyle) ?? .ribbon) == .portrait
+                            ? .ribbon : (FaceStyle(rawValue: faceStyle) ?? .ribbon),
+                        state: .idle, amplitude: 0, tint: Skin.cyan,
+                        scale: faceScale * 1.5, bloom: faceBloom, speed: 0.45, smoke: true)
+                .opacity(0.55)
+                .ignoresSafeArea()
+                .transition(.opacity.combined(with: .scale(scale: 0.85)))
+        }
         GeometryReader { geo in
             // Her name is the app's, not the conversation's: it sits over the
             // whole window, deck included (Oscar, 2026-09-28). It used to be
@@ -220,6 +232,7 @@ struct ContentView: View {
         }
         }
         .animation(.easeInOut(duration: 0.4), value: look)
+        .animation(.easeInOut(duration: 0.5), value: showChat)
         .background(ThreeFingerSwipe { look = look.step($0) })
         .background(Color.black)
         .background(PencilWatch(enabled: !scribbling) { scribbling = true })

@@ -75,6 +75,9 @@ private final class RealmClock {
     var summonAt: Double?
     var dismissAt: Double?
     var banged = false
+    /// Her name drifting back now and then: when, where (as a share of the
+    /// screen) and how big.
+    var echo: (t0: Double, x: Double, y: Double, size: Double)?
     /// The shake and zoom the last frame was drawn with, to map a tap back.
     var offset = CGSize.zero
     var zoom = 1.0
@@ -172,6 +175,14 @@ struct RealmView: View {
         clock.lastAmp = clock.amp
         clock.waves.removeAll { t - $0.t0 > 3 }
         if Double.random(in: 0...1) < 0.003 { clock.glitchUntil = t + 0.12 }
+        // アリス, back at a random moment and place, about once a minute
+        // (Oscar, 2026-10-02). Not while she is arriving: that one is hers.
+        if let e = clock.echo, t - e.t0 > 3 { clock.echo = nil }
+        if clock.echo == nil, clock.summonAt.map({ t - $0 > 8 }) ?? true,
+           Double.random(in: 0...1) < dt / 60 {
+            clock.echo = (t, Double.random(in: 0.2...0.8), Double.random(in: 0.2...0.8),
+                          Double.random(in: 0.08...0.2))
+        }
         // The moment she arrives.
         if let s = clock.summonAt, t - s >= Self.gather, !clock.banged {
             clock.banged = true
@@ -545,6 +556,13 @@ private struct Scene {
             let full = line + "  ∴  "
             textOnCircle(String(repeating: full, count: 6), r: rr + 9, start: dir * tw * (0.05 - Double(k) * 0.012),
                          ringInk, k == 0 ? 12 : 13, opacity: 0.75 * pres, stretched: k != 0)
+        }
+
+        // her name, faint, wherever it drifted back to
+        if let echo = clock.echo {
+            let k = (t - echo.t0) / 3
+            text("アリス", CGPoint(x: size.width * echo.x, y: size.height * echo.y), Skin.mag,
+                 M * echo.size, glow: 24, opacity: sin(k * .pi) * 0.3 * pres, weight: .black)
         }
 
         // her name, huge, the moment she arrives

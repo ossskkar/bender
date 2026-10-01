@@ -146,7 +146,8 @@ struct Grid: View {
                          with: .color(.black.opacity(0.25)))
             }
         }
-        .background(Color.black)
+        // Clear in free form, so her animation behind the controls shows.
+        .background(free ? Color.clear : Color.black)
     }
 }
 
