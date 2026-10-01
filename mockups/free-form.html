@@ -364,8 +364,153 @@ function constellation(t) {
   flash(t, cx, cy, C.good);
 }
 
+// ---------------------------------------------------------------- 5. SINGULARITY
+// Her eye is a black hole. Every app is a spiral arm of a galaxy turning round
+// it; the arm's actions are words falling in along it, stretching as they go,
+// re-forming at the rim. Space itself is the grid, dragged into a whirlpool
+// near her and rippled by every beat of her voice and every tap.
+const waves = [];
+let lastAmp = 0, glitchUntil = 0;
+function singularity(t) {
+  const cx = W / 2, cy = H / 2, a = amp(t);
+  if (a - lastAmp > 0.18) waves.push({ t0: t, s: 0.6 + a });
+  lastAmp = a;
+  while (waves.length && t - waves[0].t0 > 3) waves.shift();
+  if (Math.random() < 0.004) glitchUntil = t + 0.15 + Math.random() * 0.2;
+
+  // where space puts a point: pulled in, twisted (frame dragging), rippled
+  const Rh = M * 0.06;
+  function warp(r, th) {
+    let rr = r - (M * M * 0.012) / (r + M * 0.04);
+    for (const w of waves) {
+      const wr = (t - w.t0) * M * 0.55, fade = 1 - (t - w.t0) / 3;
+      rr += Math.exp(-Math.pow((r - wr) / (M * 0.035), 2)) * M * 0.03 * w.s * fade;
+    }
+    const twist = 1.6 * Math.exp(-r / (M * 0.16)) + t * 0.03;
+    return [cx + Math.cos(th + twist) * Math.max(Rh, rr), cy + Math.sin(th + twist) * Math.max(Rh, rr)];
+  }
+
+  // spacetime mesh
+  ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.lineWidth = 1;
+  const reach = Math.hypot(W, H) / 2;
+  for (let k = 1; k <= 22; k++) {
+    const r = Math.pow(k / 22, 1.6) * reach;
+    ctx.beginPath();
+    for (let j = 0; j <= 120; j++) { const p = warp(r, j / 120 * TAU); j ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); }
+    ctx.strokeStyle = C.cyan; ctx.globalAlpha = 0.05 + 0.05 * (1 - k / 22); ctx.stroke();
+  }
+  for (let j = 0; j < 48; j++) {
+    ctx.beginPath();
+    for (let k = 0; k <= 60; k++) { const r = Math.pow(k / 60, 1.6) * reach + 1; const p = warp(r, j / 48 * TAU); k ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); }
+    ctx.strokeStyle = j % 6 ? C.cyan : C.mag; ctx.globalAlpha = j % 6 ? 0.04 : 0.09; ctx.stroke();
+  }
+  ctx.restore();
+
+  // the clockwork rim, counter-turning
+  const Rim = M * 0.47;
+  ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.strokeStyle = C.cyan;
+  for (let k = 0; k < 180; k++) {
+    const an = -t * 0.05 + k / 180 * TAU, big = k % 15 === 0;
+    ctx.globalAlpha = big ? 0.5 : 0.15; ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(an) * Rim, cy + Math.sin(an) * Rim);
+    ctx.lineTo(cx + Math.cos(an) * (Rim + (big ? 14 : 6)), cy + Math.sin(an) * (Rim + (big ? 14 : 6)));
+    ctx.stroke();
+  }
+  ctx.restore();
+  const clock = new Date().toTimeString().slice(0, 8);
+  textOnCircle(`ARISU ∴ EVENT HORIZON ∴ ${clock} ∴ ${APPS[sel].name} ∴ `.repeat(2), cx, cy, Rim + 26, t * 0.03, C.mag, 10, 0.5);
+
+  // spiral arms of words
+  const arms = APPS.length, Rmax = M * 0.44;
+  APPS.forEach((app, i) => {
+    const on = i === sel, col = on ? C.mag : C.cyan;
+    const base = i / arms * TAU + t * 0.07;
+    const pos = r => { const th = base + 2.2 * Math.log(Rmax / r); return warp(r, th); };
+    // the arm itself: a faint river of light
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    ctx.beginPath();
+    for (let k = 0; k <= 80; k++) { const r = Rmax - (Rmax - Rh * 1.4) * k / 80; const p = pos(r); k ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); }
+    ctx.strokeStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 18;
+    ctx.globalAlpha = on ? 0.5 : 0.15; ctx.lineWidth = on ? 3 : 1.5; ctx.stroke();
+    ctx.restore();
+    // the app at the tip, burning
+    const [tx, ty] = pos(Rmax);
+    halo(tx, ty, M * (on ? 0.07 : 0.04), col, on ? 0.4 : 0.18);
+    glowText(app.glyph, tx, ty, on ? "#fff" : col, M * (on ? 0.045 : 0.032), on ? 28 : 14);
+    glowText(app.name, tx, ty + M * 0.038, col, 10, 6, "center", on ? 1 : 0.55);
+    hit(tx, ty, M * 0.05, () => { sel = i; waves.push({ t0: t, s: 1.2 }); });
+    // its actions, falling in
+    const n = app.acts.length, speed = on ? 0.018 : 0.05;
+    app.acts.forEach((label, k) => {
+      const u = (k / n + t * speed + i * 0.13) % 1;
+      const r = Rh * 1.3 + (Rmax * 0.93 - Rh * 1.3) * Math.pow(1 - u, 1.4);
+      const [x, y] = pos(r), [x2, y2] = pos(r * 0.97);
+      const ang = Math.atan2(y2 - y, x2 - x);
+      const near = 1 - r / Rmax;
+      const size = (on ? 15 : 11) * (0.45 + 0.75 * (r / Rmax));
+      const alpha = (on ? 1 : 0.5) * Math.min(1, u * 6) * Math.min(1, (r - Rh) / (M * 0.05));
+      ctx.save();
+      ctx.translate(x, y); ctx.rotate(ang + (Math.cos(ang) < 0 ? Math.PI : 0));
+      ctx.scale(1 + near * near * 2.2, 1 - near * 0.5);            // spaghettified
+      ctx.globalAlpha = Math.max(0, alpha);
+      ctx.font = `${size}px ui-monospace, "SF Mono", Menlo, monospace`;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.shadowColor = col; ctx.shadowBlur = 10; ctx.fillStyle = on ? "#fff" : col;
+      ctx.fillText(label, 0, 0);
+      ctx.restore();
+      if (on) hit(x, y, M * 0.035, () => { press(label); waves.push({ t0: t, s: 1.6 }); glitchUntil = t + 0.25; });
+    });
+  });
+
+  // the eye: iris of fibres, a pupil that is a hole, a photon ring
+  const Ri = M * 0.12 * (1 + a * 0.15);
+  halo(cx, cy, Ri * 3, C.cyan, 0.08 + a * 0.15);
+  smoke(cx, cy, Ri, t, a);
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  for (let k = 0; k < 160; k++) {
+    const an = k / 160 * TAU + t * 0.04, len = 0.55 + 0.45 * hash(k, 4) + a * 0.3 * Math.sin(t * 9 + k);
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(an) * Ri * 0.45, cy + Math.sin(an) * Ri * 0.45);
+    ctx.lineTo(cx + Math.cos(an + 0.05) * Ri * len, cy + Math.sin(an + 0.05) * Ri * len);
+    ctx.strokeStyle = k % 9 === 0 ? C.mag : C.cyan; ctx.globalAlpha = 0.25 + 0.3 * hash(k, 5); ctx.lineWidth = 1; ctx.stroke();
+  }
+  ctx.restore();
+  // chromatic photon ring
+  const pr = Ri * 0.44 * (1 - a * 0.18);
+  softRing(cx - 2, cy, pr, "#ff3355", 2, 0.6);
+  softRing(cx + 2, cy, pr, "#3388ff", 2, 0.6);
+  softRing(cx, cy, pr, "#fff2c0", 2.5, 0.9);
+  ctx.beginPath(); ctx.arc(cx, cy, pr * 0.94, 0, TAU); ctx.fillStyle = "#000"; ctx.fill();
+  softRing(cx, cy, Ri, C.cyan, M * 0.004 * (1 + a));
+
+  // a blink, every few seconds: lids of void with a lash line of text
+  const bp = (t % 7.3) / 7.3, blink = bp > 0.96 ? Math.sin((bp - 0.96) / 0.04 * Math.PI) : 0;
+  if (blink > 0) {
+    const L = Ri * 1.6, close = blink * Ri * 1.05;
+    ctx.save(); ctx.fillStyle = "#06050c";
+    ctx.beginPath(); ctx.moveTo(cx - L, cy - Ri * 1.3); ctx.lineTo(cx + L, cy - Ri * 1.3);
+    ctx.quadraticCurveTo(cx, cy - Ri * 1.3 + close * 2, cx - L, cy - Ri * 1.3); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(cx - L, cy + Ri * 1.3); ctx.lineTo(cx + L, cy + Ri * 1.3);
+    ctx.quadraticCurveTo(cx, cy + Ri * 1.3 - close * 2, cx - L, cy + Ri * 1.3); ctx.fill();
+    ctx.restore();
+  }
+  flash(t, cx, cy, C.good);
+}
+
+// smear the frame sideways in bands, for a moment
+function glitch(t) {
+  if (t > glitchUntil) return;
+  for (let k = 0; k < 5; k++) {
+    const y = Math.random() * H, h = 4 + Math.random() * 30, dx = (Math.random() - 0.5) * 60;
+    ctx.drawImage(cv, 0, y * dpr, W * dpr, h * dpr, dx, y, W, h);
+  }
+  ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = "rgba(255,92,158,0.06)";
+  ctx.fillRect(0, 0, W, H); ctx.restore();
+}
+
 // ---------------------------------------------------------------- frame
 const MODES = [
+  ["SINGULARITY", singularity, "Her eye is a black hole. Each app is a spiral arm, its actions falling in as words that stretch near her. Space bends and ripples with her voice. Tap an arm tip, then a falling word."],
   ["ORBIT", orbit, "Your brief. Apps orbit inside, the chosen app's actions orbit outside, a hexagram turns through the apps. Tap an app, tap an action."],
   ["SIGIL", sigil, "Imu, no pentagram. A five-cusp rosette across the whole screen, rune rings turning against each other, the five apps on its points, actions drifting round her."],
   ["CLOCKWORK", clockwork, "Rings of words turning against each other. Whatever passes under the beam at twelve is chosen. You press by waiting, or by tapping."],
@@ -395,6 +540,7 @@ function frame(ms) {
   hits = [];
   MODES[mode][1](t);
   // scanlines over everything, the app's finish
+  if (MODES[mode][1] === singularity) glitch(t);
   ctx.fillStyle = "rgba(0,0,0,0.18)";
   for (let y = 0; y < H; y += 3) ctx.fillRect(0, y, W, 1);
   requestAnimationFrame(frame);
