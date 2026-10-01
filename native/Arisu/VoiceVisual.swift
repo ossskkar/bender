@@ -134,6 +134,8 @@ struct VoiceVisual: View {
     var scale: Double = 1
     var bloom: Double = 1
     var speed: Double = 1
+    /// Free form's smoke: white cloud around her, Gear 5 (Oscar, 2026-10-01).
+    var smoke = false
 
     /// Time and the three phases, integrated frame by frame. They used to be
     /// `seconds-since-2001 x rate`, so any change of state -- a new spin or
@@ -152,7 +154,10 @@ struct VoiceVisual: View {
                 let t = clock.t
                 let w = min(size.width, size.height)
                 ctx.translateBy(x: size.width / 2, y: size.height / 2)
-                draw(ctx, w: w * max(0.2, scale), t: t)
+                let s = w * max(0.2, scale)
+                if smoke { puffs(ctx, s, t, front: false) }
+                draw(ctx, w: s, t: t)
+                if smoke { puffs(ctx, s, t, front: true) }
                 // The dashboard's own finish, over whatever was drawn.
                 vignette(ctx, w: w)
                 scanlines(ctx, w: w)
@@ -261,6 +266,34 @@ struct VoiceVisual: View {
         var y = -w
         while y < w { p.addRect(CGRect(x: -w, y: y, width: w * 2, height: 1)); y += 3 }
         ctx.fill(p, with: .color(.black.opacity(0.20)))
+    }
+
+    /// Gear 5: soft white cloud rolling off a ring at her shoulders and
+    /// rising, fuller and faster when she is loud. The puffs on the near side
+    /// of the ring are drawn over her, the rest behind, so it wraps her.
+    private func puffs(_ ctx: GraphicsContext, _ w: Double, _ t: Double, front: Bool) {
+        func hash(_ i: Int, _ k: Double) -> Double {
+            let v = sin(Double(i) * 12.9898 + k * 78.233) * 43758.5453
+            return v - v.rounded(.down)
+        }
+        let a = amp(t)
+        var c = ctx
+        c.addFilter(.blur(radius: w * (front ? 0.022 : 0.04)))
+        for i in 0..<44 {
+            let h1 = hash(i, 1), h2 = hash(i, 2), h3 = hash(i, 3)
+            let life = (t * (0.09 + 0.07 * h1) * (1 + 0.8 * a) + h2)
+                .truncatingRemainder(dividingBy: 1)
+            let ang = h3 * .pi * 2 + t * 0.18 + life * 0.9
+            guard (sin(ang) > 0.3) == front else { continue }
+            let r = w * (0.30 + 0.14 * life + 0.05 * a)
+            let x = cos(ang) * r
+            let y = sin(ang) * r * 0.32 + w * 0.10 - life * w * (0.30 + 0.20 * h1)
+            let size = w * (0.045 + 0.085 * life) * (0.8 + 0.5 * a + 0.3 * h2)
+            let o = sin(life * .pi) * (front ? 0.30 : 0.55) * (0.6 + 0.4 * a)
+            c.fill(Path(ellipseIn: CGRect(x: x - size, y: y - size,
+                                          width: size * 2, height: size * 2)),
+                   with: .color(.white.opacity(o)))
+        }
     }
 
     // ---------------------------------------------------------------- draws

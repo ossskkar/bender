@@ -43,6 +43,7 @@ struct ContentView: View {
     /// rather than of the character.
     @AppStorage("arisu.faceX") private var faceX = 0.0
     @AppStorage("arisu.faceY") private var faceY = 0.0
+    @AppStorage(Skin.freeFormKey) private var freeForm = false
     @State private var showSettings = false
     /// The deck: his Mac's buttons, on the iPad.
     /// The deck rail, on the right of both modes. Up by default and kept across
@@ -494,8 +495,8 @@ struct ContentView: View {
                         .foregroundStyle(.white)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
-                        .background(Capsule().fill(Color.black.opacity(0.45)))
-                        .overlay(Capsule().stroke(Skin.cyan.opacity(0.5), lineWidth: 1))
+                        .plate { Capsule().fill(Color.black.opacity(0.45)) }
+                        .edge { Capsule().stroke(Skin.cyan.opacity(0.5), lineWidth: 1) }
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(c.label)
@@ -593,7 +594,7 @@ struct ContentView: View {
                            state: voiceState, amplitude: Double(pet.level),
                            // Mic off reads as cyan (Oscar, 2026-10-01).
                            tint: live.muted || !pet.running ? Skin.cyan : phaseColor,
-                           scale: faceScale, bloom: faceBloom, speed: faceSpeed)
+                           scale: faceScale, bloom: faceBloom, speed: faceSpeed, smoke: freeForm)
             .offset(x: faceX, y: faceY)
     }
 
@@ -775,9 +776,9 @@ struct ChatBubble: View {
                 .foregroundStyle(ink)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 9)
-                .background(Rectangle().fill(solid ? Color.black.opacity(0.62) : ink.opacity(0.08)))
-                .overlay(Rectangle().stroke(ink.opacity(0.45), lineWidth: 1))
-                .overlay(alignment: mine ? .trailing : .leading) {
+                .plate { Rectangle().fill(solid ? Color.black.opacity(0.62) : ink.opacity(0.08)) }
+                .edge { Rectangle().stroke(ink.opacity(0.45), lineWidth: 1) }
+                .edge(alignment: mine ? .trailing : .leading) {
                     Rectangle().fill(ink).frame(width: 3).shadow(color: ink, radius: 4)
                 }
                 .textSelection(.enabled)

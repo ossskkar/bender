@@ -30,6 +30,10 @@ enum Skin {
     /// Text on a filled control.
     static let onLit = Color(red: 0.02, green: 0.04, blue: 0.08)
 
+    /// Free form (Oscar, 2026-10-01): no box, edge, bracket or grid line on
+    /// any control -- only the words, the icons and her, with smoke.
+    static let freeFormKey = "arisu.freeForm"
+
     /// The fill of anything raised off the void: a key, a bubble, a bar.
     static let raised = Color.white.opacity(0.08)
     /// One corner radius, and it is none: the Record panel's square neon
@@ -51,20 +55,38 @@ enum Skin {
 }
 
 /// A panel: the key, the bubble, the answer strip, the composer's field.
+/// Drawn only outside free form: every box, edge and lit bar goes through it.
+struct Edge<V: View>: View {
+    @AppStorage(Skin.freeFormKey) private var free = false
+    let v: V
+    init(@ViewBuilder _ v: () -> V) { self.v = v() }
+    var body: some View { if !free { v } }
+}
+
 struct Raised: ViewModifier {
     var tint: Color = Skin.cyan
     var stroke: Double = 0.3
     var fill: Color = Skin.raised
     func body(content: Content) -> some View {
         content
-            .background(RoundedRectangle(cornerRadius: Skin.radius).fill(fill))
-            .overlay(RoundedRectangle(cornerRadius: Skin.radius).stroke(tint.opacity(stroke)))
+            .plate { RoundedRectangle(cornerRadius: Skin.radius).fill(fill) }
+            .edge { RoundedRectangle(cornerRadius: Skin.radius).stroke(tint.opacity(stroke)) }
             // A lit edge glows; a quiet one does not, or every box would shout.
             .shadow(color: stroke >= 0.6 ? tint.opacity(0.6) : .clear, radius: 5)
     }
 }
 
 extension View {
+    /// An outline or bar over a control; gone in free form.
+    func edge<V: View>(alignment: Alignment = .center, @ViewBuilder _ v: () -> V) -> some View {
+        overlay(alignment: alignment) { Edge(v) }
+    }
+
+    /// A control's box behind it; gone in free form.
+    func plate<V: View>(@ViewBuilder _ v: () -> V) -> some View {
+        background { Edge(v) }
+    }
+
     /// A panel in the Record panel's style: grid and scanlines behind, neon
     /// corner brackets over the top.
     func console(_ grid: Color = Skin.cyan, brackets: Color = Skin.mag) -> some View {
@@ -88,12 +110,14 @@ struct IconButton: View {
     /// The icon's own colour, when it should not be the edge's (the title bar).
     var ink: Color? = nil
     let action: () -> Void
+    @AppStorage(Skin.freeFormKey) private var free = false
 
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(lit ? Skin.onLit : ink ?? tint)
+                // Lit with no box to fill: the icon itself carries the colour.
+                .foregroundStyle(lit ? (free ? tint : Skin.onLit) : ink ?? tint)
                 .frame(width: 48, height: 40)
                 .raised(tint, stroke: lit ? 0 : stroke,
                         fill: lit ? tint : Color.black.opacity(0.35))
@@ -105,8 +129,10 @@ struct IconButton: View {
 /// A faint neon grid with scanlines, behind the panel (and the deck below it).
 struct Grid: View {
     let tint: Color
+    @AppStorage(Skin.freeFormKey) private var free = false
     var body: some View {
         Canvas { ctx, size in
+            guard !free else { return }
             var grid = Path()
             for x in stride(from: 0, through: size.width, by: 28) {
                 grid.move(to: CGPoint(x: x, y: 0)); grid.addLine(to: CGPoint(x: x, y: size.height))
@@ -128,7 +154,7 @@ struct Grid: View {
 struct Brackets: View {
     let tint: Color
     var body: some View {
-        GeometryReader { g in
+        Edge { GeometryReader { g in
             let w = g.size.width, h = g.size.height, l: CGFloat = 22
             Path { p in
                 p.move(to: CGPoint(x: 0, y: l)); p.addLine(to: .zero); p.addLine(to: CGPoint(x: l, y: 0))
@@ -138,7 +164,7 @@ struct Brackets: View {
             }
             .stroke(tint, lineWidth: 2)
             .shadow(color: tint, radius: 5)
-        }
+        } }
         .allowsHitTesting(false)
     }
 }

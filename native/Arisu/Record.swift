@@ -223,12 +223,14 @@ struct RecordPanel: View {
             if on { Task { await rec.finish() } } else { onStart(); rec.start() }
         } label: {
             ZStack {
-                Circle().fill(ink.opacity(on ? 0.35 : 0.12))
-                Circle().stroke(ink, lineWidth: 3)
-                    .shadow(color: ink, radius: on && pulse ? 22 : 9)
-                Circle().inset(by: -9)
-                    .stroke(wire.opacity(0.7), style: StrokeStyle(lineWidth: 1.5, dash: [4, 7]))
-                    .rotationEffect(.degrees(on && pulse ? 180 : 0))
+                Edge {
+                    Circle().fill(ink.opacity(on ? 0.35 : 0.12))
+                    Circle().stroke(ink, lineWidth: 3)
+                        .shadow(color: ink, radius: on && pulse ? 22 : 9)
+                    Circle().inset(by: -9)
+                        .stroke(wire.opacity(0.7), style: StrokeStyle(lineWidth: 1.5, dash: [4, 7]))
+                        .rotationEffect(.degrees(on && pulse ? 180 : 0))
+                }
                 if rec.sending { ProgressView().tint(wire).scaleEffect(1.4) }
                 else if let t = rec.started {
                     TimelineView(.periodic(from: t, by: 1)) { ctx in
@@ -288,7 +290,7 @@ struct RecordPanel: View {
             }
             ForEach(rec.dumps) { d in
                 HStack(spacing: 0) {
-                    Rectangle().fill(neon).frame(width: 3).shadow(color: neon, radius: 4)
+                    Edge { Rectangle().fill(neon).frame(width: 3).shadow(color: neon, radius: 4) }
                     VStack(alignment: .leading, spacing: 4) {
                         Text(stamp(d.ts) + (d.image == true ? " // SCRIBBLE" : ""))
                             .font(Skin.mono(10)).foregroundStyle(neon)
@@ -305,8 +307,8 @@ struct RecordPanel: View {
                     .padding(10)
                     Spacer(minLength: 0)
                 }
-                .background(wire.opacity(0.06))
-                .overlay(Rectangle().stroke(wire.opacity(0.5), lineWidth: 1))
+                .plate { wire.opacity(0.06) }
+                .edge { Rectangle().stroke(wire.opacity(0.5), lineWidth: 1) }
                 .contextMenu {
                     Button("Delete", systemImage: "trash", role: .destructive) {
                         Task { await rec.remove(d) }
@@ -324,7 +326,7 @@ struct RecordPanel: View {
                 Text(rec.insight.isEmpty ? "[ RUN ANALYSIS ]" : "[ REFRESH ]")
                     .font(Skin.mono(12, .bold)).foregroundStyle(wire)
                     .padding(.horizontal, 12).padding(.vertical, 7)
-                    .overlay(Rectangle().stroke(wire, lineWidth: 1))
+                    .edge { Rectangle().stroke(wire, lineWidth: 1) }
                     .shadow(color: wire, radius: 4)
             }
             .buttonStyle(.plain).disabled(rec.thinking)
@@ -391,6 +393,7 @@ struct PencilWatch: UIViewRepresentable {
 /// The page he scribbles on: the app dims, the Pencil draws, a finger only
 /// presses the controls. Saved as a PNG next to the brain dumps.
 struct ScribbleCanvas: View {
+    @AppStorage(Skin.freeFormKey) private var free = false
     let close: () -> Void
     @State private var canvas = PKCanvasView()
     @State private var erasing = false
@@ -438,9 +441,9 @@ struct ScribbleCanvas: View {
             tab("CANCEL", on: false, action: close)
             Button { Task { await save() } } label: {
                 Text(saving ? "[ SAVING_ ]" : "[ SAVE ]")
-                    .font(Skin.mono(13, .bold)).foregroundStyle(Skin.onLit)
+                    .font(Skin.mono(13, .bold)).foregroundStyle(free ? wire : Skin.onLit)
                     .padding(.horizontal, 12).padding(.vertical, 7)
-                    .background(Rectangle().fill(wire))
+                    .plate { Rectangle().fill(wire) }
                     .shadow(color: wire, radius: 6)
             }
             .buttonStyle(.plain).disabled(saving)

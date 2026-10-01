@@ -45,6 +45,7 @@ struct SettingsSheet: View {
     /// Where she stands on the screen, in points from the middle.
     @AppStorage("arisu.faceX") private var faceX = 0.0
     @AppStorage("arisu.faceY") private var faceY = 0.0
+    @AppStorage(Skin.freeFormKey) private var freeForm = false
 
     private let brain = Brain()
     private let accent = Skin.cyan
@@ -113,6 +114,15 @@ struct SettingsSheet: View {
             }
 
             positionSection
+
+            Section {
+                Toggle("Free form", isOn: $freeForm)
+                    .font(.system(size: 17, weight: .medium))
+                    .tint(accent)
+            } footer: {
+                footer("No boxes, edges or grid on any control, and smoke "
+                       + "around her voice.")
+            }
 
             Section {
                 // One preference for both was the wrong shape: subtitles are
@@ -248,10 +258,10 @@ struct SettingsSheet: View {
                             .foregroundStyle(m == current ? .white : .white.opacity(0.6))
                     }
                     .padding(6)
-                    .background(RoundedRectangle(cornerRadius: Skin.radius)
-                        .fill(m == current ? accent.opacity(0.12) : Color.white.opacity(0.03)))
-                    .overlay(RoundedRectangle(cornerRadius: Skin.radius)
-                        .stroke(m == current ? accent : .white.opacity(0.1)))
+                    .plate { RoundedRectangle(cornerRadius: Skin.radius)
+                        .fill(m == current ? accent.opacity(0.12) : Color.white.opacity(0.03)) }
+                    .edge { RoundedRectangle(cornerRadius: Skin.radius)
+                        .stroke(m == current ? accent : .white.opacity(0.1)) }
                 }
                 .buttonStyle(.plain)
             }
@@ -277,9 +287,9 @@ struct SettingsSheet: View {
                 Button { faceStyle = style.rawValue } label: {
                     VStack(spacing: 6) {
                         FacePreview(style: style)
-                            .overlay(RoundedRectangle(cornerRadius: Skin.radius)
+                            .edge { RoundedRectangle(cornerRadius: Skin.radius)
                                 .stroke(on ? Skin.mag : Color.white.opacity(0.18),
-                                        lineWidth: on ? 2 : 1))
+                                        lineWidth: on ? 2 : 1) }
                         Text(style.label)
                             .font(Skin.mono(11, on ? .semibold : .regular))
                             .foregroundStyle(on ? Skin.mag : Skin.ink)
@@ -305,13 +315,13 @@ struct SettingsSheet: View {
             // The dials on the thing they move, at the size he is choosing.
             VoiceVisual(style: FaceStyle(rawValue: faceStyle) ?? .ribbon,
                         state: .speaking, amplitude: 0.5, tint: Skin.cyan,
-                        scale: faceScale, bloom: faceBloom, speed: faceSpeed)
+                        scale: faceScale, bloom: faceBloom, speed: faceSpeed, smoke: freeForm)
                 .frame(height: 170)
                 .frame(maxWidth: .infinity)
                 .background(Skin.void)
                 .clipShape(RoundedRectangle(cornerRadius: Skin.radius))
-                .overlay(RoundedRectangle(cornerRadius: Skin.radius)
-                    .stroke(Color.white.opacity(0.14)))
+                .edge { RoundedRectangle(cornerRadius: Skin.radius)
+                    .stroke(Color.white.opacity(0.14)) }
                 .padding(.vertical, 6)
             dial("Size", $faceScale, 0.5...1.8)
             dial("Glow", $faceBloom, 0...2.2)

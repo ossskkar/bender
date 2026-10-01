@@ -13,6 +13,7 @@ import SwiftUI
 /// is executed here -- the iPad sends an id and the Mac decides what that id
 /// means (see `Deck`).
 struct DeckRail: View {
+    @AppStorage(Skin.freeFormKey) private var free = false
     @StateObject private var deck = Deck()
     @State private var editing = false
     @State private var group: String?
@@ -70,7 +71,7 @@ struct DeckRail: View {
                                 .frame(width: 26, height: 26)
                             Text(short(app))
                                 .font(Skin.mono(15, .semibold))
-                                .foregroundStyle(here ? Skin.onLit : .white)
+                                .foregroundStyle(here ? (free ? Skin.cyan : Skin.onLit) : .white)
                                 .lineLimit(1).fixedSize()
                         }
                         .padding(.horizontal, 12)
@@ -489,8 +490,8 @@ extension View {
     /// The Record panel's box: square, a thin neon edge, a glow once it has
     /// something to say (lit, done or failed).
     func neon(_ tint: Color, stroke: Double, fill: Color) -> some View {
-        background(Rectangle().fill(fill))
-            .overlay(Rectangle().stroke(tint.opacity(stroke), lineWidth: 1))
+        plate { Rectangle().fill(fill) }
+            .edge { Rectangle().stroke(tint.opacity(stroke), lineWidth: 1) }
             .shadow(color: stroke > 0.9 || stroke == 0 ? tint.opacity(0.7) : .clear, radius: 5)
     }
 }

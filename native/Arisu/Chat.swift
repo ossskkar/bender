@@ -231,16 +231,16 @@ struct ChatPane: View {
             .padding(.horizontal, bubbles ? 14 : 0)
             .padding(.vertical, bubbles ? 10 : 1)
             .background {
-                if bubbles {
+                if bubbles { Edge {
                     Rectangle()
                         .fill((line.mine ? mag : cyan).opacity(0.08))
                         .overlay(Rectangle()
                             .stroke((line.mine ? mag : cyan)
                                 .opacity(line.spoken ? 0.25 : 0.45)))
-                }
+                } }
             }
             // The Record panel's log row: a lit bar on the speaker's side.
-            .overlay(alignment: line.mine ? .trailing : .leading) {
+            .edge(alignment: line.mine ? .trailing : .leading) {
                 if bubbles {
                     let ink = line.mine ? mag : cyan
                     Rectangle().fill(ink).frame(width: 3).shadow(color: ink, radius: 4)
@@ -359,8 +359,8 @@ struct ChatHistory: View {
                         .lineLimit(2)
                 }
             }
-            .listRowBackground(Rectangle().fill(Skin.cyan.opacity(0.05))
-                .overlay(Rectangle().stroke(Skin.cyan.opacity(0.3))))
+            .listRowBackground(Edge { Rectangle().fill(Skin.cyan.opacity(0.05))
+                .overlay(Rectangle().stroke(Skin.cyan.opacity(0.3))) })
         }
         .scrollContentBackground(.hidden)
     }
