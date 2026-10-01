@@ -85,13 +85,15 @@ struct IconButton: View {
     var tint: Color = Skin.cyan
     var lit = false
     var stroke = 0.35
+    /// The icon's own colour, when it should not be the edge's (the title bar).
+    var ink: Color? = nil
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(lit ? Skin.onLit : tint)
+                .foregroundStyle(lit ? Skin.onLit : ink ?? tint)
                 .frame(width: 48, height: 40)
                 .raised(tint, stroke: lit ? 0 : stroke,
                         fill: lit ? tint : Color.black.opacity(0.35))

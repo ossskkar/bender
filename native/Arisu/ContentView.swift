@@ -458,16 +458,16 @@ struct ContentView: View {
             // appears only after the room is already wrong.
             if room.members.count > 1 {
                 squareButton(room.isListener ? "ear.fill" : "ear",
-                             "Listen here", tint: room.isListener ? listener : Skin.cyan, stroke: 0.5) {
+                             "Listen here", tint: room.isListener ? listener : Skin.cyan, stroke: 0.7, ink: .white) {
                     room.listenHere()
                 }
             }
-            squareButton("slider.horizontal.3", "Settings", tint: Skin.cyan, stroke: 0.5) {
+            squareButton("slider.horizontal.3", "Settings", tint: Skin.cyan, stroke: 0.7, ink: .white) {
                 showSettings = true
             }
             // Shared by both screens.
             squareButton("square.grid.3x3.fill", "Deck",
-                         tint: deckShown ? glow : Skin.cyan, stroke: 0.5) { deckShown.toggle() }
+                         tint: deckShown ? glow : Skin.cyan, stroke: 0.7, ink: .white) { deckShown.toggle() }
         }
         .padding(.vertical, 14)
         .padding(.horizontal, 22)
@@ -518,10 +518,10 @@ struct ContentView: View {
     }
 
     private func squareButton(_ symbol: String, _ label: String, tint: Color? = nil,
-                              stroke: Double = 0.35,
+                              stroke: Double = 0.35, ink: Color? = nil,
                               action: @escaping () -> Void) -> some View {
         IconButton(symbol: symbol, label: label, tint: tint ?? Skin.cyan,
-                   stroke: stroke, action: action)
+                   stroke: stroke, ink: ink, action: action)
     }
 
     /// Five minutes of silence ends the call and puts the keyboard back. Not
