@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Free Form Mockups</title>
+<style>
+  :root { --void:#06050c; --cyan:#45e5f7; --mag:#ff5c9e; --ink:#a3b5d9; --blood:#d0213f; --bone:#efe6d6; }
+  * { box-sizing:border-box; margin:0; }
+  html, body { height:100%; background:var(--void); color:var(--ink);
+    font:14px/1.4 ui-monospace, "SF Mono", Menlo, monospace; overflow:hidden; }
+  header { position:fixed; top:0; left:0; right:0; display:flex; gap:6px; align-items:center;
+    padding:12px 16px; z-index:2; flex-wrap:wrap; pointer-events:none; }
+  header button { pointer-events:auto; background:none; border:0; color:var(--ink); opacity:.55;
+    font:inherit; letter-spacing:2px; padding:6px 8px; cursor:pointer; }
+  header button.on { opacity:1; color:var(--cyan); text-shadow:0 0 8px var(--cyan); }
+  #note { position:fixed; left:16px; right:16px; bottom:12px; z-index:2; opacity:.7; font-size:12px;
+    letter-spacing:1px; pointer-events:none; }
+  canvas { position:fixed; inset:0; width:100%; height:100%; display:block; cursor:crosshair; }
+</style>
+</head>
+<body>
+<header id="tabs"></header>
+<canvas id="c"></canvas>
+<div id="note"></div>
+<script>
+// ---------------------------------------------------------------- data
+const APPS = [
+  { id:"claude", glyph:"✳", name:"CLAUDE", acts:["away","continue","screenshot","recap","explain","guide","handoff","clear"] },
+  { id:"lain",   glyph:"◬", name:"LAIN",   acts:["Dashboard","Systems","Backlog","Processes","Health","Diary"] },
+  { id:"hermes", glyph:"☿", name:"HERMES", acts:["Chat","Status","Logs","Restart","Gateway","Doctor"] },
+  { id:"spotify",glyph:"♫", name:"SPOTIFY",acts:["Shuffle","Previous","Repeat","Play/Pause","Next"] },
+  { id:"chrome", glyph:"◎", name:"CHROME", acts:["New tab","Close tab","Reopen tab","Reload","Address bar","Back"] },
+  { id:"mac",    glyph:"⌘", name:"MAC",    acts:["Screenshot","Downloads","Empty trash","sleep"] },
+];
+const C = { cyan:"#45e5f7", mag:"#ff5c9e", ink:"#a3b5d9", blood:"#d0213f", bone:"#efe6d6", good:"#4dff80" };
+
+const cv = document.getElementById("c"), ctx = cv.getContext("2d");
+let W, H, M, dpr;
+function resize() {
+  dpr = Math.min(2, devicePixelRatio || 1);
+  W = innerWidth; H = innerHeight; M = Math.min(W, H);
+  cv.width = W * dpr; cv.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+addEventListener("resize", resize); resize();
+
+let sel = 3;               // selected app index
+let pressed = null;        // {label, t} flash when an action is pressed
+let hits = [];             // [{x,y,r,fn}] rebuilt every frame
+const TAU = Math.PI * 2;
+
+// Her level: a fake song plus speech bursts, so every mockup breathes.
+function amp(t) {
+  const beat = Math.pow(Math.max(0, Math.sin(t * Math.PI * 2 * 2.0)), 8) * 0.5;
+  const talk = (Math.sin(t * 0.7) > 0.3) ? 0.25 + 0.2 * Math.sin(t * 13) * Math.sin(t * 5.3) : 0;
+  return Math.min(1, 0.12 + beat + Math.max(0, talk));
+}
+
+// ---------------------------------------------------------------- helpers
+function glowText(s, x, y, col, size, blur = 12, align = "center", alpha = 1) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.font = `${size}px ui-monospace, "SF Mono", Menlo, monospace`;
+  ctx.textAlign = align; ctx.textBaseline = "middle";
+  ctx.shadowColor = col; ctx.shadowBlur = blur; ctx.fillStyle = col;
+  ctx.fillText(s, x, y);
+  ctx.shadowBlur = 0; ctx.fillText(s, x, y);
+  ctx.restore();
+}
+function textOnCircle(s, cx, cy, r, start, col, size, alpha = 1, inward = false) {
+  ctx.save();
+  ctx.font = `${size}px ui-monospace, "SF Mono", Menlo, monospace`;
+  ctx.fillStyle = col; ctx.globalAlpha = alpha;
+  ctx.shadowColor = col; ctx.shadowBlur = 8;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  const step = (size * 0.66) / r;
+  for (let i = 0; i < s.length; i++) {
+    const a = start + i * step;
+    ctx.save();
+    ctx.translate(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+    ctx.rotate(a + (inward ? -Math.PI / 2 : Math.PI / 2));
+    ctx.fillText(s[i], 0, 0);
+    ctx.restore();
+  }
+  ctx.restore();
+  return s.length * step;
+}
+function softRing(cx, cy, r, col, lw, alpha = 1) {
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (const [w, b, o] of [[lw * 5, 40, 0.18], [lw * 2.2, 16, 0.35], [lw, 4, 0.8]]) {
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU);
+    ctx.strokeStyle = col; ctx.globalAlpha = o * alpha; ctx.lineWidth = w;
+    ctx.shadowColor = col; ctx.shadowBlur = b; ctx.stroke();
+  }
+  ctx.restore();
+}
+function hash(i, k) { const v = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return v - Math.floor(v); }
+function smoke(cx, cy, R, t, a, col = "255,255,255", n = 50) {
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (let i = 0; i < n; i++) {
+    const h1 = hash(i, 1), h2 = hash(i, 2), h3 = hash(i, 3);
+    const life = (t * (0.09 + 0.07 * h1) * (1 + 0.8 * a) + h2) % 1;
+    const ang = h3 * TAU + t * 0.18 + life * 0.9;
+    const r = R * (1.0 + 0.5 * life + 0.15 * a);
+    const x = cx + Math.cos(ang) * r;
+    const y = cy + Math.sin(ang) * r * 0.4 + R * 0.3 - life * R * (1.1 + 0.6 * h1);
+    const s = R * (0.16 + 0.3 * life) * (0.8 + 0.5 * a + 0.3 * h2);
+    const o = Math.sin(life * Math.PI) * 0.16 * (0.6 + 0.4 * a);
+    const g = ctx.createRadialGradient(x, y, 0, x, y, s);
+    g.addColorStop(0, `rgba(${col},${o})`); g.addColorStop(1, `rgba(${col},0)`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, s, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+function halo(cx, cy, r, col, o) {
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+  g.addColorStop(0, col + Math.round(o * 255).toString(16).padStart(2, "0"));
+  g.addColorStop(1, col + "00");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.fill();
+}
+function hit(x, y, r, fn) { hits.push({ x, y, r, fn }); }
+function press(label) { pressed = { label, t: performance.now() / 1000 }; }
+function flash(t, cx, cy, col) {
+  if (!pressed) return;
+  const k = t - pressed.t; if (k > 1.6) { pressed = null; return; }
+  softRing(cx, cy, M * (0.12 + k * 0.4), col, 2, 1 - k / 1.6);
+  glowText("> " + pressed.label.toUpperCase() + "_", cx, cy + M * 0.47, C.good, 16, 14, "center", 1 - k / 1.6);
+}
+function voice(cx, cy, R, t, col) {
+  const a = amp(t);
+  const r = R * (1 + a * 0.12) * (1 + 0.03 * Math.sin(t * 1.1));
+  halo(cx, cy, r * 2.2, col, 0.12 + a * 0.18);
+  smoke(cx, cy, r, t, a);
+  softRing(cx, cy, r, col, M * 0.006 * (1 + a));
+  softRing(cx, cy, r * (0.62 + Math.sin(t * 2.4) * a * 0.15), C.mag, M * 0.002, 0.6);
+}
+
+// ---------------------------------------------------------------- 1. ORBIT
+// His brief: full screen voice, apps on the inner orbit, the chosen app's
+// actions on the outer one, a star drawn through the apps, nothing still.
+function orbit(t) {
+  const cx = W / 2, cy = H / 2, a = amp(t);
+  const R1 = M * 0.29, R2 = M * 0.44;
+  const w1 = t * 0.10, w2 = -t * 0.065, w3 = t * 0.05;
+  voice(cx, cy, M * 0.13, t, C.cyan);
+
+  // orbit tracks: dashed, turning, breathing with her
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  for (const [r, w, dash, col, o] of [[R1, w1 * 1.5, [2, 10], C.cyan, 0.35], [R2, w2 * 1.5, [1, 14], C.mag, 0.3], [R2 + M * 0.04, -w2, [30, 60], C.cyan, 0.12]]) {
+    ctx.setLineDash(dash); ctx.lineDashOffset = -w * r;
+    ctx.beginPath(); ctx.arc(cx, cy, r * (1 + a * 0.02), 0, TAU);
+    ctx.strokeStyle = col; ctx.globalAlpha = o; ctx.lineWidth = 1; ctx.stroke();
+  }
+  ctx.restore(); ctx.setLineDash([]);
+
+  // hexagram through the apps, turning on its own beat
+  const pts = APPS.map((_, i) => { const an = w1 + i / APPS.length * TAU - Math.PI / 2;
+    return [cx + Math.cos(an) * R1, cy + Math.sin(an) * R1, an]; });
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  for (const off of [0, 1]) {
+    ctx.beginPath();
+    for (let k = 0; k <= 3; k++) { const p = pts[(off + k * 2) % 6]; k ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); }
+    ctx.strokeStyle = C.cyan; ctx.globalAlpha = 0.08 + a * 0.12; ctx.lineWidth = 1; ctx.stroke();
+  }
+  ctx.restore();
+
+  // apps
+  pts.forEach(([x, y], i) => {
+    const on = i === sel, bob = Math.sin(t * 1.3 + i) * M * 0.006;
+    halo(x, y + bob, M * (on ? 0.08 : 0.045), on ? C.mag : C.cyan, on ? 0.35 : 0.12);
+    glowText(APPS[i].glyph, x, y + bob, on ? C.mag : C.cyan, M * (on ? 0.05 : 0.036), on ? 26 : 14);
+    glowText(APPS[i].name, x, y + bob + M * 0.045, on ? C.mag : C.ink, 11, 6, "center", on ? 1 : 0.6);
+    hit(x, y, M * 0.05, () => { sel = i; });
+  });
+
+  // the chosen app's actions, a tether from it to each
+  const app = APPS[sel], n = app.acts.length;
+  const [sx, sy] = pts[sel];
+  app.acts.forEach((label, k) => {
+    const an = w2 + k / n * TAU - Math.PI / 2 + Math.sin(t * 0.8 + k) * 0.02;
+    const x = cx + Math.cos(an) * R2, y = cy + Math.sin(an) * R2;
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    ctx.beginPath(); ctx.moveTo(sx, sy);
+    ctx.quadraticCurveTo(cx + Math.cos(an) * R1 * 0.6, cy + Math.sin(an) * R1 * 0.6, x, y);
+    ctx.strokeStyle = C.mag; ctx.globalAlpha = 0.06 + 0.06 * Math.sin(t * 3 + k); ctx.stroke();
+    ctx.restore();
+    halo(x, y, M * 0.03, C.mag, 0.25);
+    ctx.beginPath(); ctx.arc(x, y, 2.5, 0, TAU); ctx.fillStyle = C.mag; ctx.fill();
+    const out = Math.cos(an) >= 0;
+    glowText(label, x + (out ? 12 : -12), y, "#fff", 15, 10, out ? "left" : "right");
+    hit(x, y, M * 0.04, () => press(label));
+  });
+
+  // a slow outer whisper of what she is, on the rim
+  textOnCircle("ARISU // VOICE // " + app.name + " // " + new Date().toTimeString().slice(0, 5) + " // ",
+    cx, cy, M * 0.495, w3, C.cyan, 10, 0.35);
+  flash(t, cx, cy, C.good);
+}
+
+// ---------------------------------------------------------------- 2. SIGIL
+// Imu: one great pentagram across the screen, rune rings counter-turning,
+// the five apps at its points, the chosen app's actions written into the
+// inner pentagon, her voice the eye in the middle.
+function sigil(t) {
+  const cx = W / 2, cy = H / 2, a = amp(t);
+  const R = M * 0.42 * (1 + a * 0.015);
+  const turn = t * 0.04;
+  // blood wash
+  halo(cx, cy, M * 0.75, C.blood, 0.16 + a * 0.12);
+  voice(cx, cy, M * 0.09, t, C.blood);
+  // rings
+  for (const [r, lw, o] of [[R, 2, 0.9], [R * 1.07, 1, 0.6], [R * 0.36, 1, 0.5]]) softRing(cx, cy, r, C.blood, lw, o);
+  // rune bands, counter-rotating
+  const runes = APPS.slice(0, 5).map(x => x.name).join(" ✠ ") + " ✠ ";
+  textOnCircle(runes + runes, cx, cy, R * 1.035, -turn * 1.6, C.bone, 11, 0.55);
+  const acts = APPS[sel].acts.join(" · ").toUpperCase() + " · ";
+  textOnCircle(acts + acts, cx, cy, R * 0.33, turn * 2.4, C.bone, 10, 0.5, true);
+  // pentagram
+  const five = APPS.slice(0, 5);
+  const P = five.map((_, i) => { const an = turn + i / 5 * TAU - Math.PI / 2; return [cx + Math.cos(an) * R, cy + Math.sin(an) * R]; });
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  for (const [lw, b, o] of [[10, 40, 0.12], [3, 12, 0.5], [1.2, 2, 0.9]]) {
+    ctx.beginPath();
+    for (let k = 0; k <= 5; k++) { const p = P[(k * 2) % 5]; k ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); }
+    ctx.strokeStyle = C.blood; ctx.lineWidth = lw * (1 + a * 0.6); ctx.shadowColor = C.blood; ctx.shadowBlur = b;
+    ctx.globalAlpha = o; ctx.stroke();
+  }
+  ctx.restore();
+  // apps at the points
+  P.forEach(([x, y], i) => {
+    const on = i === sel;
+    halo(x, y, M * (on ? 0.09 : 0.05), on ? C.bone : C.blood, on ? 0.45 : 0.3);
+    glowText(five[i].glyph, x, y, on ? "#fff" : C.bone, M * (on ? 0.05 : 0.035), on ? 30 : 12);
+    glowText(five[i].name, x, y + M * 0.05, C.bone, 11, 6, "center", on ? 1 : 0.5);
+    hit(x, y, M * 0.06, () => { sel = i; });
+  });
+  // actions sit on the inner pentagon and drift between its corners
+  if (sel > 4) sel = 0;
+  const inner = P.map((_, i) => { const an = turn + (i + 0.5) / 5 * TAU - Math.PI / 2; const r = R * 0.382 / 0.95 * 1.3; return [cx + Math.cos(an) * r, cy + Math.sin(an) * r]; });
+  APPS[sel].acts.forEach((label, k) => {
+    const n = APPS[sel].acts.length, u = ((k / n) * 5 + t * 0.06) % 5;
+    const i = Math.floor(u), f = u - i, A = inner[i], B = inner[(i + 1) % 5];
+    const x = A[0] + (B[0] - A[0]) * f, y = A[1] + (B[1] - A[1]) * f;
+    glowText(label.toUpperCase(), x, y, C.bone, 12, 12);
+    hit(x, y, M * 0.04, () => press(label));
+  });
+  flash(t, cx, cy, C.bone);
+}
+
+// ---------------------------------------------------------------- 3. CLOCKWORK
+// Rings of words turning against each other. A beam at twelve o'clock reads
+// whatever passes under it: you press by letting it come round, or tap.
+function clockwork(t) {
+  const cx = W / 2, cy = H / 2, a = amp(t);
+  voice(cx, cy, M * 0.11, t, C.cyan);
+  const rings = [
+    { r: M * 0.22, items: APPS.map(x => x.name), w: t * 0.09, col: C.cyan, size: 13, kind: "app" },
+    { r: M * 0.31, items: APPS[sel].acts.map(x => x.toUpperCase()), w: -t * 0.06, col: C.mag, size: 13, kind: "act" },
+    { r: M * 0.39, items: ["12.4 KM WEEK", "SLEEP 7H10", "3 TODO", "HERMES OK", "NEXT 14:30 STANDUP", "DUTCH B1 · 41 DAYS"], w: t * 0.035, col: C.ink, size: 11, kind: "info" },
+  ];
+  // the reading beam
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  const beam = ctx.createLinearGradient(cx, cy - M * 0.48, cx, cy - M * 0.15);
+  beam.addColorStop(0, "rgba(69,229,247,0)"); beam.addColorStop(1, `rgba(69,229,247,${0.10 + a * 0.15})`);
+  ctx.fillStyle = beam; ctx.beginPath();
+  ctx.moveTo(cx, cy - M * 0.14); ctx.lineTo(cx - M * 0.05, cy - M * 0.48); ctx.lineTo(cx + M * 0.05, cy - M * 0.48); ctx.fill();
+  ctx.restore();
+  rings.forEach((ring, ri) => {
+    // ticks, like a gear's teeth
+    ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.strokeStyle = ring.col;
+    for (let k = 0; k < 120; k++) {
+      const an = ring.w + k / 120 * TAU, big = k % 10 === 0;
+      ctx.globalAlpha = big ? 0.4 : 0.12; ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(an) * (ring.r + 14), cy + Math.sin(an) * (ring.r + 14));
+      ctx.lineTo(cx + Math.cos(an) * (ring.r + (big ? 22 : 18)), cy + Math.sin(an) * (ring.r + (big ? 22 : 18)));
+      ctx.stroke();
+    }
+    ctx.restore();
+    const n = ring.items.length;
+    ring.items.forEach((s, k) => {
+      const start = ring.w + k / n * TAU - Math.PI / 2;
+      // how close to the beam this word's middle is
+      const span = (s.length * ring.size * 0.66) / ring.r;
+      let mid = ((start + span / 2) % TAU + TAU) % TAU; const d = Math.min(Math.abs(mid - TAU * 0.75), TAU - Math.abs(mid - TAU * 0.75));
+      const lit = d < 0.18;
+      textOnCircle(s, cx, cy, ring.r, start, lit ? "#fff" : ring.col, ring.size, lit ? 1 : 0.45);
+      if (lit && ring.kind === "app" && sel !== k) sel = k;
+      const mx = cx + Math.cos(start + span / 2) * ring.r, my = cy + Math.sin(start + span / 2) * ring.r;
+      if (ring.kind === "act") hit(mx, my, M * 0.04, () => press(APPS[sel].acts[k]));
+      if (ring.kind === "app") hit(mx, my, M * 0.04, () => { sel = k; });
+    });
+  });
+  glowText(APPS[sel].glyph, cx, cy, C.cyan, M * 0.06, 24, "center", 0.9);
+  flash(t, cx, cy, C.good);
+}
+
+// ---------------------------------------------------------------- 4. CONSTELLATION
+// A solar system on a tilted plane: apps are planets on their own ellipses
+// and speeds, actions are moons, every body leaves a trail.
+const trails = APPS.map(() => []);
+function constellation(t) {
+  const cx = W / 2, cy = H / 2, a = amp(t);
+  const tilt = 0.42 + Math.sin(t * 0.07) * 0.08;
+  voice(cx, cy, M * 0.1, t, "#ffd36e");
+  const bodies = APPS.map((app, i) => {
+    const R = M * (0.2 + i * 0.05), w = 0.5 / Math.pow(1 + i * 0.6, 1.5);
+    const an = t * w + i * 2.1;
+    const x = cx + Math.cos(an) * R, z = Math.sin(an) * R;
+    return { app, i, x, y: cy + z * tilt, z, R, an };
+  });
+  // orbits
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  bodies.forEach(b => {
+    ctx.beginPath(); ctx.ellipse(cx, cy, b.R, b.R * tilt, 0, 0, TAU);
+    ctx.strokeStyle = b.i === sel ? C.mag : C.cyan; ctx.globalAlpha = b.i === sel ? 0.25 : 0.07; ctx.lineWidth = 1; ctx.stroke();
+  });
+  ctx.restore();
+  // trails
+  bodies.forEach(b => {
+    const tr = trails[b.i]; tr.push([b.x, b.y]); if (tr.length > 60) tr.shift();
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    for (let k = 1; k < tr.length; k++) {
+      ctx.beginPath(); ctx.moveTo(tr[k - 1][0], tr[k - 1][1]); ctx.lineTo(tr[k][0], tr[k][1]);
+      ctx.strokeStyle = b.i === sel ? C.mag : C.cyan; ctx.globalAlpha = k / tr.length * 0.5; ctx.lineWidth = 2; ctx.stroke();
+    }
+    ctx.restore();
+  });
+  // far side first
+  [...bodies].sort((p, q) => p.z - q.z).forEach(b => {
+    const on = b.i === sel, depth = 0.75 + 0.25 * (b.z / b.R);
+    halo(b.x, b.y, M * 0.05 * depth * (on ? 1.6 : 1), on ? C.mag : C.cyan, 0.3);
+    glowText(b.app.glyph, b.x, b.y, on ? C.mag : C.cyan, M * 0.035 * depth * (on ? 1.3 : 1), 16);
+    glowText(b.app.name, b.x, b.y + M * 0.04 * depth, C.ink, 10, 4, "center", 0.6 * depth);
+    hit(b.x, b.y, M * 0.05, () => { sel = b.i; });
+    if (on) b.app.acts.forEach((label, k) => {
+      const n = b.app.acts.length, an = -t * 0.5 + k / n * TAU;
+      const mr = M * 0.11, x = b.x + Math.cos(an) * mr, y = b.y + Math.sin(an) * mr * 0.7;
+      ctx.beginPath(); ctx.arc(x, y, 3, 0, TAU); ctx.fillStyle = "#fff"; ctx.fill();
+      glowText(label, x + 8, y, "#fff", 12, 8, "left");
+      hit(x, y, M * 0.03, () => press(label));
+    });
+  });
+  // stars
+  for (let i = 0; i < 90; i++) {
+    const x = hash(i, 7) * W, y = hash(i, 8) * H, tw = 0.3 + 0.7 * Math.abs(Math.sin(t * (0.5 + hash(i, 9)) + i));
+    ctx.fillStyle = `rgba(163,181,217,${0.25 * tw})`; ctx.fillRect(x, y, 1.5, 1.5);
+  }
+  flash(t, cx, cy, C.good);
+}
+
+// ---------------------------------------------------------------- frame
+const MODES = [
+  ["ORBIT", orbit, "Your brief. Apps orbit inside, the chosen app's actions orbit outside, a hexagram turns through the apps. Tap an app, tap an action."],
+  ["SIGIL", sigil, "Imu. A pentagram across the whole screen, rune rings turning against each other, the five apps on its points, actions crawling the inner pentagon."],
+  ["CLOCKWORK", clockwork, "Rings of words turning against each other. Whatever passes under the beam at twelve is chosen. You press by waiting, or by tapping."],
+  ["CONSTELLATION", constellation, "A solar system on a tilted plane. Apps are planets with their own speeds, the chosen one grows its actions as moons."],
+];
+let mode = 0;
+const tabs = document.getElementById("tabs"), note = document.getElementById("note");
+MODES.forEach(([name], i) => {
+  const b = document.createElement("button"); b.textContent = `[${name}]`;
+  b.onclick = () => { mode = i; render(); }; tabs.appendChild(b);
+});
+function render() {
+  [...tabs.children].forEach((b, i) => b.classList.toggle("on", i === mode));
+  note.textContent = MODES[mode][2];
+}
+render();
+addEventListener("keydown", e => { if (e.key === "ArrowRight") { mode = (mode + 1) % MODES.length; render(); } if (e.key === "ArrowLeft") { mode = (mode + MODES.length - 1) % MODES.length; render(); } });
+cv.addEventListener("pointerdown", e => {
+  const h = hits.filter(h => Math.hypot(h.x - e.clientX, h.y - e.clientY) < h.r)
+    .sort((p, q) => Math.hypot(p.x - e.clientX, p.y - e.clientY) - Math.hypot(q.x - e.clientX, q.y - e.clientY))[0];
+  if (h) h.fn();
+});
+
+function frame(ms) {
+  const t = ms / 1000;
+  ctx.fillStyle = "rgba(6,5,12,1)"; ctx.fillRect(0, 0, W, H);
+  hits = [];
+  MODES[mode][1](t);
+  // scanlines over everything, the app's finish
+  ctx.fillStyle = "rgba(0,0,0,0.18)";
+  for (let y = 0; y < H; y += 3) ctx.fillRect(0, y, W, 1);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
