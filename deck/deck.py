@@ -295,14 +295,12 @@ def execute(action: dict, dry_run: bool = False, timeout: int = 20):
 # wants are already there when he looks down. Matched on the app's display
 # name, lowercased; a group whose name is in the app's name needs no row here
 # (Spotify -> spotify, Google Chrome -> chrome).
+# Groups are named after the application they belong to (Oscar, 2026-10-01),
+# so most apps find their deck by name; these are the ones that do not.
 FRONT_GROUPS = {
-    "claude": "claude-code",
-    "terminal": "hermes",
-    "iterm2": "hermes",
-    "ghostty": "hermes",
-    "safari": "chrome",
-    "finder": "mac",
-    "system settings": "mac",
+    "iterm2": "Terminal",
+    "ghostty": "Terminal",
+    "system settings": "Finder",
 }
 
 
@@ -655,7 +653,7 @@ def selftest() -> int:
 
     data = load()
     buttons = clean(data["buttons"])
-    assert len(buttons) >= 36, f"expected at least the pad's 36 buttons, got {len(buttons)}"
+    assert buttons, "no buttons"   # he deletes some; the pad's 36 was only the seed
     assert len({b["id"] for b in buttons}) == len(buttons), "button ids are not unique"
 
     for kind in ACTION_TYPES:
@@ -672,12 +670,13 @@ def selftest() -> int:
     # Which deck the Mac's frontmost app asks for. The empty answer is the one
     # that matters: it means leave the rail where he put it, and an app he has
     # never mapped must never drag him back to a default.
-    groups = ["claude-code", "mac", "lain", "hermes", "spotify", "chrome"]
+    groups = ["Claude", "Finder", "lain", "Terminal", "Spotify", "Google Chrome", "Safari"]
     seen = {}
     try:
         real = front_app
-        for app, want in (("Claude", "claude-code"), ("Terminal", "hermes"),
-                          ("Google Chrome", "chrome"), ("Spotify", "spotify"),
+        for app, want in (("Claude", "Claude"), ("Terminal", "Terminal"), ("iTerm2", "Terminal"),
+                          ("Google Chrome", "Google Chrome"), ("Spotify", "Spotify"),
+                          ("Safari", "Safari"), ("System Settings", "Finder"),
                           ("Mail", ""), ("", "")):
             globals()["front_app"] = lambda a=app: a
             got = front_group(groups)

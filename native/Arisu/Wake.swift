@@ -92,7 +92,7 @@ import Speech
     }
 }
 
-/// The sound of her arriving, timed to Singularity's flash at one second.
+/// The sound of her arriving, timed to Singularity's flash at two seconds.
 /// Made by `sound/awaken.py`.
 @MainActor enum Awaken {
     private static var player: AVAudioPlayer?

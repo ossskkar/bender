@@ -159,8 +159,10 @@ struct VoiceVisual: View {
                 draw(ctx, w: s, t: t)
                 if smoke { puffs(ctx, s, t, front: true) }
                 // The dashboard's own finish, over whatever was drawn.
-                vignette(ctx, w: w)
-                scanlines(ctx, w: w)
+                // Over the whole pane, not a square of its short side: a tall
+                // pane showed a lighter band below her (Oscar, 2026-10-02).
+                vignette(ctx, w: w, size: size)
+                scanlines(ctx, size: size)
             }
         }
         .drawingGroup()          // one Metal layer: 60 fps on the 2020 iPad
@@ -254,17 +256,19 @@ struct VoiceVisual: View {
         body(&ctx)
     }
 
-    private func vignette(_ ctx: GraphicsContext, w: Double) {
-        let r = CGRect(x: -w, y: -w, width: w * 2, height: w * 2)
+    private func vignette(_ ctx: GraphicsContext, w: Double, size: CGSize) {
+        let r = CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height)
         ctx.fill(Path(r), with: .radialGradient(
             Gradient(colors: [.clear, Color(red: 0.012, green: 0.008, blue: 0.031).opacity(0.85)]),
             center: .zero, startRadius: w * 0.18, endRadius: w * 0.62))
     }
 
-    private func scanlines(_ ctx: GraphicsContext, w: Double) {
+    private func scanlines(_ ctx: GraphicsContext, size: CGSize) {
         var p = Path()
-        var y = -w
-        while y < w { p.addRect(CGRect(x: -w, y: y, width: w * 2, height: 1)); y += 3 }
+        var y = -size.height / 2
+        while y < size.height / 2 {
+            p.addRect(CGRect(x: -size.width / 2, y: y, width: size.width, height: 1)); y += 3
+        }
         ctx.fill(p, with: .color(.black.opacity(0.20)))
     }
 

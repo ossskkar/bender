@@ -4,7 +4,7 @@
   "buttons": [
     {
       "id": "claude-code.k7",
-      "group": "claude-code",
+      "group": "Claude",
       "label": "away",
       "icon": "✈",
       "action": {
@@ -25,7 +25,7 @@
     },
     {
       "id": "claude-code.k3",
-      "group": "claude-code",
+      "group": "Claude",
       "label": "continue",
       "icon": "▶",
       "action": {
@@ -46,7 +46,7 @@
     },
     {
       "id": "claude-code.k5",
-      "group": "claude-code",
+      "group": "Claude",
       "label": "screenshot",
       "icon": "📷",
       "action": {
@@ -66,7 +66,7 @@
     },
     {
       "id": "claude-code.recap",
-      "group": "claude-code",
+      "group": "Claude",
       "label": "recap",
       "icon": "",
       "about": "Types /recap: a short structured recap of the last message and where things stand.",
@@ -87,7 +87,7 @@
     },
     {
       "id": "claude-code.explain",
-      "group": "claude-code",
+      "group": "Claude",
       "label": "explain",
       "icon": "",
       "about": "Types /explain: a clear, short explanation of the previous message.",
@@ -108,7 +108,7 @@
     },
     {
       "id": "claude-code.guide",
-      "group": "claude-code",
+      "group": "Claude",
       "label": "guide",
       "icon": "",
       "about": "Types /guide: every step you must do, numbered, with exact actions.",
@@ -129,7 +129,7 @@
     },
     {
       "id": "claude-code.k2",
-      "group": "claude-code",
+      "group": "Claude",
       "label": "clear",
       "icon": "✳",
       "action": {
@@ -150,7 +150,7 @@
     },
     {
       "id": "claude-code.k1",
-      "group": "claude-code",
+      "group": "Claude",
       "label": "handoff",
       "icon": "⇥",
       "action": {
@@ -171,7 +171,7 @@
     },
     {
       "id": "mac.k1",
-      "group": "mac",
+      "group": "Finder",
       "label": "Lock screen",
       "icon": "🔒",
       "action": {
@@ -182,7 +182,7 @@
     },
     {
       "id": "mac.k2",
-      "group": "mac",
+      "group": "Finder",
       "label": "Sleep screen",
       "icon": "☾",
       "action": {
@@ -193,7 +193,7 @@
     },
     {
       "id": "mac.k3",
-      "group": "mac",
+      "group": "Finder",
       "label": "Screenshot",
       "icon": "▣",
       "action": {
@@ -204,7 +204,7 @@
     },
     {
       "id": "mac.k4",
-      "group": "mac",
+      "group": "Finder",
       "label": "Downloads",
       "icon": "⇩",
       "action": {
@@ -215,7 +215,7 @@
     },
     {
       "id": "mac.k5",
-      "group": "mac",
+      "group": "Finder",
       "label": "Empty trash",
       "icon": "🗑",
       "action": {
@@ -226,7 +226,7 @@
     },
     {
       "id": "mac.k6",
-      "group": "mac",
+      "group": "Finder",
       "label": "Terminal",
       "icon": "▮",
       "action": {
@@ -303,7 +303,7 @@
     },
     {
       "id": "hermes.k1",
-      "group": "hermes",
+      "group": "Terminal",
       "label": "Chat",
       "icon": "💬",
       "action": {
@@ -314,7 +314,7 @@
     },
     {
       "id": "hermes.k2",
-      "group": "hermes",
+      "group": "Terminal",
       "label": "Status",
       "icon": "◉",
       "action": {
@@ -325,7 +325,7 @@
     },
     {
       "id": "hermes.k3",
-      "group": "hermes",
+      "group": "Terminal",
       "label": "Logs",
       "icon": "📜",
       "action": {
@@ -336,7 +336,7 @@
     },
     {
       "id": "hermes.k4",
-      "group": "hermes",
+      "group": "Terminal",
       "label": "Restart",
       "icon": "⟳",
       "action": {
@@ -347,7 +347,7 @@
     },
     {
       "id": "hermes.k5",
-      "group": "hermes",
+      "group": "Terminal",
       "label": "Gateway",
       "icon": "⇄",
       "action": {
@@ -358,7 +358,7 @@
     },
     {
       "id": "hermes.k6",
-      "group": "hermes",
+      "group": "Terminal",
       "label": "Doctor",
       "icon": "🩺",
       "action": {
@@ -369,7 +369,7 @@
     },
     {
       "id": "spotify.k1",
-      "group": "spotify",
+      "group": "Spotify",
       "label": "Play/Pause",
       "icon": "⏯",
       "action": {
@@ -380,7 +380,7 @@
     },
     {
       "id": "spotify.k2",
-      "group": "spotify",
+      "group": "Spotify",
       "label": "Previous",
       "icon": "⏮",
       "action": {
@@ -391,7 +391,7 @@
     },
     {
       "id": "spotify.k3",
-      "group": "spotify",
+      "group": "Spotify",
       "label": "Next",
       "icon": "⏭",
       "action": {
@@ -402,7 +402,7 @@
     },
     {
       "id": "spotify.k4",
-      "group": "spotify",
+      "group": "Spotify",
       "label": "Shuffle",
       "icon": "🔀",
       "action": {
@@ -413,7 +413,7 @@
     },
     {
       "id": "spotify.k5",
-      "group": "spotify",
+      "group": "Spotify",
       "label": "Repeat",
       "icon": "🔁",
       "action": {
@@ -424,7 +424,7 @@
     },
     {
       "id": "spotify.k6",
-      "group": "spotify",
+      "group": "Spotify",
       "label": "Vol -6 / +6",
       "icon": "🔊",
       "action": {
@@ -435,7 +435,7 @@
     },
     {
       "id": "chrome.k1",
-      "group": "chrome",
+      "group": "Google Chrome",
       "label": "New tab",
       "icon": "⊕",
       "action": {
@@ -446,7 +446,7 @@
     },
     {
       "id": "chrome.k2",
-      "group": "chrome",
+      "group": "Google Chrome",
       "label": "Close tab",
       "icon": "⊗",
       "action": {
@@ -457,7 +457,7 @@
     },
     {
       "id": "chrome.k3",
-      "group": "chrome",
+      "group": "Google Chrome",
       "label": "Reopen tab",
       "icon": "↩",
       "action": {
@@ -468,7 +468,7 @@
     },
     {
       "id": "chrome.k4",
-      "group": "chrome",
+      "group": "Google Chrome",
       "label": "Reload",
       "icon": "⟳",
       "action": {
@@ -479,7 +479,7 @@
     },
     {
       "id": "chrome.k5",
-      "group": "chrome",
+      "group": "Google Chrome",
       "label": "Address bar",
       "icon": "🔗",
       "action": {
@@ -490,7 +490,7 @@
     },
     {
       "id": "chrome.k6",
-      "group": "chrome",
+      "group": "Google Chrome",
       "label": "Back",
       "icon": "←",
       "action": {
@@ -520,6 +520,7 @@
     "DSH",
     "Google Chrome",
     "Spotify",
-    "Terminal"
+    "Terminal",
+    "Finder"
   ]
 }

@@ -19,6 +19,11 @@ struct DeckRail: View {
     @State private var group: String?
     /// How far a finger has the group wheel turned, in points.
     @State private var wheelDrag: CGFloat = 0
+    /// The keys' wheel: which page of eight is up, how far a finger has it
+    /// turned, and the order usage put the group in when it was last opened.
+    @State private var page = 0
+    @State private var keysDrag: CGFloat = 0
+    @State private var ranking: [String: [String]] = [:]
     @State private var sheet: DeckButton?
     @State private var saveError: String?
     /// Blacked out by the sleep key, with the brightness to go back to.
@@ -37,59 +42,6 @@ struct DeckRail: View {
     /// after that by dragging the seam (Oscar, 2026-09-28): half the iPad is
     /// the deck he actually reaches for, and half is her.
     static let fraction = 0.5
-
-    /// His applications, above the tabs: they are what *chooses* a tab, so
-    /// they read top-down -- application, then its deck, then its keys, with
-    /// the keys lowest because those are pressed most (Oscar, 2026-09-28).
-    /// Pressing one moves the Mac, and the rail follows the Mac, so the right
-    /// deck arrives on its own a moment later.
-    private var appStrip: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("> APPS_")
-                .font(Skin.mono(10)).foregroundStyle(cyan.opacity(0.8))
-                .padding(.horizontal, 12)
-            // The same button as a key, in the same grid: an application is
-            // something he presses, and two sizes of press on one rail made
-            // the smaller one look like a label (Oscar, 2026-09-29).
-            LazyVGrid(columns: three, spacing: 10) {
-                ForEach(deck.apps, id: \.self) { app in
-                    let here = app.lowercased() == deck.frontApp.lowercased()
-                    Button { Task { await deck.open(app: app) } } label: {
-                        HStack(spacing: 8) {
-                            // The application's own icon, from the Mac
-                            // (GET /deck/icon). A window glyph said nothing
-                            // about which app it was (Oscar, 2026-09-29).
-                            AsyncImage(url: DeckAPI.base
-                                .appendingPathComponent("deck/icon")
-                                .appending(queryItems: [URLQueryItem(name: "name", value: app)])) {
-                                    $0.resizable().scaledToFit()
-                                } placeholder: {
-                                    Image(systemName: "macwindow")
-                                        .font(.system(size: 15, weight: .semibold))
-                                        .foregroundStyle(Skin.cyan)
-                                }
-                                .frame(width: 26, height: 26)
-                            Text(short(app))
-                                .font(Skin.mono(15, .semibold))
-                                .foregroundStyle(here ? (free ? Skin.cyan : Skin.onLit) : .white)
-                                .lineLimit(1).fixedSize()
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .frame(maxWidth: .infinity, minHeight: 50)
-                        .neon(deck.outcome[app] == false ? Skin.recording : Skin.cyan,
-                              stroke: here ? 0 : (deck.outcome[app] == nil ? 0.5 : 0.95),
-                              fill: here ? Skin.cyan : tintFill(deck.outcome[app]))
-                        .animation(.easeOut(duration: 0.2), value: deck.outcome[app])
-                    }
-                    .buttonStyle(.plain)
-                    .modifier(Held(about: "Brings \(app) to the front on the Mac.",
-                                   id: app, move: moveApp))
-                }
-            }
-            .padding(.horizontal, 12)
-        }
-    }
 
     /// "Google Chrome" is Chrome on a rail this wide; "Citrix Workspace" is
     /// Citrix. The first word is the one he reads.
@@ -126,7 +78,6 @@ struct DeckRail: View {
                 // The colour on the button says done or failed; only a
                 // failure with words left to say still prints them.
                 if let said = deck.said, !said.ok, !said.detail.isEmpty { answer(said) }
-                appStrip.padding(.bottom, 14)
                 groups
                 keys.padding(.bottom, 18)
             }
@@ -193,7 +144,7 @@ struct DeckRail: View {
             Spacer(minLength: 0)
             if editing {
                 small("plus", "Add a button", tint: mag) {
-                    sheet = DeckButton(id: freshID(), group: shown.isEmpty ? "mac" : shown,
+                    sheet = DeckButton(id: freshID(), group: shown.isEmpty ? "Finder" : shown,
                                        label: "New button")
                 }
             }
@@ -227,8 +178,14 @@ struct DeckRail: View {
                     let lap = (o - (i - at)) / n
                     let x = CGFloat(o) * slot + wheelDrag
                     let d = abs(x) / slot
-                    Button { roll(o) } label: {
-                        Text("[\(name.uppercased())]")
+                    // The name is the app: centred, a press brings it to the
+                        // front on the Mac; off-centre, it turns the wheel to it
+                        // (Oscar, 2026-10-01). The app buttons are gone.
+                    Button {
+                        if o == 0, deck.apps.contains(name) { Task { await deck.open(app: name) } }
+                        else { roll(o) }
+                    } label: {
+                        Text("[\(short(name).uppercased())]")
                             .font(Skin.mono(13, .semibold))
                             .foregroundStyle(cyan.opacity(max(0, 1 - 0.3 * d)))
                             .shadow(color: d < 0.5 ? cyan : .clear, radius: 5)
@@ -268,28 +225,83 @@ struct DeckRail: View {
         }
     }
 
-    @ViewBuilder private var keys: some View {
-        // As many columns as the seam leaves room for. It was two across a
-        // fixed 196pt rail; the rail is his to widen now, and a two-column
-        // grid on half an iPad is six buttons swimming in black.
-        // Filled bottom up (Oscar, 2026-10-01): the blanks go first, so the
-        // short row is the top one and the rows under his hand are full, with
-        // sleep in the last column of the last row.
+    /// Eight actions and sleep, always three rows (Oscar, 2026-10-01). A group
+    /// with more than eight is a wheel of pages: drag up or down to turn it.
+    /// The order is his usage, taken when the group comes up and then held, so
+    /// a key never moves out from under a finger that is about to press it.
+    private static let perPage = 8
+    /// Where the n-th most used key sits: bottom row first, where his hand is,
+    /// then up. Cell 8 -- bottom right -- is sleep's.
+    private static let seats = [6, 7, 3, 4, 5, 0, 1, 2]
+
+    private var ordered: [DeckButton] {
         let mine = deck.buttons.filter { $0.group == shown && $0.id != DeckButton.sleepID }
-        // Every group as tall as the tallest, so switching group never
-        // resizes the section (Oscar, 2026-10-01).
-        let extra = deck.sleep == nil ? 0 : 1
-        let tallest = deck.groups.map { g in
-            deck.buttons.filter { $0.group == g && $0.id != DeckButton.sleepID }.count
-        }.max() ?? 0
-        let rows = (max(tallest, mine.count) + extra + 2) / 3
-        let blanks = rows * 3 - mine.count - extra
-        return LazyVGrid(columns: three, spacing: 10) {
-            ForEach(0..<blanks, id: \.self) { _ in Color.clear.frame(minHeight: 50) }
-            ForEach(mine) { key($0) }
-            if let sleep = deck.sleep { key(sleep) }
+        guard !editing, let ids = ranking[shown] else { return mine }
+        let byID = Dictionary(mine.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        return ids.compactMap { byID[$0] } + mine.filter { !ids.contains($0.id) }
+    }
+
+    private func rank() {
+        let mine = deck.buttons.filter { $0.group == shown && $0.id != DeckButton.sleepID }
+        ranking[shown] = Usage.ranked(mine).map(\.id)
+        page = 0
+    }
+
+    @ViewBuilder private var keys: some View {
+        let all = ordered
+        let pages = max(1, (all.count + Self.perPage - 1) / Self.perPage)
+        let at = min(page, pages - 1)
+        let slice = Array(all.dropFirst(at * Self.perPage).prefix(Self.perPage))
+        var cells = [DeckButton?](repeating: nil, count: 9)
+        for (j, b) in slice.enumerated() { cells[Self.seats[j]] = b }
+        cells[8] = deck.sleep
+        let turn = Double(keysDrag) / 160
+        return HStack(spacing: 6) {
+            LazyVGrid(columns: three, spacing: 10) {
+                ForEach(0..<9, id: \.self) { i in
+                    if let b = cells[i] { key(b) } else { Color.clear.frame(minHeight: 50) }
+                }
+            }
+            .id(at)
+            .transition(.asymmetric(
+                insertion: .move(edge: keysDrag <= 0 ? .bottom : .top).combined(with: .opacity),
+                removal: .opacity))
+            .rotation3DEffect(.degrees(-turn * 40), axis: (x: 1, y: 0, z: 0), perspective: 0.6)
+            .offset(y: keysDrag * 0.25)
+            .opacity(1 - min(0.5, abs(turn) * 0.5))
+            if pages > 1 {
+                VStack(spacing: 6) {
+                    ForEach(0..<pages, id: \.self) { i in
+                        Circle().fill(i == at ? cyan : cyan.opacity(0.25))
+                            .frame(width: 6, height: 6)
+                            .shadow(color: i == at ? cyan : .clear, radius: 4)
+                    }
+                }
+            }
         }
         .padding(.horizontal, 12)
+        .contentShape(Rectangle())
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 14)
+                .onChanged { v in
+                    guard pages > 1, abs(v.translation.height) > abs(v.translation.width) else { return }
+                    keysDrag = v.translation.height
+                }
+                .onEnded { v in
+                    guard pages > 1, abs(v.translation.height) > abs(v.translation.width) else {
+                        keysDrag = 0; return
+                    }
+                    let by = v.predictedEndTranslation.height < -50 ? 1
+                           : v.predictedEndTranslation.height > 50 ? -1 : 0
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        page = ((at + by) % pages + pages) % pages
+                        keysDrag = 0
+                    }
+                }
+        )
+        .onAppear(perform: rank)
+        .onChange(of: shown) { _, _ in rank() }
+        .onChange(of: deck.buttons.count) { _, _ in rank() }
     }
 
     /// Cyan while nothing has happened, cyan-bright while it runs, green when
@@ -358,15 +370,6 @@ struct DeckRail: View {
               let from = deck.buttons.firstIndex(where: { $0.id == id }),
               let to = deck.buttons.firstIndex(where: { $0.id == target }) else { return false }
         withAnimation { deck.buttons.move(fromOffsets: [from], toOffset: to > from ? to + 1 : to) }
-        Task { saveError = await deck.save() }
-        return true
-    }
-
-    private func moveApp(_ app: String, onto target: String) -> Bool {
-        guard app != target,
-              let from = deck.apps.firstIndex(of: app),
-              let to = deck.apps.firstIndex(of: target) else { return false }
-        withAnimation { deck.apps.move(fromOffsets: [from], toOffset: to > from ? to + 1 : to) }
         Task { saveError = await deck.save() }
         return true
     }

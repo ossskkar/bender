@@ -1,8 +1,8 @@
 #!/usr/local/bin/python3.11
 """Her waking sound, synthesised (Oscar, 2026-10-01). Writes Arisu/awaken.wav.
 
-Timed to Singularity's summon: one second of everything being drawn in -- a
-rising swell of noise and a climbing sub tone, cut dead -- then at 1.0 s the
+Timed to Singularity's summon: two seconds of everything being drawn in -- a
+rising swell of noise and a climbing sub tone, cut dead -- then at BANG the
 arrival: a hit, a falling sub boom, a bright detuned chord, and a long tail.
 
 Stdlib only. Tune the constants at the top and run it again.
@@ -14,8 +14,8 @@ import wave
 from pathlib import Path
 
 RATE = 44100
-LENGTH = 3.6          # seconds
-BANG = 1.0            # when she arrives; matches RealmView.stage
+LENGTH = 6.0          # seconds
+BANG = 2.0            # when she arrives; matches RealmView.gather
 SWELL_GAIN = 0.55
 BOOM_GAIN = 1.0
 CHORD_GAIN = 0.22
@@ -54,7 +54,7 @@ for i in range(n - b):
     # the boom: 60 Hz falling to 28 Hz, saturated so it is felt on small speakers
     f = 28 + 32 * math.exp(-t * 4)
     phase += 2 * math.pi * f / RATE
-    boom = math.tanh(2.5 * math.sin(phase)) * math.exp(-t * 1.6)
+    boom = math.tanh(2.5 * math.sin(phase)) * math.exp(-t * 1.0)
     # its upper octave, so an iPad speaker that cannot reproduce 30 Hz still hears it
     boom += 0.35 * math.sin(phase * 2) * math.exp(-t * 2.5)
     # the shimmer: a bright minor chord, detuned in pairs, slow to fade
@@ -62,7 +62,7 @@ for i in range(n - b):
     for hz in (440.0, 523.25, 659.25, 880.0, 1318.5):
         for d in (-1.5, 1.5):
             chord += math.sin(2 * math.pi * (hz + d) * t)
-    chord *= CHORD_GAIN / 10 * min(1, t * 20) * math.exp(-t * 1.2)
+    chord *= CHORD_GAIN / 10 * min(1, t * 20) * math.exp(-t * 0.8)
     dry[b + i] += hit + BOOM_GAIN * boom + chord
 
 

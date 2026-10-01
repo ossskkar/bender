@@ -183,9 +183,12 @@ struct DeckButton: Codable, Equatable, Identifiable {
         return URLSession(configuration: c)
     }()
 
+    /// Every application has its own deck, named after it (Oscar,
+    /// 2026-10-01): his apps in his order, each even before it has actions,
+    /// then any group that is not an app (lain).
     var groups: [String] {
-        var seen: [String] = []
-        for b in buttons where b.id != DeckButton.sleepID && !seen.contains(b.group) {
+        var seen = apps
+        for b in buttons where b.id != DeckButton.sleepID && !b.group.isEmpty && !seen.contains(b.group) {
             seen.append(b.group)
         }
         return seen
@@ -251,6 +254,7 @@ struct DeckButton: Codable, Equatable, Identifiable {
 
     func run(_ b: DeckButton) async {
         struct Answer: Decodable { let ok: Bool?; let detail: String?; let error: String? }
+        Usage.bump(b.id)
         running = b.id
         defer { running = nil }
         var r = URLRequest(url: DeckAPI.base.appendingPathComponent("deck/run"))
@@ -288,5 +292,39 @@ struct DeckButton: Codable, Equatable, Identifiable {
         } catch {
             return "the Mac did not answer"
         }
+    }
+}
+
+/// How much he uses each button, so the deck can put the ones he reaches for
+/// first (Oscar, 2026-10-01). A press adds one; every two weeks the score
+/// halves, so a habit he dropped stops holding the best seat. On this iPad
+/// only: it is his hand on this screen being learned.
+enum Usage {
+    private static let key = "arisu.deck.usage"
+    private static let halfLife = 14.0 * 86_400
+
+    private static var all: [String: [Double]] {
+        get { UserDefaults.standard.dictionary(forKey: key) as? [String: [Double]] ?? [:] }
+        set { UserDefaults.standard.set(newValue, forKey: key) }
+    }
+
+    static func score(_ id: String, now: Date = Date()) -> Double {
+        guard let s = all[id], s.count == 2 else { return 0 }
+        return s[0] * pow(0.5, (now.timeIntervalSince1970 - s[1]) / halfLife)
+    }
+
+    static func bump(_ id: String, now: Date = Date()) {
+        all[id] = [score(id, now: now) + 1, now.timeIntervalSince1970]
+    }
+
+    /// Most used first; never used keep the order he gave them.
+    static func ranked(_ buttons: [DeckButton]) -> [DeckButton] {
+        let now = Date()
+        return buttons.enumerated()
+            .sorted { a, b in
+                let sa = score(a.element.id, now: now), sb = score(b.element.id, now: now)
+                return sa != sb ? sa > sb : a.offset < b.offset
+            }
+            .map(\.element)
     }
 }

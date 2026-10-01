@@ -152,6 +152,9 @@ struct RealmView: View {
         }
     }
 
+    /// How long she gathers before she arrives; `sound/awaken.py` BANG matches.
+    static let gather = 2.0
+
     /// Advance what carries over from frame to frame. Once per frame, never
     /// from the glitch's redraws.
     private func step(_ t: Double) {
@@ -170,7 +173,7 @@ struct RealmView: View {
         clock.waves.removeAll { t - $0.t0 > 3 }
         if Double.random(in: 0...1) < 0.003 { clock.glitchUntil = t + 0.12 }
         // The moment she arrives.
-        if let s = clock.summonAt, t - s >= 1, !clock.banged {
+        if let s = clock.summonAt, t - s >= Self.gather, !clock.banged {
             clock.banged = true
             clock.waves.append((t, 5))
             clock.glitchUntil = t + 0.35
@@ -183,10 +186,10 @@ struct RealmView: View {
     private func stage(_ t: Double) -> Stage {
         func ease(_ x: Double) -> Double { let u = min(1, max(0, x)); return u * u * (3 - 2 * u) }
         var s = Stage()
-        if let a = clock.summonAt, t - a < 3.4 {
+        if let a = clock.summonAt, t - a < Self.gather + 4.5 {
             let k = t - a
-            if k < 1 {
-                let p = ease(k)
+            if k < Self.gather {
+                let p = ease(k / Self.gather)
                 s.rf = 1 - 0.7 * p
                 s.eye = 1 - 0.8 * p
                 s.dim = 0.72 + 0.28 * p
@@ -194,12 +197,14 @@ struct RealmView: View {
                 s.presence = 0.5 + 0.2 * p
                 s.shake = 4 * p
             } else {
-                let u = k - 1
-                s.rf = 1 + 0.3 * exp(-u * 2.5) * cos(u * 8)
-                s.eye = 1 + 0.7 * exp(-u * 2)
-                s.flash = max(0, 1 - u / 0.6)
-                s.kana = sin(min(1, u / 2.4) * .pi) * 0.7
-                s.shake = 24 * exp(-u * 4)
+                // A slower settle: the spring rings longer, the flash lingers,
+                // her name holds the screen for four seconds (Oscar, 2026-10-02).
+                let u = k - Self.gather
+                s.rf = 1 + 0.3 * exp(-u * 1.4) * cos(u * 6)
+                s.eye = 1 + 0.7 * exp(-u * 1.2)
+                s.flash = max(0, 1 - u / 1.0)
+                s.kana = sin(min(1, u / 4.0) * .pi) * 0.7
+                s.shake = 24 * exp(-u * 2.5)
             }
         } else if let d = clock.dismissAt, t - d < 1.4 {
             let p = ease((t - d) / 1.4)
@@ -312,13 +317,17 @@ private let tau = Double.pi * 2
 
 private func symbol(for group: String) -> String {
     switch group {
-    case "claude-code": return "sparkle"
-    case "lain":        return "triangle"
-    case "hermes":      return "bolt.horizontal"
-    case "spotify":     return "music.note"
-    case "chrome":      return "globe"
-    case "mac":         return "command"
-    default:            return "circle.hexagongrid"
+    case "Claude":           return "sparkle"
+    case "lain":             return "triangle"
+    case "Terminal":         return "terminal"
+    case "Spotify":          return "music.note"
+    case "Google Chrome":    return "globe"
+    case "Finder":           return "command"
+    case "Safari":           return "safari"
+    case "Xcode":            return "hammer"
+    case "Citrix Workspace": return "desktopcomputer"
+    case "Codex":            return "chevron.left.forwardslash.chevron.right"
+    default:                 return "circle.hexagongrid"
     }
 }
 
