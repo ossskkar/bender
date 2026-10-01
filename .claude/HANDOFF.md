@@ -19,7 +19,11 @@ heard, seen in the chat history). Brain dump and Pencil are still in review too.
   tallest group. `FlowRow` deleted.
 - **Web** (`lain/arisu/index.html`, `eb4f14e`, live): same console look and
   the five bubbles; voice opens muted; `--mono` now defined (it never was).
-- arisu `e1ba1b9` pushed; lain `eb4f14e` on both remotes, pulled on architect.
+- **Smooth visual** (iPad `VisualClock`, web `ArisuFace.Clock`): phases
+  integrated per frame, state changes ease in ~0.6 s, level smoothed. The old
+  `t x rate` made every state change jump. Voice transcript scrolls (80 lines,
+  300pt) on both; web has no "awake" tag and the state word on its own row.
+- arisu `2c6f3a1` pushed; lain `0cf63e0` live; lain `eb4f14e` on both remotes, pulled on architect.
 
 ## Open
 - Web changes checked only as a static render (chat + voice layout); no live
