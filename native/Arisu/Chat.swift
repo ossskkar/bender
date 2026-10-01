@@ -167,6 +167,8 @@ struct ChatPane: View {
         }
         .padding(.top, topInset)
         .console(Skin.cyan, brackets: Skin.mag)
+        // The same 10pt inset as Record and Deck, so the corners line up.
+        .padding(10)
         .task { await chat.load() }
         .onAppear { if openHistory { showHistory = true; openHistory = false } }
         .sheet(isPresented: $showHistory) { ChatHistory(chat: chat) }

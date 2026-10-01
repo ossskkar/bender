@@ -478,6 +478,7 @@ struct ContentView: View {
     private static let commands: [(label: String, line: String?, ask: String?)] = [
         ("Today's brief", "brief", nil),
         ("Week review", "weekly", nil),
+        ("AI signals", "signals", nil),
         ("What's next?", nil, "What is next on my plan today?"),
         ("How's my running?", nil, "How is my running going this week?"),
     ]
