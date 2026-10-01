@@ -2,7 +2,7 @@
 
 ## State
 Everything below is built, installed on the iPad (`devicectl … 085B9100-…`),
-committed and pushed. Last arisu commit `ac0064a`; lain `7119b17` deployed.
+committed and pushed. Last arisu commit `2483e38`; lain `7119b17` deployed.
 
 - **Versions** (`native/Arisu/Realms.swift`): Classic and Singularity only
   (Sigil/Clockwork built and dropped). Title is a menu; 3-finger swipe flips
@@ -47,7 +47,9 @@ committed and pushed. Last arisu commit `ac0064a`; lain `7119b17` deployed.
 - Mockups (`mockups/free-form.html`) are reference only.
 
 ## Next steps
-1. Oscar tries 醒来 / Duerme / Vía and the wake sound on the iPad; fix what breaks.
+1. On the iPad with Oscar: 醒来 / Duerme / Vía, the wake sound (cut short by the
+   call's audio setup?), and the Old Norse first line (`ContentView.victory`,
+   said via `pet.begin(saying:)`); landscape layout. Fix what breaks.
 2. If 醒来 is unreliable: Porcupine custom keyword (free account, check terms).
 
 ## Resume
