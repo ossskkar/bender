@@ -43,6 +43,7 @@ struct ContentView: View {
     @State private var wake = WakeListener()
     @Environment(\.scenePhase) private var scene
     @State private var showSettings = false
+    @State private var showNew = false
     /// The deck: his Mac's buttons, on the iPad.
     /// The deck rail, on the right of both modes. Up by default and kept across
     /// launches: it was a full screen he had to open until 2026-09-27, which
@@ -243,6 +244,7 @@ struct ContentView: View {
         // shown, so this only draws it.
         .sheet(item: $live.page) { PageSheet(page: $0) { live.page = nil } }
         .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet, live: live) }
+        .sheet(isPresented: $showNew) { WhatsNew() }
         .onChange(of: pet.heard) { _, t in
             lastSpoke = Date(); say(t, mine: true); obey(t); record(t, "heard")
         }
@@ -507,6 +509,9 @@ struct ContentView: View {
                              "Listen here", tint: room.isListener ? listener : Skin.cyan, stroke: 0.7, ink: .white) {
                     room.listenHere()
                 }
+            }
+            squareButton("sparkles", "What's new", tint: Skin.mag, stroke: 0.7, ink: .white) {
+                showNew = true
             }
             squareButton("slider.horizontal.3", "Settings", tint: Skin.cyan, stroke: 0.7, ink: .white) {
                 showSettings = true
@@ -922,5 +927,117 @@ enum VoiceCommand: Equatable {
         else if has(on + ".{0,12}\\bsettings\\b") { self = .settings(true) }
         else if has(off + ".{0,12}\\bsettings\\b") { self = .settings(false) }
         else { return nil }
+    }
+}
+
+// MARK: - What's new
+
+/// Everything that arrived on 2026-10-01/02, with how to use it, behind the
+/// sparkles in the title bar (Oscar, 2026-10-02). Add to the top; old entries
+/// can go once he knows them.
+struct WhatsNew: View {
+    @Environment(\.dismiss) private var dismiss
+
+    private struct Item: Identifiable {
+        let id = UUID()
+        let symbol: String
+        let name: String
+        let what: String
+        let how: String
+    }
+
+    private let items: [Item] = [
+        Item(symbol: "hurricane", name: "Singularity",
+             what: "A full-screen version of Arisu: a black hole in the middle, and every app on the deck "
+                 + "a spiral arm whose actions fall into it as words. Space bends around her.",
+             how: "Pick SINGULARITY from the menu under the title, or swipe left or right with three fingers. "
+                 + "Tap an app at the end of an arm, then tap one of its words to press it on the Mac. "
+                 + "Tap the centre to mute or unmute."),
+        Item(symbol: "bolt.fill", name: "Waking her",
+             what: "She arrives in two seconds: everything is pulled into the black hole and goes dark, then "
+                 + "a flash, a shockwave, her name アリス, a deep sound, and her first words: a short line "
+                 + "of Old Norse about victory.",
+             how: "Hold anywhere on Singularity, or say 醒来 while she is asleep and the app is open. "
+                 + "Hold again to send her away."),
+        Item(symbol: "text.bubble", name: "Voice commands",
+             what: "Two words she obeys during a call.",
+             how: "Say \"Duerme\" and she sleeps: the call ends. Say \"Vía\" and the call ends and the app goes "
+                 + "back to the classic screen. Say the word on its own; inside a sentence it is ignored."),
+        Item(symbol: "circle.dashed", name: "Information rings",
+             what: "Magenta text turning round the black hole: what is next on today's plan, what is due or "
+                 + "overdue, days to the race, kilometres this week and habits done today.",
+             how: "Nothing to press. It reads lain and refreshes every five minutes."),
+        Item(symbol: "waveform", name: "Calmer speech",
+             what: "While she speaks, only space bends and small ripples run through it. The big shockwave is "
+                 + "kept for when she wakes. Her name drifts back faintly about once a minute.",
+             how: "Nothing to press."),
+        Item(symbol: "music.note", name: "She moves with your music",
+             what: "While she is idle, her animation follows the beat of what Spotify is playing on the Mac.",
+             how: "Play something in Spotify on the Mac."),
+        Item(symbol: "mic.slash", name: "Recording mutes the Mac",
+             what: "The Mac goes silent while you record a brain dump, and comes back as it was afterwards.",
+             how: "Press REC as usual."),
+        Item(symbol: "sun.max", name: "Her greeting",
+             what: "A new conversation opens with a hello and the three things that matter most today: "
+                 + "overdue tasks, the calendar, the plan, the run.",
+             how: "Press + in the chat, or tap twice with two fingers on the chat."),
+        Item(symbol: "hand.tap", name: "Chat gestures",
+             what: "Faster ways round the chat.",
+             how: "Tap twice on the conversation for voice mode. Tap twice with two fingers for a new "
+                 + "conversation. Pull down past the top of the conversation for the history."),
+        Item(symbol: "eye.slash", name: "Quiet voice mode",
+             what: "Voice mode shows only her animation.",
+             how: "Tap once to show what was said and the suggestions; tap again to hide them."),
+        Item(symbol: "square.grid.3x3", name: "The deck follows your apps",
+             what: "Every app has its own actions, the name in the wheel opens that app on the Mac, the keys "
+                 + "are always three rows, and the ones you use most move to the front.",
+             how: "Turn the wheel to an app and press its name to bring it forward. More than eight actions "
+                 + "become pages: drag up or down. The order follows your presses and only changes when you "
+                 + "switch app."),
+        Item(symbol: "square.dashed", name: "Free form",
+             what: "No boxes, edges or grid on any control, and her animation breathes slowly behind "
+                 + "everything. In voice mode she comes to the front as usual.",
+             how: "Settings, Free form."),
+        Item(symbol: "paintpalette", name: "Smaller touches",
+             what: "The animation turns cyan while the microphone is off. The ring style glows more softly. "
+                 + "The black hole's light has no hard edge.",
+             how: "Nothing to press."),
+    ]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    ForEach(items) { item in
+                        HStack(alignment: .top, spacing: 14) {
+                            Image(systemName: item.symbol)
+                                .font(.system(size: 22, weight: .semibold))
+                                .foregroundStyle(Skin.cyan)
+                                .shadow(color: Skin.cyan, radius: 6)
+                                .frame(width: 34)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(item.name.uppercased())
+                                    .font(Skin.mono(15, .bold)).tracking(2)
+                                    .foregroundStyle(Skin.mag)
+                                Text(item.what)
+                                    .font(Skin.mono(14)).foregroundStyle(.white)
+                                Text("> " + item.how)
+                                    .font(Skin.mono(13)).foregroundStyle(Skin.cyan.opacity(0.85))
+                            }
+                        }
+                    }
+                }
+                .padding(24)
+            }
+            .background(Grid(tint: Skin.cyan).ignoresSafeArea())
+            .navigationTitle("What's new")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }.tint(Skin.cyan)
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
     }
 }
