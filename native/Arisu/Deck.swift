@@ -19,6 +19,30 @@ enum DeckAPI {
     static let base = URL(string: "https://oscars-macbook-pro.tailaa64e9.ts.net:8443/")!
 }
 
+/// How loud Spotify is on the Mac, streamed by the deck at 30 Hz, so she moves
+/// with his music while she is idle (Oscar, 2026-10-01). Zero when the Mac,
+/// the meter or the music is not there.
+@MainActor final class MacMusic: ObservableObject {
+    @Published private(set) var level = 0.0
+
+    /// Holds the stream open until cancelled, reconnecting after a drop.
+    func listen() async {
+        let url = DeckAPI.base.appendingPathComponent("deck/music")
+        while !Task.isCancelled {
+            if let (bytes, _) = try? await URLSession.shared.bytes(from: url) {
+                do {
+                    for try await line in bytes.lines where line.hasPrefix("data: ") {
+                        level = Double(line.dropFirst(6)) ?? 0
+                    }
+                } catch {}
+            }
+            level = 0
+            try? await Task.sleep(for: .seconds(5))
+        }
+        level = 0
+    }
+}
+
 /// Anything JSON, for the two fields of an `http` action that are not strings.
 /// It exists so that saving a button cannot quietly drop part of it.
 enum JSONValue: Codable, Equatable {

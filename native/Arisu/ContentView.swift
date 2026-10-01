@@ -71,6 +71,7 @@ struct ContentView: View {
     /// survives switching to her voice and back -- the conversation is one
     /// thing, and re-fetching it every time he speaks would make it blink.
     @StateObject private var chat = Chat()
+    @StateObject private var music = MacMusic()
     /// Open the chat on its history the moment it is shown -- the room's
     /// History button leaves the room and lands there.
     @State private var chatHistory = false
@@ -591,11 +592,17 @@ struct ContentView: View {
         // (Oscar, 2026-09-29), and an old saved portrait reads as the default.
         let saved = FaceStyle(rawValue: faceStyle) ?? .ribbon
         return VoiceVisual(style: saved == .portrait ? .ribbon : saved,
-                           state: voiceState, amplitude: Double(pet.level),
+                           state: voiceState,
+                           // Idle, she moves with his Spotify on the Mac.
+                           amplitude: voiceState == .idle ? max(Double(pet.level), music.level)
+                                                          : Double(pet.level),
                            // Mic off reads as cyan (Oscar, 2026-10-01).
                            tint: live.muted || !pet.running ? Skin.cyan : phaseColor,
                            scale: faceScale, bloom: faceBloom, speed: faceSpeed, smoke: freeForm)
             .offset(x: faceX, y: faceY)
+            .task(id: voiceState == .idle) {
+                if voiceState == .idle { await music.listen() }
+            }
     }
 
     private var scanlines: some View {

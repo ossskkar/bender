@@ -36,9 +36,11 @@ import argparse
 import json
 import os
 import plistlib
+import socket
 import ssl
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -306,6 +308,20 @@ FRONT_GROUPS = {
 
 _muted_by_us = False
 
+# Spotify's loudness, from ArisuMeter (deck/meter/) over UDP: [level, when].
+_music = [0.0, 0.0]
+
+
+def hear_meter(port: int = 8885) -> None:
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.bind(("127.0.0.1", port))
+    while True:
+        data, _ = s.recvfrom(64)
+        try:
+            _music[:] = [float(data), time.time()]
+        except ValueError:
+            pass
+
 
 def mute(on: bool) -> dict:
     """Mute the Mac's output, or undo our own mute. Unmute only when we were the
@@ -459,6 +475,22 @@ class Handler(BaseHTTPRequestHandler):
         # The query is not part of the path: /deck/icon?name=… matched nothing
         # until this split existed (2026-09-29).
         path = urllib.parse.urlparse(self.path).path.rstrip("/") or "/"
+        # Spotify's level at 30 Hz for her idle visual, until the iPad hangs
+        # up. Event-stream so tailscale serve flushes each line.
+        if path == "/deck/music":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            try:
+                while True:
+                    level, when = _music
+                    fresh = level if time.time() - when < 0.5 else 0.0
+                    self.wfile.write(f"data: {fresh:.3f}\n\n".encode())
+                    self.wfile.flush()
+                    time.sleep(1 / 30)
+            except OSError:
+                return
         try:
             data = load(self.path_to_buttons)
         except (OSError, ValueError) as exc:
@@ -566,6 +598,7 @@ def serve(port: int, path: str, quiet: bool) -> int:
     # Localhost only. The iPad arrives through `tailscale serve`, which
     # terminates TLS and proxies in -- so the tailnet is the boundary and this
     # socket is never on a LAN. See the module docstring.
+    threading.Thread(target=hear_meter, daemon=True).start()
     httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     httpd.daemon_threads = True
     print(f"arisu deck  http://127.0.0.1:{port}/deck   buttons={path}")

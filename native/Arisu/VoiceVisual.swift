@@ -457,15 +457,19 @@ struct VoiceVisual: View {
     private func ring(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
         let a = amp(t)
         let R = w * 0.29 * breath(t) * (1 + a * 0.12 * m.depth)
-        glow(&ctx, w, tint) { g in
-            g.stroke(Path(ellipseIn: CGRect(x: -R, y: -R, width: R * 2, height: R * 2)),
-                     with: .color(tint.opacity(0.85)),
-                     lineWidth: w * 0.018 * (1 + a * 0.9 * m.depth))
+        // Soft, not a hard line (Oscar, 2026-10-01): the ring is three blurred
+        // passes, wide and faint to thin and bright, so it glows from inside.
+        let circle = Path(ellipseIn: CGRect(x: -R, y: -R, width: R * 2, height: R * 2))
+        let lw = w * 0.018 * (1 + a * 0.9 * m.depth)
+        for (width, blur, o) in [(lw * 5, w * 0.05, 0.35), (lw * 2.2, w * 0.02, 0.6), (lw, w * 0.006, 0.9)] {
+            var g = ctx
+            g.addFilter(.blur(radius: blur * m.bloom))
+            g.stroke(circle, with: .color(tint.opacity(o)), lineWidth: width)
         }
-        let halo = R * 1.5
+        let halo = R * 1.8
         ctx.fill(Path(ellipseIn: CGRect(x: -halo, y: -halo, width: halo * 2, height: halo * 2)),
                  with: .radialGradient(
-                    Gradient(colors: [tint.opacity(0.16 + a * 0.2 * m.bloom), tint.opacity(0)]),
+                    Gradient(colors: [tint.opacity(0.26 + a * 0.3 * m.bloom), tint.opacity(0)]),
                     center: .zero, startRadius: 0, endRadius: halo))
         // A second, thinner ring carries the flow, so listening and speaking
         // are told apart on a shape that has nothing else to move.
