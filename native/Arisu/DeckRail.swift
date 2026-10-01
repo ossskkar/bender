@@ -69,7 +69,7 @@ struct DeckRail: View {
                             Text(short(app))
                                 .font(Skin.mono(15, .semibold))
                                 .foregroundStyle(here ? Skin.onLit : .white)
-                                .lineLimit(1).minimumScaleFactor(0.6)
+                                .lineLimit(1).fixedSize()
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
@@ -206,8 +206,8 @@ struct DeckRail: View {
     }
 
     /// The groups as a wheel (Oscar, 2026-10-01): the active one in the
-    /// centre, its neighbours either side, smaller, dimmer and turned away the
-    /// further out they sit. It wraps. A tap on a neighbour or a swipe turns it.
+    /// centre, its neighbours either side, dimmer the further out they sit.
+    /// One text size throughout (Oscar, 2026-10-01). It wraps. A tap on a neighbour or a swipe turns it.
     private var groups: some View {
         let all = deck.groups
         let at = all.firstIndex(of: shown) ?? 0
@@ -218,18 +218,15 @@ struct DeckRail: View {
                 let d = Double(abs(off))
                 Button { step(off) } label: {
                     Text("[\(name.uppercased())]")
-                        .font(Skin.mono(off == 0 ? 15 : 12, .semibold))
+                        .font(Skin.mono(13, .semibold))
                         .foregroundStyle(cyan.opacity(off == 0 ? 1 : 0.6 - 0.2 * d))
                         .shadow(color: off == 0 ? cyan : .clear, radius: 5)
-                        .lineLimit(1).minimumScaleFactor(0.6)
+                        .lineLimit(1).fixedSize()
                         .padding(.vertical, 6)
                         // Equal slots, so the active one sits dead centre.
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.plain)
-                .scaleEffect(1 - 0.1 * d)
-                .rotation3DEffect(.degrees(Double(off) * -28), axis: (0, 1, 0),
-                                  perspective: 0.6)
             }
         }
         .frame(maxWidth: .infinity)
@@ -246,7 +243,14 @@ struct DeckRail: View {
         // short row is the top one and the rows under his hand are full, with
         // sleep in the last column of the last row.
         let mine = deck.buttons.filter { $0.group == shown && $0.id != DeckButton.sleepID }
-        let blanks = (3 - (mine.count + (deck.sleep == nil ? 0 : 1)) % 3) % 3
+        // Every group as tall as the tallest, so switching group never
+        // resizes the section (Oscar, 2026-10-01).
+        let extra = deck.sleep == nil ? 0 : 1
+        let tallest = deck.groups.map { g in
+            deck.buttons.filter { $0.group == g && $0.id != DeckButton.sleepID }.count
+        }.max() ?? 0
+        let rows = (max(tallest, mine.count) + extra + 2) / 3
+        let blanks = rows * 3 - mine.count - extra
         return LazyVGrid(columns: three, spacing: 10) {
             ForEach(0..<blanks, id: \.self) { _ in Color.clear.frame(minHeight: 50) }
             ForEach(mine) { key($0) }
