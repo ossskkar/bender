@@ -359,8 +359,6 @@ struct ContentView: View {
         .padding(.horizontal, 18)
         .padding(.top, 10)
         .padding(.bottom, 14)
-        .overlay(Rectangle().frame(height: 1).foregroundStyle(Skin.cyan.opacity(0.35)),
-                 alignment: .top)
     }
 
     /// What she is doing, in a word, for the bar when the meter is off.
