@@ -16,6 +16,8 @@ struct DeckRail: View {
     @StateObject private var deck = Deck()
     @State private var editing = false
     @State private var group: String?
+    /// How far a finger has the group wheel turned, in points.
+    @State private var wheelDrag: CGFloat = 0
     @State private var sheet: DeckButton?
     @State private var saveError: String?
     /// Blacked out by the sleep key, with the brightness to go back to.
@@ -103,7 +105,7 @@ struct DeckRail: View {
         let all = deck.groups
         guard all.count > 1, let at = all.firstIndex(of: shown) else { return }
         let next = (at + by + all.count) % all.count
-        withAnimation(.easeOut(duration: 0.18)) { group = all[next] }
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { group = all[next] }
     }
 
     /// The group on show: his choice, or the first the Mac sent.
@@ -206,33 +208,63 @@ struct DeckRail: View {
     }
 
     /// The groups as a wheel (Oscar, 2026-10-01): the active one in the
-    /// centre, its neighbours either side, dimmer the further out they sit.
-    /// One text size throughout (Oscar, 2026-10-01). It wraps. A tap on a neighbour or a swipe turns it.
+    /// centre, its neighbours either side, dimmer the further out they sit,
+    /// one text size throughout. It wraps. Dragging it rolls the labels under
+    /// the finger and lets go onto the nearest; a tap on a neighbour rolls to it.
     private var groups: some View {
         let all = deck.groups
+        let n = max(all.count, 1)
         let at = all.firstIndex(of: shown) ?? 0
-        let reach = min(2, max(0, all.count - 1))
-        return HStack(spacing: 4) {
-            ForEach(-reach...reach, id: \.self) { off in
-                let name = all.isEmpty ? "" : all[((at + off) % all.count + all.count) % all.count]
-                let d = Double(abs(off))
-                Button { step(off) } label: {
-                    Text("[\(name.uppercased())]")
-                        .font(Skin.mono(13, .semibold))
-                        .foregroundStyle(cyan.opacity(off == 0 ? 1 : 0.6 - 0.2 * d))
-                        .shadow(color: off == 0 ? cyan : .clear, radius: 5)
-                        .lineLimit(1).fixedSize()
-                        .padding(.vertical, 6)
-                        // Equal slots, so the active one sits dead centre.
-                        .frame(maxWidth: .infinity)
+        return GeometryReader { g in
+            let slot = g.size.width / 5
+            ZStack {
+                ForEach(Array(all.enumerated()), id: \.offset) { i, name in
+                    // Nearest way round. A label that wraps from one end to
+                    // the other gets a new identity, so it fades rather than
+                    // sliding back across the middle.
+                    let o = { var o = ((i - at) % n + n) % n; if o > n / 2 { o -= n }; return o }()
+                    let lap = (o - (i - at)) / n
+                    let x = CGFloat(o) * slot + wheelDrag
+                    let d = abs(x) / slot
+                    Button { roll(o) } label: {
+                        Text("[\(name.uppercased())]")
+                            .font(Skin.mono(13, .semibold))
+                            .foregroundStyle(cyan.opacity(max(0, 1 - 0.3 * d)))
+                            .shadow(color: d < 0.5 ? cyan : .clear, radius: 5)
+                            .lineLimit(1).fixedSize()
+                    }
+                    .buttonStyle(.plain)
+                    .offset(x: x)
+                    .opacity(d > 2.6 ? 0 : 1)
+                    .id("\(name)#\(lap)")
+                    .transition(.opacity)
                 }
-                .buttonStyle(.plain)
             }
+            .frame(width: g.size.width, height: g.size.height)
+            .contentShape(Rectangle())
+            .highPriorityGesture(
+                DragGesture(minimumDistance: 4)
+                    .onChanged { wheelDrag = $0.translation.width }
+                    .onEnded { v in
+                        roll(Int((-v.predictedEndTranslation.width / slot).rounded()))
+                    }
+            )
         }
-        .frame(maxWidth: .infinity)
+        .frame(height: 32)
         .clipped()
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
+    }
+
+    /// Turn the wheel `by` places and let it settle.
+    private func roll(_ by: Int) {
+        let all = deck.groups
+        guard !all.isEmpty, let at = all.firstIndex(of: shown) else { wheelDrag = 0; return }
+        let next = ((at + by) % all.count + all.count) % all.count
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+            wheelDrag = 0
+            group = all[next]
+        }
     }
 
     @ViewBuilder private var keys: some View {
