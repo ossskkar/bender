@@ -58,6 +58,18 @@ import SwiftUI
         rec = r
         problem = nil
         started = Date()
+        Task { await Self.muteMac(true) }
+    }
+
+    /// The Mac goes quiet while he dumps and comes back after (Oscar,
+    /// 2026-10-01). Best effort: a Mac that is off must not stop a recording.
+    static func muteMac(_ on: Bool) async {
+        var req = URLRequest(url: DeckAPI.base.appendingPathComponent("deck/mute"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["on": on])
+        req.timeoutInterval = 5
+        _ = try? await URLSession.shared.data(for: req)
     }
 
     func finish() async {
@@ -65,6 +77,7 @@ import SwiftUI
         r.stop()
         rec = nil
         started = nil
+        Task { await Self.muteMac(false) }
         await send(r.url)
     }
 

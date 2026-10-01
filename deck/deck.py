@@ -304,6 +304,28 @@ FRONT_GROUPS = {
 }
 
 
+_muted_by_us = False
+
+
+def mute(on: bool) -> dict:
+    """Mute the Mac's output, or undo our own mute. Unmute only when we were the
+    ones who muted, so a Mac he had silenced himself stays silent."""
+    global _muted_by_us
+    osa = "/usr/bin/osascript"
+    if on:
+        ok, was = _run([osa, "-e", "output muted of (get volume settings)"], timeout=5)
+        if ok and was.strip() == "true":
+            return {"ok": True, "muted": True, "detail": "already muted"}
+        ok, detail = _run([osa, "-e", "set volume output muted true"], timeout=5)
+        _muted_by_us = ok
+        return {"ok": ok, "muted": ok, "detail": detail}
+    if not _muted_by_us:
+        return {"ok": True, "muted": None, "detail": "not ours to unmute"}
+    ok, detail = _run([osa, "-e", "set volume output muted false"], timeout=5)
+    _muted_by_us = not ok
+    return {"ok": ok, "muted": not ok, "detail": detail}
+
+
 def front_app() -> str:
     """The Mac's frontmost application, by display name.
 
@@ -508,6 +530,11 @@ class Handler(BaseHTTPRequestHandler):
             ok, detail = _run(["open", "-a", name], timeout=10)
             return self.reply(200 if ok else 500,
                               {"ok": ok, "app": name, "detail": detail or name})
+
+        # The iPad's REC button: the Mac goes quiet while he dumps, then back
+        # to how it was (Oscar, 2026-10-01). Fixed scripts, nothing off the wire.
+        if path == "/deck/mute":
+            return self.reply(200, mute(bool(payload.get("on"))))
 
         if path == "/deck":
             try:
