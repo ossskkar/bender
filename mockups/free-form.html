@@ -298,12 +298,12 @@ function clockwork(t) {
 }
 
 // ---------------------------------------------------------------- 4. CONSTELLATION
-// A solar system on a tilted plane: apps are planets on their own ellipses
-// and speeds, actions are moons, every body leaves a trail.
+// Flat and frontal: apps on round orbits at their own speeds, the chosen
+// one's actions circling it as moons, every body leaving a trail.
 const trails = APPS.map(() => []);
 function constellation(t) {
   const cx = W / 2, cy = H / 2, a = amp(t);
-  const tilt = 0.42 + Math.sin(t * 0.07) * 0.08;
+  const tilt = 1;
   voice(cx, cy, M * 0.1, t, "#ffd36e");
   const bodies = APPS.map((app, i) => {
     const R = M * (0.2 + i * 0.05), w = 0.5 / Math.pow(1 + i * 0.6, 1.5);
@@ -330,14 +330,14 @@ function constellation(t) {
   });
   // far side first
   [...bodies].sort((p, q) => p.z - q.z).forEach(b => {
-    const on = b.i === sel, depth = 0.75 + 0.25 * (b.z / b.R);
+    const on = b.i === sel, depth = 1;
     halo(b.x, b.y, M * 0.05 * depth * (on ? 1.6 : 1), on ? C.mag : C.cyan, 0.3);
     glowText(b.app.glyph, b.x, b.y, on ? C.mag : C.cyan, M * 0.035 * depth * (on ? 1.3 : 1), 16);
     glowText(b.app.name, b.x, b.y + M * 0.04 * depth, C.ink, 10, 4, "center", 0.6 * depth);
     hit(b.x, b.y, M * 0.05, () => { sel = b.i; });
     if (on) b.app.acts.forEach((label, k) => {
       const n = b.app.acts.length, an = -t * 0.5 + k / n * TAU;
-      const mr = M * 0.11, x = b.x + Math.cos(an) * mr, y = b.y + Math.sin(an) * mr * 0.7;
+      const mr = M * 0.11, x = b.x + Math.cos(an) * mr, y = b.y + Math.sin(an) * mr;
       ctx.beginPath(); ctx.arc(x, y, 3, 0, TAU); ctx.fillStyle = "#fff"; ctx.fill();
       glowText(label, x + 8, y, "#fff", 12, 8, "left");
       hit(x, y, M * 0.03, () => press(label));
@@ -356,7 +356,7 @@ const MODES = [
   ["ORBIT", orbit, "Your brief. Apps orbit inside, the chosen app's actions orbit outside, a hexagram turns through the apps. Tap an app, tap an action."],
   ["SIGIL", sigil, "Imu. A pentagram across the whole screen, rune rings turning against each other, the five apps on its points, actions crawling the inner pentagon."],
   ["CLOCKWORK", clockwork, "Rings of words turning against each other. Whatever passes under the beam at twelve is chosen. You press by waiting, or by tapping."],
-  ["CONSTELLATION", constellation, "A solar system on a tilted plane. Apps are planets with their own speeds, the chosen one grows its actions as moons."],
+  ["CONSTELLATION", constellation, "Flat, face on. Apps circle her on their own orbits at their own speeds, leaving trails; the chosen one grows its actions as moons."],
 ];
 let mode = 0;
 const tabs = document.getElementById("tabs"), note = document.getElementById("note");
