@@ -591,7 +591,8 @@ struct ContentView: View {
         let saved = FaceStyle(rawValue: faceStyle) ?? .ribbon
         return VoiceVisual(style: saved == .portrait ? .ribbon : saved,
                            state: voiceState, amplitude: Double(pet.level),
-                           tint: phaseColor,
+                           // Mic off reads as cyan (Oscar, 2026-10-01).
+                           tint: live.muted || !pet.running ? Skin.cyan : phaseColor,
                            scale: faceScale, bloom: faceBloom, speed: faceSpeed)
             .offset(x: faceX, y: faceY)
     }
