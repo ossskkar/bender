@@ -4,7 +4,7 @@ import UIKit
 /// The versions of the iPad app (Oscar, 2026-10-01). Classic is the screen
 /// with the deck, the record panel and the chat; the other three are the whole
 /// screen given to her voice, with the deck's apps and actions moving round
-/// it. A four-finger swipe walks through them; the title's menu picks one.
+/// it. A three-finger swipe walks through them; the title's menu picks one.
 enum Look: String, CaseIterable, Identifiable {
     case classic, singularity, sigil, clockwork
     static let key = "arisu.look"
@@ -18,10 +18,10 @@ enum Look: String, CaseIterable, Identifiable {
     }
 }
 
-/// Four fingers, left or right, anywhere on the window. iPadOS uses the same
-/// gesture to switch apps when Multitasking gestures are on, and then the
-/// system gets it first.
-struct FourFingerSwipe: UIViewRepresentable {
+/// Three fingers, left or right, anywhere on the window. Not four: iPadOS
+/// takes four-finger swipes for switching apps (Oscar, 2026-10-01). Three is
+/// undo and redo while typing, which these screens never are.
+struct ThreeFingerSwipe: UIViewRepresentable {
     let onSwipe: (Int) -> Void
 
     func makeUIView(context: Context) -> Host { Host(onSwipe: onSwipe) }
@@ -37,7 +37,7 @@ struct FourFingerSwipe: UIViewRepresentable {
             isUserInteractionEnabled = false
             for (g, dir) in [(left, UISwipeGestureRecognizer.Direction.left), (right, .right)] {
                 g.direction = dir
-                g.numberOfTouchesRequired = 4
+                g.numberOfTouchesRequired = 3
                 g.cancelsTouchesInView = false
                 g.delegate = self
                 g.addTarget(self, action: #selector(fire(_:)))

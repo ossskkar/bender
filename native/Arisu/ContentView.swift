@@ -217,7 +217,7 @@ struct ContentView: View {
         }
         }
         .animation(.easeInOut(duration: 0.4), value: look)
-        .background(FourFingerSwipe { look = look.step($0) })
+        .background(ThreeFingerSwipe { look = look.step($0) })
         .background(Color.black)
         .background(PencilWatch(enabled: !scribbling) { scribbling = true })
         .overlay { if scribbling { ScribbleCanvas { scribbling = false } } }
