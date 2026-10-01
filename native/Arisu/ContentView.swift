@@ -361,7 +361,8 @@ struct ContentView: View {
         }
         .padding(.horizontal, 18)
         .padding(.top, 10)
-        .padding(.bottom, 14)
+        // 28pt off the screen's edge, the same as the deck's keys (18 + its 10 inset).
+        .padding(.bottom, 28)
     }
 
     /// What she is doing, in a word, for the bar when the meter is off.

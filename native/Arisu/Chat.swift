@@ -287,7 +287,8 @@ struct ChatPane: View {
         }
         .padding(.horizontal, 18)
         .padding(.top, 10)
-        .padding(.bottom, 14)
+        // With the pane's 10pt inset, 28pt off the edge like the deck's keys.
+        .padding(.bottom, 18)
         .overlay(Rectangle().frame(height: 1).foregroundStyle(Skin.cyan.opacity(0.35)),
                  alignment: .top)
     }
