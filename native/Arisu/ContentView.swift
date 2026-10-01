@@ -638,6 +638,8 @@ struct ContentView: View {
     /// The conversation as bubbles: his on the right, hers on the left,
     /// the last four lines, older ones fading (Oscar, 2026-09-16).
     private var transcript: some View {
+        // Scroll up for what was said earlier; it rests on the newest line.
+        ScrollView(showsIndicators: false) {
         VStack(alignment: .leading, spacing: voiceBubbles ? 8 : 4) {
             ForEach(Array(messages.enumerated()), id: \.element.id) { i, m in
                 Group {
@@ -648,11 +650,15 @@ struct ContentView: View {
                                      mineColor: mineColor)
                     }
                 }
-                .opacity(0.4 + 0.6 * Double(i + 1) / Double(messages.count))
+                // The newest four brighten toward the bottom; older ones sit dim.
+                .opacity(max(0.4, 1 - 0.2 * Double(messages.count - 1 - i)))
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .frame(maxWidth: 520, alignment: .leading)
+        .frame(maxWidth: 520, minHeight: 300, alignment: .bottomLeading)
+        }
+        .defaultScrollAnchor(.bottom)
+        .frame(maxWidth: 520, maxHeight: 300)
         .animation(.easeOut(duration: 0.3), value: messages)
         .padding(.horizontal, 0)
         .padding(.bottom, 24)
@@ -681,7 +687,8 @@ struct ContentView: View {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return }
         messages.append(Bubble(mine: mine, text: t))
-        if messages.count > 4 { messages.removeFirst(messages.count - 4) }
+        // Scrollable now (Oscar, 2026-10-01), so it keeps the call, not four lines.
+        if messages.count > 80 { messages.removeFirst(messages.count - 80) }
     }
 }
 

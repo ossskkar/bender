@@ -78,6 +78,15 @@ struct Motion {
     /// talks -- her voice is already moving it.
     let breath: Double
 
+    /// Part way from here to `to`: a state change eases in rather than cuts.
+    func toward(_ to: Motion, _ k: Double) -> Motion {
+        func l(_ a: Double, _ b: Double) -> Double { a + (b - a) * k }
+        return Motion(spin: l(spin, to.spin), wobble: l(wobble, to.wobble),
+                      depth: l(depth, to.depth), bloom: l(bloom, to.bloom),
+                      jitter: l(jitter, to.jitter), flow: l(flow, to.flow),
+                      breath: l(breath, to.breath))
+    }
+
     static func of(_ state: VoiceState) -> Motion {
         switch state {
         case .idle:      return Motion(spin: 0.16, wobble: 0.8, depth: 0.35,
@@ -89,6 +98,22 @@ struct Motion {
         case .speaking:  return Motion(spin: 0.52, wobble: 4.2, depth: 0.95,
                                        bloom: 1.25, jitter: 0, flow: 1, breath: 0.15)
         }
+    }
+}
+
+/// The visual's running clock: one per view, advanced once per frame.
+final class VisualClock {
+    private var last: Double?
+    private(set) var t = 0.0, ps = 0.0, pw = 0.0, pf = 0.0, amp = 0.0
+    private(set) var m = Motion.of(.idle)
+
+    func tick(now: Double, speed: Double, target: Motion, amplitude: Double) {
+        let dt = last.map { min(0.1, max(0, now - $0)) } ?? 0
+        last = now
+        m = m.toward(target, 1 - exp(-dt * 4))            // ~0.6 s to settle
+        amp += (amplitude - amp) * (1 - exp(-dt * 14))     // level, de-stepped
+        let s = max(0.1, speed) * dt
+        t += s; ps += m.spin * s; pw += m.wobble * s; pf += m.flow * s
     }
 }
 
@@ -110,10 +135,21 @@ struct VoiceVisual: View {
     var bloom: Double = 1
     var speed: Double = 1
 
+    /// Time and the three phases, integrated frame by frame. They used to be
+    /// `seconds-since-2001 x rate`, so any change of state -- a new spin or
+    /// wobble rate -- jumped her to an unrelated angle mid-frame; and her level
+    /// arrived in 20 Hz steps. Both read as stutter (Oscar, 2026-10-01).
+    @State private var clock = VisualClock()
+    private var ps: Double { clock.ps }
+    private var pw: Double { clock.pw }
+    private var pf: Double { clock.pf }
+
     var body: some View {
         TimelineView(.animation) { timeline in
             Canvas { ctx, size in
-                let t = timeline.date.timeIntervalSinceReferenceDate * max(0.1, speed)
+                clock.tick(now: timeline.date.timeIntervalSinceReferenceDate,
+                           speed: speed, target: Motion.of(state), amplitude: amplitude)
+                let t = clock.t
                 let w = min(size.width, size.height)
                 ctx.translateBy(x: size.width / 2, y: size.height / 2)
                 draw(ctx, w: w * max(0.2, scale), t: t)
@@ -134,13 +170,13 @@ struct VoiceVisual: View {
     /// reads as a crash rather than as patience, so there is always a slow
     /// breath under it -- `breath(t)` at rest, her own level once she has one.
     private func amp(_ t: Double) -> Double {
-        let live = max(0, min(1, amplitude))
+        let live = max(0, min(1, clock.amp))
         let breath = 0.10 + 0.045 * sin(t * 0.9)
         return max(breath, live)
     }
 
     private var m: Motion {
-        let base = Motion.of(state)
+        let base = clock.m
         guard bloom != 1 else { return base }
         return Motion(spin: base.spin, wobble: base.wobble, depth: base.depth,
                       bloom: base.bloom * bloom, jitter: base.jitter,
@@ -168,11 +204,11 @@ struct VoiceVisual: View {
     /// outward while she speaks, nothing while she waits. `u` is where you
     /// are on the sphere, 0 at one pole and 1 at the other.
     private func flow(_ u: Double, _ t: Double, _ a: Double) -> Double {
-        guard m.flow != 0 else { return 0 }
+        guard abs(m.flow) > 0.001 else { return 0 }
         // 0.30 tore the rings off the sphere at a real level (checked in the
         // simulator at 0.62): it has to read as a wave through her, not as
         // her coming apart.
-        return sin(u * 6 - t * 4.5 * m.flow) * a * 0.15 * m.flow
+        return sin(u * 6 - 4.5 * pf) * a * 0.15 * m.flow
     }
 
     /// Working: a segment slips off its line for a frame or two.
@@ -248,7 +284,7 @@ struct VoiceVisual: View {
     /// Lit rings around a globe, the magenta one at her equator.
     private func halo(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
         let a = amp(t)
-        let R = w * 0.30 * breath(t), ry = t * m.spin * 3, rx = sin(t * 0.3) * 0.35
+        let R = w * 0.30 * breath(t), ry = ps * 3, rx = sin(t * 0.3) * 0.35
         for k in 0..<12 {                               // meridians, faint
             let lon = Double(k) / 12 * .pi * 2
             let pts = (0...60).map { i -> (Double, Double) in
@@ -264,7 +300,7 @@ struct VoiceVisual: View {
             let cr = cos(lat) * R, cy = sin(lat) * R
             let pts = (0...90).map { i -> (Double, Double) in
                 let lon = Double(i) / 90 * .pi * 2
-                let wob = 1 + a * 0.14 * m.depth * sin(lon * 4 + t * m.wobble + Double(k))
+                let wob = 1 + a * 0.14 * m.depth * sin(lon * 4 + pw + Double(k))
                     + flow(Double(k) / 8, t, a)
                 let p = project(cos(lon) * cr * wob, cy * wob, sin(lon) * cr * wob, ry, rx, R)
                 return (p.0 + jitter(k, t, w), p.1)
@@ -284,10 +320,10 @@ struct VoiceVisual: View {
         var add = ctx
         add.blendMode = .plusLighter
         for i in 0..<5 {
-            let an = t * m.spin * 2.4 + Double(i) * 1.25
+            let an = ps * 2.4 + Double(i) * 1.25
             let off = R * (0.10 + a * 0.30 * m.depth + flow(Double(i) / 5, t, a) * 0.5)
             let x = cos(an) * off, y = sin(an * 1.2) * off * 0.7
-            let rr = R * (0.85 + 0.12 * sin(t * m.wobble * 0.4 + Double(i)))
+            let rr = R * (0.85 + 0.12 * sin(pw * 0.4 + Double(i)))
             let hue = i % 2 == 0 ? tint : mag
             let rect = CGRect(x: x - rr, y: y - rr, width: rr * 2, height: rr * 2)
             add.fill(Path(ellipseIn: rect), with: .radialGradient(
@@ -304,13 +340,13 @@ struct VoiceVisual: View {
     /// The record, wrapped around a globe.
     private func groove(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
         let a = amp(t)
-        let R = w * 0.30 * breath(t), ry = t * m.spin * 2.2, rx = 0.30 + sin(t * 0.25) * 0.2
+        let R = w * 0.30 * breath(t), ry = ps * 2.2, rx = 0.30 + sin(t * 0.25) * 0.2
         for k in 0..<26 {
             let lat = (Double(k) / 25 - 0.5) * .pi * 0.96
             let cr = cos(lat) * R, cy = sin(lat) * R
             let pts = (0...100).map { i -> (Double, Double) in
                 let lon = Double(i) / 100 * .pi * 2
-                let d = 1 + sin(lon * 3 + t * m.wobble + Double(k) * 0.35) * a * 0.10 * m.depth
+                let d = 1 + sin(lon * 3 + pw + Double(k) * 0.35) * a * 0.10 * m.depth
                     + flow(Double(k) / 25, t, a)
                 let p = project(cos(lon) * cr * d, cy * d, sin(lon) * cr * d, ry, rx, R)
                 return (p.0 + jitter(k, t, w), p.1)
@@ -324,7 +360,7 @@ struct VoiceVisual: View {
     /// A light running over the surface, dimming as it passes behind.
     private func trail(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
         let a = amp(t)
-        let R = w * 0.29 * breath(t), ry = t * m.spin * 2.5, rx = 0.25
+        let R = w * 0.29 * breath(t), ry = ps * 2.5, rx = 0.25
         for k in 0..<10 {                               // the cage it runs on
             let lon = Double(k) / 10 * .pi * 2
             let pts = (0...50).map { i -> (Double, Double) in
@@ -337,7 +373,7 @@ struct VoiceVisual: View {
         }
         let n = 150
         for i in 0..<n {
-            let u = t * (0.5 + m.wobble * 0.35) - Double(i) * 0.012
+            let u = (0.5 * t + 0.35 * pw) - Double(i) * 0.012
             let lat = sin(u * 0.9) * 1.25, lon = u * 2.1
             let rr = R * (1 + a * 0.10 * m.depth * sin(u * 4)
                           + flow(Double(i) / Double(n), t, a) * 0.6)
@@ -355,13 +391,13 @@ struct VoiceVisual: View {
     /// The lissajous, wrapped on a shell, with her core inside it.
     private func ribbon(_ ctx: inout GraphicsContext, _ w: Double, _ t: Double) {
         let a = amp(t)
-        let R = w * 0.29 * breath(t), ry = t * m.spin * 2.8, rx = sin(t * 0.22) * 0.4
+        let R = w * 0.29 * breath(t), ry = ps * 2.8, rx = sin(t * 0.22) * 0.4
         for s in 0..<3 {
             let pts = (0...420).map { i -> (Double, Double) in
                 let u = Double(i) / 420 * .pi * 2
                 let lat = sin(u * Double(2 + s)) * 1.2
                 let lon = u * 3 + Double(s) * 2.1 + t * 0.2
-                let rr = R * (0.92 + a * 0.16 * m.depth * sin(u * 6 + t * m.wobble)
+                let rr = R * (0.92 + a * 0.16 * m.depth * sin(u * 6 + pw)
                               + flow(u / (.pi * 2), t, a))
                 let p = project(cos(lon) * cos(lat) * rr, sin(lat) * rr,
                                 sin(lon) * cos(lat) * rr, ry, rx, R)
@@ -400,10 +436,11 @@ struct VoiceVisual: View {
                     center: .zero, startRadius: 0, endRadius: halo))
         // A second, thinner ring carries the flow, so listening and speaking
         // are told apart on a shape that has nothing else to move.
-        if m.flow != 0 {
+        // Fades with the flow as a state eases in and out, rather than popping.
+        if abs(m.flow) > 0.01 {
             let r2 = R * (0.62 + flow(0.5, t, a) * 2)
             ctx.stroke(Path(ellipseIn: CGRect(x: -r2, y: -r2, width: r2 * 2, height: r2 * 2)),
-                       with: .color(mag.opacity(0.55)), lineWidth: w * 0.006)
+                       with: .color(mag.opacity(0.55 * min(1, abs(m.flow)))), lineWidth: w * 0.006)
         }
     }
 
@@ -414,8 +451,8 @@ struct VoiceVisual: View {
         var p = Path()
         for i in 0...180 {
             let an = Double(i) / 180 * .pi * 2
-            let n = sin(an * 3 + t * m.wobble * 0.4) * 0.5
-                  + sin(an * 5 - t * m.wobble * 0.6) * 0.3
+            let n = sin(an * 3 + pw * 0.4) * 0.5
+                  + sin(an * 5 - pw * 0.6) * 0.3
                   + sin(an * 2 + t * 0.7) * 0.4
             let r = R * (1 + n * a * 0.45 * m.depth + flow(an / (.pi * 2), t, a))
             let pt = CGPoint(x: cos(an) * r, y: sin(an) * r)
@@ -439,8 +476,8 @@ struct VoiceVisual: View {
             let pts = (0...240).map { i -> (Double, Double) in
                 let u = Double(i) / 240 * .pi * 2
                 let scale = R * (0.6 + a * 0.5 * m.depth)
-                return (sin(u * (2 + Double(k) * 0.1) + t * m.spin * 3) * scale,
-                        sin(u * 3 + t * (0.35 + m.spin) + Double(k) * 0.6) * scale)
+                return (sin(u * (2 + Double(k) * 0.1) + ps * 3) * scale,
+                        sin(u * 3 + (0.35 * t + ps) + Double(k) * 0.6) * scale)
             }
             let col = k % 2 == 1 ? mag : tint
             ctx.stroke(ring(pts, closed: false),
@@ -457,7 +494,7 @@ struct VoiceVisual: View {
         var add = ctx
         add.blendMode = .plusLighter
         for i in 0..<5 {
-            let an = t * (0.5 + m.spin) + Double(i) * 1.26
+            let an = (0.5 * t + ps) + Double(i) * 1.26
             let off = R * (0.12 + a * 0.34 * m.depth + flow(Double(i) / 5, t, a))
             let x = cos(an) * off, y = sin(an * 1.3) * off
             let hue = i % 2 == 0 ? tint : mag
@@ -486,7 +523,7 @@ struct VoiceVisual: View {
             for i in 0...70 {
                 let x = -R * 1.1 + Double(i) / 70 * R * 2.2
                 let y = base
-                    + sin(x * 0.014 + t * (0.5 + m.wobble * 0.22) + Double(k) * 1.1)
+                    + sin(x * 0.014 + (0.5 * t + 0.22 * pw) + Double(k) * 1.1)
                         * R * 0.18 * (0.35 + a * 1.1 * m.depth)
                     + flow(Double(k) / 6, t, a) * R * 0.8
                 let pt = CGPoint(x: x, y: y)
