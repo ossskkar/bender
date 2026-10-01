@@ -1,57 +1,44 @@
-# Handoff — brain dumps + Pencil scribbles proven, app restyled (2026-10-01)
+# Handoff — command bubbles, deck wheel, web parity (2026-10-01, afternoon)
 
-State and progress: Backlog project **Arisu**. Two journeys finished and in
-**review**, every step ticked, waiting for Oscar's word to move to done:
-"I record a brain dump on the iPad…" and "I pick up the Pencil and scribble…".
+State and progress: Backlog project **Arisu**. "I tap a command button over her
+voice animation" is in **review** (all steps ticked; brief and AI signals were
+heard, seen in the chat history). Brain dump and Pencil are still in review too.
 
 ## State
-- **Record**: iPad → lain `POST /dumps` → whisper on architect → history;
-  insights (Gemini via `llm.ask`) confirmed by Oscar.
-- **Scribbles** (arisu `0d5c6e9`, `0e1a456`; lain `d595ea7`, live): first
-  Pencil touch anywhere opens a PencilKit canvas; SAVE posts a PNG to
-  `/dumps/scribble` → `/var/lib/lain/scribbles/<id>.png` + a dumps row with
-  `image: true`, shown in the Record history as `// SCRIBBLE`. The page
-  persists on the iPad (`Documents/scribble.drawing`) until CLEAR. 2 saved.
-- **whisper-server on architect**: user unit `whisper.service` (linger on),
-  `~/whisper.cpp/build/bin/whisper-server`, model `ggml-base.en-q5_1`,
-  127.0.0.1:20301. lain `7c4b341`: dead ear → 503, the iPad keeps the WAV.
-- **Look**: Record/Deck neon style app-wide (arisu `7f87c48`) — `Grid`,
-  `Brackets`, `.console()` in `Skin.swift`, `Skin.radius` 0, mono type.
-  Voice mode: meter gone, `> LISTENING_` state text in its place.
-- **Deck**: keys fill bottom up (`eeda3a8`); blanks in the top row.
-- All installed on the iPad; arisu and lain pushed (lain to both remotes).
-
-## Decisions
-- Scribbles go to lain beside the dumps, not Photos and not the p100k-data
-  repo (images would live in git forever).
-- Scribble/Record code lives in `Record.swift` — no pbxproj edit needed.
+- **Command bubbles** (iPad voice mode, top right, vertical): Today's brief,
+  Week review, AI signals (lain `GET /arisu/line?key=brief|weekly|signals`,
+  said word for word via `Live.speak`), What's next?, How's my running?
+  (put to her as Oscar's turn via `Live.ask`). A tap on her hides/shows them.
+  Fixed list in `ContentView.commands` — not deck-editable.
+- **iPad look**: voice opens muted; no seam line, no rule under the title bar,
+  no rule over either bottom bar; bottom bars 28pt off the edge (= deck keys);
+  chat pane inset 10pt so corners meet Record/Deck; title buttons white icon
+  on a lit cyan edge (`IconButton.ink`, stroke 0.7).
+- **Deck groups** are a wheel (`DeckRail.groups`/`roll`): drag rolls under the
+  finger and springs to the nearest; one text size; key area as tall as the
+  tallest group. `FlowRow` deleted.
+- **Web** (`lain/arisu/index.html`, `eb4f14e`, live): same console look and
+  the five bubbles; voice opens muted; `--mono` now defined (it never was).
+- arisu `e1ba1b9` pushed; lain `eb4f14e` on both remotes, pulled on architect.
 
 ## Open
-- A second SAVE of a persisted page uploads the whole page again (by design
-  of "stays until CLEAR"); fine unless Oscar objects.
-- Voice mode: the face's dark square hides the grid behind it.
-- Architect `~/lain` still carries someone's uncommitted chat-import work
-  (chats.py, server.py, chat.html, test_chats.py); backup
-  `~/lain-uncommitted-2026-09-30.patch`.
+- Web changes checked only as a static render (chat + voice layout); no live
+  call tested on the web. Bubbles' wake path and muted-on-entry unverified there.
+- Long group names (CLAUDE-CODE) clip at the wheel's edge until centred.
+- Leftover `/var/lib/lain/taps.json` on architect: `sudo rm` is Oscar's.
+- Architect `~/lain` still carries someone's uncommitted chat-import work;
+  pull with stash/pop (backups `~/lain-uncommitted-2026-09-30/10-01.patch`).
 
 ## Next steps
-1. Oscar says done → `backlog_journey_status` both journeys → done with
-   `confirmed_by="oscar"`.
-2. Backlog journey "command buttons over her voice animation" (Today's
-   Brief first) — pick the commands.
-3. Deck in landscape on the real iPad still unchecked.
+1. Oscar tries the bubbles on the web in Safari (a live call) → fix what breaks.
+2. Oscar says done → move the three review journeys to done (`confirmed_by="oscar"`).
 
 ## Gotchas
-- Pulling on architect: backup patch, `git stash push`, `pull --ff-only`,
-  `stash pop` (server.py auto-merges). Restart is Oscar's:
-  `ssh -t architect 'sudo systemctl restart lain.service'` — the classifier
-  refuses it for Claude. "Connection to architect closed" is normal.
-- The simulator cannot make Pencil touches; Pencil paths need the real iPad.
-- iPad installs over Wi-Fi (`devicectl … --device 085B9100-…`). The Dell hub
-  cannot charge a flat iPad Pro.
-- Backlog MCP tools return the whole project (>130k chars) on every write;
-  the write still lands — grep the saved file to confirm.
-- Stop simulators after screenshots (`simctl terminate`, `simctl shutdown`).
+- iPad install: `xcrun devicectl device install app --device 085B9100-31D5-5A2D-B44C-82D143A30ACA <app>` (the short id fails).
+- `.claude/launch.json` "lain" points at :8887, which is the deck now — do
+  not start it; preview the web page with a throwaway static server.
+- Backlog MCP writes return >130k chars; they still land.
+- lain restart is Oscar's: `ssh -t architect 'sudo systemctl restart lain.service'` (static files need no restart).
 
 ## Resume
 "Read arisu/.claude/HANDOFF.md and continue with the next step."
