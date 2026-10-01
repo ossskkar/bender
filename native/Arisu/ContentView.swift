@@ -64,6 +64,8 @@ struct ContentView: View {
     /// (arisu/chat.html) full screen over her. Voice and chat are two
     /// separate UIs in one app (Oscar, 2026-09-23).
     @State private var showChat = true
+    /// The command bubbles; a tap on her hides them and the next brings them back.
+    @State private var showCommands = true
     /// The typed thread. Held here rather than inside the pane so that it
     /// survives switching to her voice and back -- the conversation is one
     /// thing, and re-fetching it every time he speaks would make it blink.
@@ -283,7 +285,7 @@ struct ContentView: View {
                 VStack {
                     HStack {
                         Spacer()
-                        commandButtons
+                        if showCommands { commandButtons.transition(.opacity) }
                     }
                     Spacer()
                 }
@@ -309,6 +311,7 @@ struct ContentView: View {
             .contentShape(Rectangle())
             // Double tap: the conversation on or off. Single tap: the chrome.
             .onTapGesture(count: 2) { pet.toggleRunning() }
+            .onTapGesture { withAnimation(.easeOut(duration: 0.2)) { showCommands.toggle() } }
         }
     }
 
