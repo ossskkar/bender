@@ -174,6 +174,8 @@ struct ChatPane: View {
         .console(Skin.cyan, brackets: Skin.mag)
         // The same 10pt inset as Record and Deck, so the corners line up.
         .padding(10)
+        // A two-finger double tap is a new conversation (Oscar, 2026-10-02).
+        .background(MultiTap(touches: 2, taps: 2) { Task { await chat.new() } })
         .task { await chat.load() }
         .onAppear { if openHistory { showHistory = true; openHistory = false } }
         .sheet(isPresented: $showHistory) { ChatHistory(chat: chat) }
@@ -181,6 +183,15 @@ struct ChatPane: View {
 
     private var thread: some View {
         ScrollViewReader { scroll in
+            threadBody(scroll)
+        }
+        // A double tap on the thread is voice (Oscar, 2026-10-02); on the
+        // thread only, so a double tap in the composer still selects a word.
+        .simultaneousGesture(TapGesture(count: 2).onEnded { toVoice() })
+    }
+
+    private func threadBody(_ scroll: ScrollViewProxy) -> some View {
+        Group {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 10) {
                     ForEach(chat.lines) { bubble($0) }
@@ -204,6 +215,8 @@ struct ChatPane: View {
                 .padding(.vertical, 14)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            // Pulled down past the top of the thread: the older conversations.
+            .refreshable { showHistory = true }
             .onChange(of: chat.lines.count) { _, _ in
                 withAnimation { scroll.scrollTo("end", anchor: .bottom) }
             }
@@ -408,4 +421,48 @@ func conversationLinks(_ text: String) -> AttributedString {
         result[start..<end].underlineStyle = .single
     }
     return result
+}
+
+/// A tap with several fingers, which SwiftUI cannot express. Watches the
+/// window but only answers inside the view it sits behind, so a two-finger
+/// tap on the deck is not a new chat.
+struct MultiTap: UIViewRepresentable {
+    let touches: Int
+    let taps: Int
+    let action: () -> Void
+
+    func makeUIView(context: Context) -> Host { Host(touches: touches, taps: taps, action: action) }
+    func updateUIView(_ v: Host, context: Context) { v.action = action }
+
+    final class Host: UIView, UIGestureRecognizerDelegate {
+        var action: () -> Void
+        private let tap = UITapGestureRecognizer()
+
+        init(touches: Int, taps: Int, action: @escaping () -> Void) {
+            self.action = action
+            super.init(frame: .zero)
+            isUserInteractionEnabled = false
+            tap.numberOfTouchesRequired = touches
+            tap.numberOfTapsRequired = taps
+            tap.cancelsTouchesInView = false
+            tap.delegate = self
+            tap.addTarget(self, action: #selector(fire))
+        }
+        required init?(coder: NSCoder) { fatalError() }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            tap.view?.removeGestureRecognizer(tap)
+            window?.addGestureRecognizer(tap)
+        }
+
+        @objc private func fire() { action() }
+
+        func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            bounds.contains(touch.location(in: self))
+        }
+
+        func gestureRecognizer(_ g: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+    }
 }
