@@ -49,7 +49,7 @@ committed and pushed. Last arisu commit `2483e38`; lain `7119b17` deployed.
 ## Next steps
 1. On the iPad with Oscar: 醒来 / Duerme / Vía, the wake sound (cut short by the
    call's audio setup?), and the Old Norse first line (`ContentView.victory`,
-   said via `pet.begin(saying:)`); landscape layout. Fix what breaks.
+   said via `pet.begin(saying:)`); landscape layout; chat gestures (double tap = voice, 2-finger double tap = new chat, pull down = history). Fix what breaks.
 2. If 醒来 is unreliable: Porcupine custom keyword (free account, check terms).
 
 ## Resume
