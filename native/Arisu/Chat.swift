@@ -222,7 +222,7 @@ struct ChatPane: View {
                         .foregroundStyle((line.mine ? mag : cyan).opacity(0.6))
                         .padding(.top, 4)
                 }
-                Text(conversationLinks((bubbles ? "" : (line.mine ? "> " : "")) + line.text))
+                Text(conversationLinks(speaker(line.mine) + line.text))
                     .font(Skin.mono(15))
                     .foregroundStyle(line.mine ? mag : cyan)
                     .textSelection(.enabled)

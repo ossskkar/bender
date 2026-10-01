@@ -142,3 +142,7 @@ struct Brackets: View {
         .allowsHitTesting(false)
     }
 }
+
+/// Who said a line, in front of it everywhere a conversation is shown
+/// (Oscar, 2026-10-01).
+func speaker(_ mine: Bool) -> String { mine ? "Oscar> " : "Arisu> " }

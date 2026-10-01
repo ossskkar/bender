@@ -769,7 +769,7 @@ struct ChatBubble: View {
             // The Record panel's log row: a lit bar on the speaker's side,
             // a square box, a thin neon edge (Oscar, 2026-09-30).
             let ink = mine ? mineColor : voice
-            Text(conversationLinks(text))
+            Text(conversationLinks(speaker(mine) + text))
                 .font(Skin.mono(18, .medium))
                 .foregroundStyle(ink)
                 .padding(.horizontal, 14)
@@ -799,7 +799,7 @@ struct TerminalLine: View {
     var mineColor: Color = Skin.mag
 
     var body: some View {
-        Text(conversationLinks(mine ? "> " + text : text))
+        Text(conversationLinks(speaker(mine) + text))
             .font(.system(size: 17, weight: mine ? .semibold : .regular, design: .monospaced))
             .foregroundStyle(mine ? mineColor : voice)
             .shadow(color: .black.opacity(0.85), radius: 4)
