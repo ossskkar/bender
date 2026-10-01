@@ -201,7 +201,7 @@ function orbit(t) {
 }
 
 // ---------------------------------------------------------------- 2. SIGIL
-// Imu: one great pentagram across the screen, rune rings counter-turning,
+// Imu, without the star: one great rosette across the screen, rune rings counter-turning,
 // the five apps at its points, the chosen app's actions written into the
 // inner pentagon, her voice the eye in the middle.
 function sigil(t) {
@@ -218,16 +218,29 @@ function sigil(t) {
   textOnCircle(runes + runes, cx, cy, R * 1.035, -turn * 1.6, C.bone, 11, 0.55);
   const acts = APPS[sel].acts.join(" · ").toUpperCase() + " · ";
   textOnCircle(acts + acts, cx, cy, R * 0.33, turn * 2.4, C.bone, 10, 0.5, true);
-  // pentagram
+  // a rosette, not a star: each app curves in towards her and out to the
+  // next, five cusps that breathe with her voice
   const five = APPS.slice(0, 5);
   const P = five.map((_, i) => { const an = turn + i / 5 * TAU - Math.PI / 2; return [cx + Math.cos(an) * R, cy + Math.sin(an) * R]; });
+  const pull = 0.18 + 0.06 * Math.sin(t * 0.6) + a * 0.05;
   ctx.save(); ctx.globalCompositeOperation = "lighter";
   for (const [lw, b, o] of [[10, 40, 0.12], [3, 12, 0.5], [1.2, 2, 0.9]]) {
-    ctx.beginPath();
-    for (let k = 0; k <= 5; k++) { const p = P[(k * 2) % 5]; k ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); }
+    ctx.beginPath(); ctx.moveTo(P[0][0], P[0][1]);
+    for (let k = 0; k < 5; k++) {
+      const A = P[k], B = P[(k + 1) % 5];
+      const mid = turn + (k + 0.5) / 5 * TAU - Math.PI / 2;
+      ctx.quadraticCurveTo(cx + Math.cos(mid) * R * pull, cy + Math.sin(mid) * R * pull, B[0], B[1]);
+    }
     ctx.strokeStyle = C.blood; ctx.lineWidth = lw * (1 + a * 0.6); ctx.shadowColor = C.blood; ctx.shadowBlur = b;
     ctx.globalAlpha = o; ctx.stroke();
   }
+  // a small ring turning on every point
+  P.forEach(([x, y], i) => {
+    ctx.setLineDash([3, 6]); ctx.lineDashOffset = -t * 20 * (i % 2 ? 1 : -1);
+    ctx.beginPath(); ctx.arc(x, y, M * 0.055, 0, TAU);
+    ctx.strokeStyle = C.blood; ctx.globalAlpha = 0.6; ctx.lineWidth = 1.5; ctx.stroke();
+  });
+  ctx.setLineDash([]);
   ctx.restore();
   // apps at the points
   P.forEach(([x, y], i) => {
@@ -354,7 +367,7 @@ function constellation(t) {
 // ---------------------------------------------------------------- frame
 const MODES = [
   ["ORBIT", orbit, "Your brief. Apps orbit inside, the chosen app's actions orbit outside, a hexagram turns through the apps. Tap an app, tap an action."],
-  ["SIGIL", sigil, "Imu. A pentagram across the whole screen, rune rings turning against each other, the five apps on its points, actions crawling the inner pentagon."],
+  ["SIGIL", sigil, "Imu, no pentagram. A five-cusp rosette across the whole screen, rune rings turning against each other, the five apps on its points, actions drifting round her."],
   ["CLOCKWORK", clockwork, "Rings of words turning against each other. Whatever passes under the beam at twelve is chosen. You press by waiting, or by tapping."],
   ["CONSTELLATION", constellation, "Flat, face on. Apps circle her on their own orbits at their own speeds, leaving trails; the chosen one grows its actions as moons."],
 ];
