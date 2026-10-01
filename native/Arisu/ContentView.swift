@@ -14,11 +14,6 @@ struct ContentView: View {
     @ObservedObject var live: Live
     @ObservedObject var room: Room
     @State private var sweep = false
-    /// Whether the two of them are subtitled. Kept across launches because it
-    /// is a preference about the room, not about the conversation -- reading
-    /// her from across the desk and watching her from the sofa want different
-    /// answers, and neither should reset every morning.
-    @AppStorage("arisu.transcript") private var showTranscript = true
     /// The Live2D face instead of the portrait. Off by default: it loads from
     /// the desk, and the portrait is the face that works with no network.
     @AppStorage("arisu.live2d") private var live2dFace = true
@@ -68,8 +63,10 @@ struct ContentView: View {
     /// (arisu/chat.html) full screen over her. Voice and chat are two
     /// separate UIs in one app (Oscar, 2026-09-23).
     @State private var showChat = true
-    /// The command bubbles; a tap on her hides them and the next brings them back.
-    @State private var showCommands = true
+    /// Voice mode shows only her until he taps: then the transcript, the
+    /// command suggestions and the bar; another tap hides them (Oscar,
+    /// 2026-10-01). Replaces the subtitles button and its saved setting.
+    @State private var chrome = false
     /// The typed thread. Held here rather than inside the pane so that it
     /// survives switching to her voice and back -- the conversation is one
     /// thing, and re-fetching it every time he speaks would make it blink.
@@ -314,7 +311,7 @@ struct ContentView: View {
                 VStack {
                     HStack {
                         Spacer()
-                        if showCommands { commandButtons.transition(.opacity) }
+                        if chrome { commandButtons.transition(.opacity) }
                     }
                     Spacer()
                 }
@@ -324,15 +321,16 @@ struct ContentView: View {
                 VStack {
                     Spacer()
                     if room.isGroup { company }
-                    if showTranscript {
+                    if chrome {
                         HStack {
                             transcript
                             Spacer(minLength: 0)
                         }
                         .padding(.leading, 34)
                         .padding(.trailing, 24)
+                        .transition(.opacity)
+                        roomBar.transition(.opacity)
                     }
-                    roomBar
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
@@ -340,7 +338,7 @@ struct ContentView: View {
             .contentShape(Rectangle())
             // Double tap: the conversation on or off. Single tap: the chrome.
             .onTapGesture(count: 2) { pet.toggleRunning() }
-            .onTapGesture { withAnimation(.easeOut(duration: 0.2)) { showCommands.toggle() } }
+            .onTapGesture { withAnimation(.easeOut(duration: 0.2)) { chrome.toggle() } }
         }
     }
 
@@ -362,10 +360,6 @@ struct ContentView: View {
             squareButton("plus", "New conversation", tint: off) {
                 Task { await chat.new() }
                 messages.removeAll()
-            }
-            squareButton(showTranscript ? "text.bubble.fill" : "text.bubble",
-                         "Subtitles", tint: showTranscript ? glow : off) {
-                showTranscript.toggle()
             }
             // Her level takes the place of what he would be typing. A meter
             // for a microphone that is down would be a lie, so when there is
@@ -729,7 +723,7 @@ struct ContentView: View {
         case .leave?:
             if pet.running { pet.toggleRunning() }
             look = .classic
-        case .transcript(let on)?: showTranscript = on
+        case .transcript(let on)?: withAnimation { chrome = on }
         case .settings(let open)?: showSettings = open
         case nil: break
         }

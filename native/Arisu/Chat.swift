@@ -110,11 +110,16 @@ import SwiftUI
     /// "new" means for her mind, which is why this is a POST and not a
     /// `lines.removeAll()`.
     func new() async {
+        struct Fresh: Decodable { let greeting: String? }
         var r = URLRequest(url: Brain.base.appendingPathComponent("chat/new"))
         r.httpMethod = "POST"
-        _ = try? await net.data(for: r)
         lines.removeAll()
         failed = nil
+        // She opens it: hello and today's top three (Oscar, 2026-10-01).
+        if let (data, _) = try? await net.data(for: r),
+           let hello = (try? JSONDecoder().decode(Fresh.self, from: data))?.greeting, !hello.isEmpty {
+            lines.append(Line(mine: false, text: hello, at: Date()))
+        }
     }
 
     func loadSessions() async {
