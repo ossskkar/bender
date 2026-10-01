@@ -279,11 +279,15 @@ struct ContentView: View {
                 face
                 scanlines.allowsHitTesting(false)
 
-                // Off to the right, clear of her: she is drawn in the middle.
-                HStack {
+                // Top right, clear of her: she is drawn in the middle.
+                VStack {
+                    HStack {
+                        Spacer()
+                        commandButtons
+                    }
                     Spacer()
-                    commandButtons
                 }
+                .padding(.top, 24)
                 .padding(.trailing, 24)
 
                 VStack {
@@ -474,27 +478,24 @@ struct ContentView: View {
     /// Things he asks for often enough to press (Backlog: command buttons
     /// over her voice animation). A `line` is composed on the desk and said
     /// word for word; an `ask` is put to her as his own question.
-    private static let commands: [(label: String, symbol: String, line: String?, ask: String?)] = [
-        ("BRIEF", "sun.max", "brief", nil),
-        ("WEEK", "calendar", "weekly", nil),
-        ("NEXT", "list.bullet", nil, "What is next on my plan today?"),
-        ("RUNS", "figure.run", nil, "How is my running going this week?"),
+    private static let commands: [(label: String, line: String?, ask: String?)] = [
+        ("Today's brief", "brief", nil),
+        ("Week review", "weekly", nil),
+        ("What's next?", nil, "What is next on my plan today?"),
+        ("How's my running?", nil, "How is my running going this week?"),
     ]
 
     private var commandButtons: some View {
-        VStack(spacing: 10) {
+        VStack(alignment: .trailing, spacing: 8) {
             ForEach(Self.commands, id: \.label) { c in
                 Button { press(c.line, c.ask) } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: c.symbol)
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(Skin.cyan)
-                        Text(c.label)
-                            .font(Skin.mono(12, .semibold))
-                            .foregroundStyle(.white)
-                    }
-                    .frame(width: 72, height: 64)
-                    .neon(Skin.cyan, stroke: 0.5, fill: Color.black.opacity(0.45))
+                    Text(c.label)
+                        .font(Skin.mono(14, .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Capsule().fill(Color.black.opacity(0.45)))
+                        .overlay(Capsule().stroke(Skin.cyan.opacity(0.5), lineWidth: 1))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(c.label)
