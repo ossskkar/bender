@@ -2,7 +2,7 @@
 
 ## State
 Everything below is built, installed on the iPad (`devicectl … 085B9100-…`),
-committed and pushed. Last arisu commit `d133034`; lain `7119b17` deployed.
+committed and pushed. Last arisu commit `ac0064a`; lain `7119b17` deployed.
 
 - **Versions** (`native/Arisu/Realms.swift`): Classic and Singularity only
   (Sigil/Clockwork built and dropped). Title is a menu; 3-finger swipe flips
@@ -22,6 +22,15 @@ committed and pushed. Last arisu commit `d133034`; lain `7119b17` deployed.
   suggestions and bar. Subtitles button gone. Free form setting exists.
 - **Chat**: new conversation opens with `brief.greeting()` (lain) — hello +
   top 3 (birthday, calendar, overdue/due todos, next block, run). No model.
+
+- **Deck = apps** (2026-10-02): groups renamed to their app (Claude, Google
+  Chrome, Spotify, Terminal, Finder; lain stays), every app in `apps` has a
+  deck. Centred wheel name opens the app; app strip gone. Keys: 3 rows fixed,
+  pages of 8 + sleep turned by vertical drag, ordered by `Usage` (iPad
+  UserDefaults, 14-day half-life). Store backup:
+  `~/.local/share/arisu-deck/buttons.before-apps-2026-10-01.json`.
+- **Free form**: her animation breathes behind the classic controls; arrival
+  gathers 2 s (`RealmView.gather` = `awaken.py` BANG); アリス echoes ~1/min.
 
 ## Unverified on the real iPad
 1. 醒来 recognition (needs on-device zh-CN; refuses server recognition by design).
