@@ -307,4 +307,17 @@ final class Brain {
         else { return [] }
         return inbox.commands
     }
+
+    /// One of her clock lines -- `brief`, `weekly` -- composed now, for a
+    /// command button. Nothing is queued: the scheduled one still goes out.
+    func line(_ key: String) async -> String? {
+        var c = URLComponents(url: Brain.base.appendingPathComponent("line"),
+                              resolvingAgainstBaseURL: false)!
+        c.queryItems = [URLQueryItem(name: "key", value: key)]
+        guard let (data, resp) = try? await session.data(from: c.url!),
+              (resp as? HTTPURLResponse)?.statusCode == 200,
+              let o = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        return o["text"] as? String
+    }
 }

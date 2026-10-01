@@ -311,6 +311,28 @@ final class Live: ObservableObject {
                            "tool_choice": "none"]])
     }
 
+    // MARK: - command buttons
+
+    /// A button's line, said word for word, under the same lock as the inbox
+    /// so the two never talk over each other.
+    func speak(_ line: String) async {
+        guard !speakingCommand else { return }
+        speakingCommand = true
+        await sayCommand(line)
+        speakingCommand = false
+    }
+
+    /// A button's question, put to her as if he had said it. Waits a few
+    /// seconds for a session that is still starting.
+    func ask(_ text: String) async {
+        if dormant { await reconnect() }
+        for _ in 0..<40 where !connected {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+        }
+        hear(text, from: "Oscar")
+        answer()
+    }
+
     // MARK: - the command inbox
 
     /// The desk's speak-first queue, the iPad's half of the web page's

@@ -279,6 +279,13 @@ struct ContentView: View {
                 face
                 scanlines.allowsHitTesting(false)
 
+                // Off to the right, clear of her: she is drawn in the middle.
+                HStack {
+                    Spacer()
+                    commandButtons
+                }
+                .padding(.trailing, 24)
+
                 VStack {
                     Spacer()
                     if room.isGroup { company }
@@ -462,6 +469,51 @@ struct ContentView: View {
         .overlay(Rectangle().frame(height: 1).foregroundStyle(Self.mag.opacity(0.6))
                     .shadow(color: Self.mag, radius: 4),
                  alignment: .bottom)
+    }
+
+    /// Things he asks for often enough to press (Backlog: command buttons
+    /// over her voice animation). A `line` is composed on the desk and said
+    /// word for word; an `ask` is put to her as his own question.
+    private static let commands: [(label: String, symbol: String, line: String?, ask: String?)] = [
+        ("BRIEF", "sun.max", "brief", nil),
+        ("WEEK", "calendar", "weekly", nil),
+        ("NEXT", "list.bullet", nil, "What is next on my plan today?"),
+        ("RUNS", "figure.run", nil, "How is my running going this week?"),
+    ]
+
+    private var commandButtons: some View {
+        VStack(spacing: 10) {
+            ForEach(Self.commands, id: \.label) { c in
+                Button { press(c.line, c.ask) } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: c.symbol)
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(Skin.cyan)
+                        Text(c.label)
+                            .font(Skin.mono(12, .semibold))
+                            .foregroundStyle(.white)
+                    }
+                    .frame(width: 72, height: 64)
+                    .neon(Skin.cyan, stroke: 0.5, fill: Color.black.opacity(0.45))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(c.label)
+            }
+        }
+    }
+
+    private func press(_ line: String?, _ ask: String?) {
+        lastSpoke = Date()
+        Task {
+            if let line {
+                guard let text = await brain.line(line) else { return }
+                if pet.running { await live.speak(text) }
+                else { pet.begin(saying: [QueuedCommand(id: line, text: text, show: nil)]) }
+            } else if let ask {
+                if !pet.running { pet.begin() }
+                await live.ask(ask)
+            }
+        }
     }
 
     private func squareButton(_ symbol: String, _ label: String, tint: Color? = nil,
