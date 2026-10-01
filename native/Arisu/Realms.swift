@@ -161,7 +161,8 @@ struct RealmView: View {
         clock.tw += dt * ((running ? 1 : 0.5) + clock.energy * 3.5)
         // A syllable or a beat sends a ripple through space; hers are bigger.
         if clock.amp - clock.lastAmp > (speaking ? 0.07 : 0.18) {
-            clock.waves.append((t, speaking ? 0.8 + clock.amp * 2.2 : 0.6 + clock.amp))
+            // Small ones for speech; the big one is kept for her arrival (Oscar, 2026-10-01).
+            clock.waves.append((t, speaking ? 0.25 + clock.amp * 0.5 : 0.6 + clock.amp))
         }
         clock.lastAmp = clock.amp
         clock.waves.removeAll { t - $0.t0 > 3 }
@@ -186,7 +187,7 @@ struct RealmView: View {
                 let p = ease(k)
                 s.rf = 1 - 0.7 * p
                 s.eye = 1 - 0.8 * p
-                s.lids = 0.72 + 0.28 * p
+                s.dim = 0.72 + 0.28 * p
                 s.dark = 0.8 * p
                 s.presence = 0.5 + 0.2 * p
                 s.shake = 4 * p
@@ -201,15 +202,12 @@ struct RealmView: View {
         } else if let d = clock.dismissAt, t - d < 1.4 {
             let p = ease((t - d) / 1.4)
             s.rf = 1 - 0.25 * sin(p * .pi)
-            s.lids = 0.72 * p
+            s.dim = 0.72 * p
             s.presence = 1 - 0.5 * p
             s.shake = 3 * (1 - p)
         } else if !running {
-            s.lids = 0.72
+            s.dim = 0.72
             s.presence = 0.5
-        } else {
-            let bp = clock.tw.truncatingRemainder(dividingBy: 7.3) / 7.3
-            s.lids = bp > 0.96 ? sin((bp - 0.96) / 0.04 * .pi) : 0
         }
         return s
     }
@@ -331,7 +329,7 @@ private func hash(_ i: Int, _ k: Double) -> Double {
 private struct Stage {
     var rf = 1.0        // how far out everything sits; < 1 is being pulled in
     var eye = 1.0       // her eye's size
-    var lids = 0.0      // 0 open, 1 shut
+    var dim = 0.0       // 0 awake, 1 gone: how far her light reaches out of the hole
     var dark = 0.0      // black over everything, while she gathers herself
     var flash = 0.0     // white, the moment she arrives
     var kana = 0.0      // her name, huge, behind her
@@ -616,31 +614,22 @@ private struct Scene {
         halo(center, Ri * 3 * (1 + e * 1.5), tint, (0.08 + amp * 0.15 + e * 0.35) * pres)
         smoke(Ri * (1 + e))
         lightning(Ri)
-        // An almond the eye is seen through: a slit while she sleeps, open
-        // while she is here.
-        let open = 1 - st.lids
-        var eyeCtx = ctx
-        if open < 0.99 {
-            let L = Ri * 1.9, h = Ri * 1.25 * open
-            var almond = Path()
-            almond.move(to: CGPoint(x: cx - L, y: cy))
-            almond.addQuadCurve(to: CGPoint(x: cx + L, y: cy), control: CGPoint(x: cx, y: cy - h * 2))
-            almond.addQuadCurve(to: CGPoint(x: cx - L, y: cy), control: CGPoint(x: cx, y: cy + h * 2))
-            softPath(almond, tint, 1.5, 0.8)
-            eyeCtx.clip(to: almond)
-        }
+        // Asleep, the light barely leaves the hole; awake, it reaches out. No
+        // eyelids: he wanted it subtler than drawing an eye (Oscar, 2026-10-01).
+        let open = 1 - st.dim
+        let eyeCtx = ctx
         var eyeLit = eyeCtx
         eyeLit.blendMode = .plusLighter
         var fibres = Path(), red = Path()
         for k in 0..<160 {
             let a = Double(k) / 160 * tau + tw * 0.04
-            let len = 0.55 + 0.45 * hash(k, 4) + (amp * 0.3 + e * 0.5) * sin(t * 9 + Double(k))
+            let len = 0.47 + (0.08 + 0.45 * hash(k, 4) + (amp * 0.3 + e * 0.5) * sin(t * 9 + Double(k))) * open
             var p = Path()
             p.move(to: round(Ri * 0.45, a)); p.addLine(to: round(Ri * len, a + 0.05))
             if k % 9 == 0 { red.addPath(p) } else { fibres.addPath(p) }
         }
-        eyeLit.stroke(fibres, with: .color(tint.opacity(0.4 + e * 0.4)), lineWidth: 1 + e)
-        eyeLit.stroke(red, with: .color(Skin.mag.opacity(0.5)), lineWidth: 1)
+        eyeLit.stroke(fibres, with: .color(tint.opacity((0.4 + e * 0.4) * (0.3 + 0.7 * open))), lineWidth: 1 + e)
+        eyeLit.stroke(red, with: .color(Skin.mag.opacity(0.5 * open)), lineWidth: 1)
         // The pupil opens wide when she speaks: the hole is her voice.
         let pr = Ri * 0.44 * (1 - amp * 0.18 + e * 0.25)
         let split = 2 + e * 10
