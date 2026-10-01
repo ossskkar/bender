@@ -45,6 +45,8 @@ struct ContentView: View {
     @AppStorage("arisu.faceY") private var faceY = 0.0
     @AppStorage(Skin.freeFormKey) private var freeForm = false
     @AppStorage(Look.key) private var look = Look.classic
+    @State private var wake = WakeListener()
+    @Environment(\.scenePhase) private var scene
     @State private var showSettings = false
     /// The deck: his Mac's buttons, on the iPad.
     /// The deck rail, on the right of both modes. Up by default and kept across
@@ -215,8 +217,7 @@ struct ContentView: View {
                       onHer: { if pet.running { live.muted.toggle() } },
                       onSummon: {
                           // Held anywhere: she comes, listening; held again: she goes.
-                          if pet.running { pet.toggleRunning() }
-                          else { showChat = false; live.muted = false; pet.toggleRunning() }
+                          if pet.running { pet.toggleRunning() } else { summon() }
                       })
             .transition(.opacity)
         }
@@ -249,6 +250,12 @@ struct ContentView: View {
         .animation(.easeInOut(duration: 0.25), value: live.thinking)
         .animation(.easeInOut(duration: 0.25), value: pet.running)
         .task { await closeQuietRoom() }
+        // 醒来, heard on the device while she is asleep and the app is in front.
+        .task(id: pet.running || scene != .active) {
+            guard !pet.running && scene == .active else { wake.stop(); return }
+            wake.onWake = { summon() }
+            await wake.start()
+        }
         .onAppear {
             Task { await pet.arrive() }
             withAnimation(.linear(duration: 5.6).repeatForever(autoreverses: false)) { sweep = true }
@@ -706,8 +713,22 @@ struct ContentView: View {
     /// The screen's buttons, spoken (Oscar, 2026-09-17). She still answers
     /// the line; this only presses the button. No "unmute": a muted mic hears
     /// nothing, so that one stays a tap.
+    /// She wakes: the sound, then the call, listening (Oscar, 2026-10-01).
+    private func summon() {
+        guard !pet.running else { return }
+        Awaken.play()
+        showChat = false
+        live.muted = false
+        pet.toggleRunning()
+    }
+
     private func obey(_ text: String) {
         switch VoiceCommand(text) {
+        // Duerme: she sleeps and the call ends. Vía: that, and the normal screen.
+        case .sleep?: if pet.running { pet.toggleRunning() }
+        case .leave?:
+            if pet.running { pet.toggleRunning() }
+            look = .classic
         case .transcript(let on)?: showTranscript = on
         case .settings(let open)?: showSettings = open
         case nil: break
@@ -867,11 +888,16 @@ struct WebPage: UIViewRepresentable {
 /// A spoken button press, from his transcribed line. Explicit phrases only, so
 /// talking *about* the transcript does not flip it.
 enum VoiceCommand: Equatable {
-    case transcript(Bool), settings(Bool)
+    case transcript(Bool), settings(Bool), sleep, leave
 
     init?(_ line: String) {
         let t = line.lowercased()
         func has(_ p: String) -> Bool { t.range(of: p, options: .regularExpression) != nil }
+        // One word said on its own, her name in front allowed, so a sentence
+        // that merely contains it does not end the call (Oscar, 2026-10-01).
+        func alone(_ w: String) -> Bool { has(#"^\W*(arisu\W*)?"# + w + #"\W*$"#) }
+        if alone("duerme") { self = .sleep; return }
+        if alone("v[ií]a") { self = .leave; return }
         let on = #"\b(show|open|turn on|switch on)\b"#, off = #"\b(hide|close|turn off|switch off)\b"#
         let chat = #"\b(transcript|subtitles|captions|chat)\b"#
         if has(on + ".{0,12}" + chat) { self = .transcript(true) }

@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1111111000000000000EF03 /* awaken.wav in Resources */ = {isa = PBXBuildFile; fileRef = A1111111000000000000EF04 /* awaken.wav */; };
+		A1111111000000000000EF01 /* Wake.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1111111000000000000EF02 /* Wake.swift */; };
 		187814739FB55B52BCD12622 /* Pet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CDADDCC98515122B7027967 /* Pet.swift */; };
 		A11111110000000000000001 /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11111110000000000000002 /* Settings.swift */; };
 		A1111111000000000000DE01 /* Deck.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1111111000000000000DE02 /* Deck.swift */; };
@@ -30,6 +32,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A1111111000000000000EF04 /* awaken.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = awaken.wav; sourceTree = "<group>"; };
+		A1111111000000000000EF02 /* Wake.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Wake.swift; sourceTree = "<group>"; };
 		07BAE50857925CE28AFF0464 /* ArisuApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArisuApp.swift; sourceTree = "<group>"; };
 		379107F4BD9D5823990FCC4B /* Arisu.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Arisu.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4BAA956715895AECAFB518DC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -92,6 +96,8 @@
 				A11111110000000000000002 /* Settings.swift */,
 				A1111111000000000000DE02 /* Deck.swift */,
 				A1111111000000000000EE02 /* Realms.swift */,
+				A1111111000000000000EF02 /* Wake.swift */,
+				A1111111000000000000EF04 /* awaken.wav */,
 				A1111111000000000000DC02 /* Record.swift */,
 				A1111111000000000000DE04 /* DeckRail.swift */,
 				A1111111000000000000CH02 /* Chat.swift */,
@@ -166,6 +172,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				68D8985899D15B24920A9698 /* Assets.xcassets in Resources */,
+				A1111111000000000000EF03 /* awaken.wav in Resources */,
 				A22222220000000000000003 /* Face in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -186,6 +193,7 @@
 				A11111110000000000000001 /* Settings.swift in Sources */,
 				A1111111000000000000DE01 /* Deck.swift in Sources */,
 				A1111111000000000000EE01 /* Realms.swift in Sources */,
+				A1111111000000000000EF01 /* Wake.swift in Sources */,
 				A1111111000000000000DC01 /* Record.swift in Sources */,
 				A1111111000000000000DE03 /* DeckRail.swift in Sources */,
 				A1111111000000000000CH01 /* Chat.swift in Sources */,
@@ -211,6 +219,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Arisu listens for her name.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Arisu listens on this iPad for the word that wakes her.";
 				INFOPLIST_KEY_UIBackgroundModes = audio;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIStatusBarHidden = YES;
@@ -235,6 +244,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Arisu listens for her name.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Arisu listens on this iPad for the word that wakes her.";
 				INFOPLIST_KEY_UIBackgroundModes = audio;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIStatusBarHidden = YES;

@@ -104,6 +104,7 @@ struct RealmView: View {
 
     @StateObject private var deck = Deck()
     @StateObject private var music = MacMusic()
+    @StateObject private var info = LainInfo()
     @State private var clock = RealmClock()
     @State private var chosen = ""
     @State private var pressed: (label: String, id: String, t: Double)?
@@ -116,12 +117,12 @@ struct RealmView: View {
                 clock.size = size
                 let stage = stage(t)
                 clock.hits = []
-                // The whole frame breathes in and shakes with her voice.
-                let e = clock.energy
-                let shake = e * e * 9 + stage.shake
+                // Only her arrival shakes the frame; her speech bends space and
+                // nothing else (Oscar, 2026-10-01).
+                let shake = stage.shake
                 clock.offset = CGSize(width: Double.random(in: -1...1) * shake,
                                       height: Double.random(in: -1...1) * shake)
-                clock.zoom = 1 + e * 0.06
+                clock.zoom = 1
                 var c = ctx
                 c.translateBy(x: size.width / 2 + clock.offset.width, y: size.height / 2 + clock.offset.height)
                 c.scaleBy(x: clock.zoom, y: clock.zoom)
@@ -142,6 +143,7 @@ struct RealmView: View {
         .ignoresSafeArea()
         .task { await deck.load() }
         .task { await deck.watchFront() }
+        .task { await info.watch() }
         .task(id: idle) { if idle { await music.listen() } }
         .onChange(of: deck.front) { _, g in if !g.isEmpty { chosen = g } }
         .onChange(of: running) { _, on in
@@ -158,7 +160,7 @@ struct RealmView: View {
         let target = idle ? max(level, music.level) : level
         clock.amp += (target - clock.amp) * 0.25
         clock.energy += ((speaking ? clock.amp : 0) - clock.energy) * 0.3
-        clock.tw += dt * ((running ? 1 : 0.5) + clock.energy * 3.5)
+        clock.tw += dt * (running ? 1 : 0.5)
         // A syllable or a beat sends a ripple through space; hers are bigger.
         if clock.amp - clock.lastAmp > (speaking ? 0.07 : 0.18) {
             // Small ones for speech; the big one is kept for her arrival (Oscar, 2026-10-01).
@@ -166,7 +168,7 @@ struct RealmView: View {
         }
         clock.lastAmp = clock.amp
         clock.waves.removeAll { t - $0.t0 > 3 }
-        if Double.random(in: 0...1) < 0.003 + clock.energy * 0.02 { clock.glitchUntil = t + 0.12 }
+        if Double.random(in: 0...1) < 0.003 { clock.glitchUntil = t + 0.12 }
         // The moment she arrives.
         if let s = clock.summonAt, t - s >= 1, !clock.banged {
             clock.banged = true
@@ -216,7 +218,7 @@ struct RealmView: View {
         let s = Scene(ctx: ctx, size: size, t: t, tw: clock.tw, amp: max(0.08, clock.amp),
                       energy: clock.energy, stage: stage, clock: clock, groups: groups,
                       chosen: current, tint: tint, status: status, running: running, micOn: micOn,
-                      outcome: deck.outcome)
+                      outcome: deck.outcome, info: [info.next, info.due, info.body])
         s.singularity()
         if let p = pressed {
             let k = t - p.t
@@ -349,6 +351,9 @@ private struct Scene {
     let amp: Double
     /// Her speech, 0 when silent: what makes the whole screen move.
     let energy: Double
+    /// Her level for everything but space: still while she speaks, so only
+    /// the warp and the ripples carry her voice; the music's while idle.
+    var deco: Double { energy > 0.02 ? 0.08 : amp }
     let stage: Stage
     let clock: RealmClock
     let groups: [(name: String, buttons: [DeckButton])]
@@ -358,6 +363,8 @@ private struct Scene {
     let running: Bool
     let micOn: Bool
     let outcome: [String: Bool]
+    /// What the magenta rings say: next on the plan, what is due, the body.
+    let info: [String]
 
     var cx: Double { size.width / 2 }
     var cy: Double { size.height / 2 }
@@ -426,14 +433,15 @@ private struct Scene {
     }
 
     func textOnCircle(_ s: String, r: Double, start: Double, _ col: Color, _ size: Double,
-                      opacity: Double = 1, inward: Bool = false) {
+                      opacity: Double = 1, inward: Bool = false, stretched: Bool = true) {
+        let ax = stretched ? self.ax : 1, ay = stretched ? self.ay : 1
         var c = ctx
         c.opacity = opacity
         var a = start
         for ch in s {
             // One lap at most: a longer string would write over its own start.
             guard a - start < tau else { break }
-            let p = at(r, a)
+            let p = stretched ? at(r, a) : round(r, a)
             let tangent = atan2(cos(a) * ay, -sin(a) * ax)
             a += size * 0.62 / (r * hypot(ax * sin(a), ay * cos(a)))
             var g = c
@@ -450,13 +458,13 @@ private struct Scene {
         c.addFilter(.blur(radius: R * 0.25))
         for i in 0..<n {
             let h1 = hash(i, 1), h2 = hash(i, 2), h3 = hash(i, 3)
-            let life = (t * (0.09 + 0.07 * h1) * (1 + 0.8 * amp) + h2).truncatingRemainder(dividingBy: 1)
+            let life = (t * (0.09 + 0.07 * h1) * (1 + 0.8 * deco) + h2).truncatingRemainder(dividingBy: 1)
             let ang = h3 * tau + t * 0.18 + life * 0.9
-            let r = R * (1 + 0.5 * life + 0.15 * amp)
+            let r = R * (1 + 0.5 * life + 0.15 * deco)
             let p = CGPoint(x: cx + cos(ang) * r,
                             y: cy + sin(ang) * r * 0.4 + R * 0.3 - life * R * (1.1 + 0.6 * h1))
-            let s = R * (0.12 + 0.24 * life) * (0.8 + 0.5 * amp + 0.3 * h2)
-            c.fill(circle(p, s), with: .color(.white.opacity(sin(life * .pi) * 0.22 * (0.6 + 0.4 * amp))))
+            let s = R * (0.12 + 0.24 * life) * (0.8 + 0.5 * deco + 0.3 * h2)
+            c.fill(circle(p, s), with: .color(.white.opacity(sin(life * .pi) * 0.22 * (0.6 + 0.4 * deco))))
         }
     }
 
@@ -466,31 +474,11 @@ private struct Scene {
              glow: 14, opacity: 1 - k * k, weight: .bold)
     }
 
-    /// Lightning from her eye while she speaks hard: a few jagged bolts, each
-    /// alive for one frame.
-    func lightning(_ from: Double) {
-        guard energy > 0.35 else { return }
-        var c = lit
-        c.addFilter(.blur(radius: 2))
-        for _ in 0..<3 where Double.random(in: 0...1) < energy * 0.6 {
-            var a = Double.random(in: 0..<tau), r = from
-            var bolt = Path()
-            bolt.move(to: round(r, a))
-            while r < M * (0.3 + energy * 0.25) {
-                r += M * Double.random(in: 0.02...0.05)
-                a += Double.random(in: -0.12...0.12)
-                bolt.addLine(to: at(r, a))
-            }
-            c.stroke(bolt, with: .color(tint.opacity(0.9)), lineWidth: 4)
-            lit.stroke(bolt, with: .color(.white.opacity(0.9)), lineWidth: 1.2)
-        }
-    }
-
     // ------------------------------------------------------- singularity
 
     /// Her eye is a black hole; every app is a spiral arm of words falling in.
     func singularity() {
-        let st = stage, e = energy, pres = st.presence
+        let st = stage, e = energy, pres = st.presence   // e: the warp only
         let Rh = M * 0.06 * st.rf
         func warp(_ r: Double, _ th: Double) -> CGPoint {
             var rr = r - (M * M * 0.012 * (1 + e)) / (r + M * 0.04)
@@ -505,11 +493,10 @@ private struct Scene {
         // space: a nebula wash under a glowing mesh, both pulled in by her,
         // brighter while she is here and brighter again while she speaks
         let reach = hypot(size.width, size.height) / 2
-        let lum = pres * (1 + e * 0.6)
+        let lum = pres
         ctx.fill(Path(CGRect(origin: .zero, size: size)), with: .radialGradient(
-            Gradient(colors: [Color(red: 0.10, green: 0.16, blue: 0.32).opacity(min(1, 0.9 * lum + amp * 0.1)),
-                              tint.opacity(0.12 * e),
-                              Color(red: 0.16, green: 0.06, blue: 0.22).opacity(0.7 * lum),
+            Gradient(colors: [Color(red: 0.10, green: 0.16, blue: 0.32).opacity(min(1, 0.9 * lum + deco * 0.1)),
+                                                            Color(red: 0.16, green: 0.06, blue: 0.22).opacity(0.7 * lum),
                               Color(red: 0.03, green: 0.03, blue: 0.08)]),
             center: center, startRadius: M * 0.05, endRadius: reach))
         var rings = Path(), spokes = Path(), marks = Path()
@@ -528,14 +515,28 @@ private struct Scene {
             }
             if j % 6 == 0 { marks.addPath(s) } else { spokes.addPath(s) }
         }
-        let meshInk = e > 0.05 ? tint : Skin.cyan
+        let meshInk = Skin.cyan
         var meshGlow = lit
-        meshGlow.addFilter(.blur(radius: 3 + e * 4))
-        meshGlow.stroke(rings, with: .color(meshInk.opacity((0.22 + amp * 0.15 + e * 0.3) * pres)), lineWidth: 2)
+        meshGlow.addFilter(.blur(radius: 3))
+        meshGlow.stroke(rings, with: .color(meshInk.opacity((0.22 + deco * 0.15) * pres)), lineWidth: 2)
         meshGlow.stroke(marks, with: .color(Skin.mag.opacity(0.3 * pres)), lineWidth: 2)
-        lit.stroke(rings, with: .color(meshInk.opacity((0.22 + amp * 0.1) * pres)), lineWidth: 1)
+        lit.stroke(rings, with: .color(meshInk.opacity((0.22 + deco * 0.1) * pres)), lineWidth: 1)
         lit.stroke(spokes, with: .color(Skin.cyan.opacity(0.12 * pres)), lineWidth: 1)
         lit.stroke(marks, with: .color(Skin.mag.opacity(0.28 * pres)), lineWidth: 1)
+
+        // the information rings (Oscar, 2026-10-01): magenta text on its own
+        // dotted orbit, turning against its neighbours, warped by her like the
+        // rest of space
+        let ringInk = Color(red: 1, green: 0.42, blue: 0.70)
+        for (k, (r, line)) in zip([M * 0.2, M * 0.31, M * 0.395], info).enumerated() where !line.isEmpty {
+            let rr = r * st.rf
+            let dir = k % 2 == 0 ? 1.0 : -1.0
+            lit.stroke(k == 0 ? circle(center, rr) : orbit(rr), with: .color(Skin.mag.opacity(0.18 * pres)),
+                       style: StrokeStyle(lineWidth: 1, dash: [2, 5], dashPhase: tw * 10 * dir))
+            let full = line + "  ∴  "
+            textOnCircle(String(repeating: full, count: 6), r: rr + 9, start: dir * tw * (0.05 - Double(k) * 0.012),
+                         ringInk, k == 0 ? 12 : 13, opacity: 0.75 * pres, stretched: k != 0)
+        }
 
         // her name, huge, the moment she arrives
         if st.kana > 0 {
@@ -547,18 +548,18 @@ private struct Scene {
         var ticks = Path(), big = Path()
         for k in 0..<180 {
             let a = -tw * 0.05 + Double(k) / 180 * tau, long = k % 15 == 0
-            let out = long ? 14 + e * 30 * hash(k, 6) : 6.0
+            let out = long ? 14 : 6.0
             var p = Path()
             p.move(to: at(rim, a)); p.addLine(to: at(rim + out, a))
             if long { big.addPath(p) } else { ticks.addPath(p) }
         }
         lit.stroke(ticks, with: .color(Skin.cyan.opacity(0.15 * pres)), lineWidth: 1)
-        lit.stroke(big, with: .color(Skin.cyan.opacity(0.5 * pres + e * 0.5)), lineWidth: 1 + e * 2)
+        lit.stroke(big, with: .color(Skin.cyan.opacity(0.5 * pres)), lineWidth: 1)
         let now = Date().formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute().second())
         let call = running ? status : "HOLD TO SUMMON"
         let rimText = "ARISU ∴ EVENT HORIZON ∴ \(now) ∴ \(chosen.uppercased()) ∴ \(call) ∴ "
-        textOnCircle(rimText + rimText, r: rim + 26, start: tw * 0.03, e > 0.05 ? tint : Skin.mag, 10 + e * 4,
-                     opacity: 0.5 + e * 0.5)
+        textOnCircle(rimText + rimText, r: rim + 26, start: tw * 0.03, Skin.mag, 10,
+                     opacity: 0.5)
 
         // spiral arms of words
         let n = max(1, groups.count), Rmax = M * 0.44
@@ -572,12 +573,12 @@ private struct Scene {
                 k == 0 ? arm.move(to: p) : arm.addLine(to: p)
             }
             var a = lit
-            a.addFilter(.blur(radius: 6 + e * 6))
-            a.stroke(arm, with: .color(col.opacity((on ? 0.7 : 0.25) * pres + e * 0.4)), lineWidth: (on ? 5 : 3) + e * 6)
-            lit.stroke(arm, with: .color(col.opacity((on ? 0.5 : 0.15) * pres + e * 0.3)), lineWidth: on ? 1.5 : 1)
+            a.addFilter(.blur(radius: 6))
+            a.stroke(arm, with: .color(col.opacity((on ? 0.7 : 0.25) * pres)), lineWidth: on ? 5 : 3)
+            lit.stroke(arm, with: .color(col.opacity((on ? 0.5 : 0.15) * pres)), lineWidth: on ? 1.5 : 1)
 
             let tip = pos(Rmax)
-            halo(tip, M * (on ? 0.07 : 0.04) * (1 + e), col, (on ? 0.4 : 0.18) * pres)
+            halo(tip, M * (on ? 0.07 : 0.04), col, (on ? 0.4 : 0.18) * pres)
             glyph(symbol(for: g.name), tip, on ? .white : col, M * (on ? 0.06 : 0.045))
             text(g.name.uppercased(), CGPoint(x: tip.x, y: tip.y + M * 0.04), col, 10, glow: 6,
                  opacity: on ? 1 : 0.55)
@@ -610,10 +611,9 @@ private struct Scene {
         }
 
         // the eye
-        let Ri = M * 0.12 * st.eye * (1 + amp * 0.15 + e * 0.35)
-        halo(center, Ri * 3 * (1 + e * 1.5), tint, (0.08 + amp * 0.15 + e * 0.35) * pres)
-        smoke(Ri * (1 + e))
-        lightning(Ri)
+        let Ri = M * 0.12 * st.eye * (1 + deco * 0.15)
+        halo(center, Ri * 3, tint, (0.08 + deco * 0.15) * pres)
+        smoke(Ri)
         // Asleep, the light barely leaves the hole; awake, it reaches out. No
         // eyelids: he wanted it subtler than drawing an eye (Oscar, 2026-10-01).
         let open = 1 - st.dim
@@ -623,26 +623,135 @@ private struct Scene {
         var fibres = Path(), red = Path()
         for k in 0..<160 {
             let a = Double(k) / 160 * tau + tw * 0.04
-            let len = 0.47 + (0.08 + 0.45 * hash(k, 4) + (amp * 0.3 + e * 0.5) * sin(t * 9 + Double(k))) * open
+            let len = 0.47 + (0.08 + 0.45 * hash(k, 4) + (deco * 0.3) * sin(t * 9 + Double(k))) * open
             var p = Path()
             p.move(to: round(Ri * 0.45, a)); p.addLine(to: round(Ri * len, a + 0.05))
             if k % 9 == 0 { red.addPath(p) } else { fibres.addPath(p) }
         }
-        eyeLit.stroke(fibres, with: .color(tint.opacity((0.4 + e * 0.4) * (0.3 + 0.7 * open))), lineWidth: 1 + e)
+        eyeLit.stroke(fibres, with: .color(tint.opacity(0.4 * (0.3 + 0.7 * open))), lineWidth: 1)
         eyeLit.stroke(red, with: .color(Skin.mag.opacity(0.5 * open)), lineWidth: 1)
         // The pupil opens wide when she speaks: the hole is her voice.
-        let pr = Ri * 0.44 * (1 - amp * 0.18 + e * 0.25)
-        let split = 2 + e * 10
+        let pr = Ri * 0.44 * (1 - deco * 0.18)
+        let split = 2.0
         for (dx, col, o) in [(-split, Color(red: 1, green: 0.2, blue: 0.33), 0.6),
                              (split, Color(red: 0.2, green: 0.53, blue: 1), 0.6)] {
             var c = eyeLit
             c.addFilter(.blur(radius: M * 0.01))
             c.stroke(circle(CGPoint(x: cx + dx, y: cy), pr), with: .color(col.opacity(o)), lineWidth: 3)
         }
-        eyeLit.stroke(circle(center, pr), with: .color(Color(red: 1, green: 0.95, blue: 0.75).opacity(0.9)),
-                      lineWidth: 2.5 + e * 3)
-        eyeCtx.fill(circle(center, pr * 0.94), with: .color(.black))
-        softRing(center, Ri, micOn ? tint : Skin.cyan, M * 0.004 * (1 + amp + e * 2), open)
+        // The photon ring, soft (Oscar, 2026-10-01): blurred passes only, no
+        // hard stroke, and the hole fades into it rather than being cut out.
+        let photon = Color(red: 1, green: 0.95, blue: 0.75)
+        for (w, blur, o) in [(pr * 0.5, pr * 0.25, 0.25), (pr * 0.2, pr * 0.1, 0.45), (pr * 0.07, pr * 0.04, 0.6)] {
+            var c = eyeLit
+            c.addFilter(.blur(radius: blur))
+            c.stroke(circle(center, pr), with: .color(photon.opacity(o)), lineWidth: w)
+        }
+        eyeCtx.fill(circle(center, pr * 1.05), with: .radialGradient(
+            Gradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.72),
+                             .init(color: .black.opacity(0), location: 1)]),
+            center: center, startRadius: 0, endRadius: pr * 1.05))
+        softRing(center, Ri, micOn ? tint : Skin.cyan, M * 0.004 * (1 + deco), open)
         hit(center, Ri, .her)
+    }
+}
+
+// MARK: - What the rings say
+
+/// lain's data.json, read every five minutes and boiled down to three lines
+/// for the magenta rings (Oscar, 2026-10-01): what is next today, what is due,
+/// and how the running and habits stand. The iPad only reads it.
+@MainActor final class LainInfo: ObservableObject {
+    @Published private(set) var next = ""
+    @Published private(set) var due = ""
+    @Published private(set) var body = ""
+
+    static let url = URL(string: "https://architect-server.tailaa64e9.ts.net:8443/data.json")!
+
+    func watch() async {
+        while !Task.isCancelled {
+            if let (data, _) = try? await URLSession.shared.data(from: Self.url),
+               let d = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                read(d, now: Date())
+            }
+            try? await Task.sleep(for: .seconds(300))
+        }
+    }
+
+    func read(_ d: [String: Any], now: Date) {
+        let cal = Calendar.current
+        let day = Self.iso(now)
+        let wd = cal.component(.weekday, from: now) - 1          // 0 = Sunday, as the planner stores it
+        let hm = now.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute())
+
+        // the planner: today's blocks still to come
+        let plan = (d["plan"] as? [String: [String: Any]] ?? [:]).values
+        let ticked = (d["plog"] as? [String: [String: Any]])?[day] ?? [:]
+        let today = plan.filter { p in
+            let rep = p["rep"] as? String ?? "once"
+            let days = p["days"] as? [Int] ?? []
+            switch rep {
+            case "daily": return true
+            case "weekdays": return (1...5).contains(wd)
+            case "weekends": return wd == 0 || wd == 6
+            case "custom": return days.contains(wd)
+            default: return (p["date"] as? String) == day
+            }
+        }
+        let coming = today
+            .filter { ($0["start"] as? String ?? "") >= hm && ticked[$0["id"] as? String ?? ""] == nil }
+            .sorted { ($0["start"] as? String ?? "") < ($1["start"] as? String ?? "") }
+            .prefix(4)
+            .map { "\($0["start"] as? String ?? "") \(($0["title"] as? String ?? "").uppercased())" }
+        next = coming.isEmpty ? "NOTHING LEFT ON THE PLAN TODAY" : "NEXT ∴ " + coming.joined(separator: " ∴ ")
+
+        // the todo: overdue and due within three days
+        let soon = Self.iso(cal.date(byAdding: .day, value: 3, to: now)!)
+        var open = 0
+        var pressing: [(String, String)] = []
+        for group in (d["todo"] as? [String: [String: Any]] ?? [:]).values {
+            for t in group["tasks"] as? [[String: Any]] ?? [] where t["done"] as? Bool != true {
+                open += 1
+                if let when = t["due"] as? String, !when.isEmpty, when <= soon {
+                    pressing.append((when, t["title"] as? String ?? ""))
+                }
+            }
+        }
+        let lines = pressing.sorted { $0.0 < $1.0 }.prefix(4).map { when, title in
+            (when < day ? "! " : "") + String(title.uppercased().prefix(38)) + " · " + Self.short(when)
+        }
+        due = (lines.isEmpty ? "NOTHING DUE" : "DUE ∴ " + lines.joined(separator: " ∴ ")) + " ∴ \(open) OPEN"
+
+        // the race, the week's running, today's habits
+        var parts: [String] = []
+        if let race = (d["settings"] as? [String: Any])?["raceDate"] as? String,
+           let r = Self.parse(race), let left = cal.dateComponents([.day], from: cal.startOfDay(for: now), to: r).day,
+           left >= 0 {
+            parts.append("P100K ∴ \(left) DAYS TO THE RACE")
+        }
+        let monday = cal.date(byAdding: .day, value: -((wd + 6) % 7), to: cal.startOfDay(for: now))!
+        var km = 0.0
+        for (k, v) in d["days"] as? [String: Any] ?? [:] {
+            guard let date = Self.parse(k), date >= monday else { continue }
+            km += (v as? Double) ?? ((v as? [String: Any])?["km"] as? Double) ?? 0
+        }
+        parts.append(String(format: "%.0f KM THIS WEEK", km))
+        if let h = d["habits"] as? [String: Any], let list = h["list"] as? [[String: Any]] {
+            let due = list.filter { ($0["days"] as? [Int] ?? []).contains(wd) }.count
+            let done = ((h["log"] as? [String: [String]])?[day] ?? []).count
+            parts.append("HABITS \(done)/\(due)")
+        }
+        body = parts.joined(separator: " ∴ ")
+    }
+
+    private static func iso(_ d: Date) -> String {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f.string(from: d)
+    }
+    private static func parse(_ s: String) -> Date? {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f.date(from: s)
+    }
+    private static func short(_ s: String) -> String {
+        guard let d = parse(s) else { return s }
+        return d.formatted(.dateTime.day().month(.abbreviated)).uppercased()
     }
 }
