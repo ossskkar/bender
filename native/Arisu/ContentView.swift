@@ -720,14 +720,24 @@ struct ContentView: View {
     /// The screen's buttons, spoken (Oscar, 2026-09-17). She still answers
     /// the line; this only presses the button. No "unmute": a muted mic hears
     /// nothing, so that one stays a tap.
-    /// She wakes: the sound, then the call, listening (Oscar, 2026-10-01).
+    /// She wakes: the sound, then the call, listening (Oscar, 2026-10-01),
+    /// and her first words a line of Old Norse about victory (2026-10-02).
     private func summon() {
         guard !pet.running else { return }
         Awaken.play()
         showChat = false
         live.muted = false
-        pet.toggleRunning()
+        let line = Self.victory.randomElement()!
+        pet.begin(saying: [QueuedCommand(id: "awaken", text: line, show: nil)])
     }
+
+    /// Short, and real: the Edda and Ragnar's death-song.
+    private static let victory = [
+        "Sigrúnar skaltu kunna, ef þú vilt sigr hafa.",      // Sigrdrífumál 6
+        "Orðstírr deyr aldregi, hveim er sér góðan getr.",   // Hávamál 76
+        "Hjuggu vér með hjörvi.",                            // Krákumál
+        "Hlæjandi skal ek deyja.",                           // Krákumál, the last line
+    ]
 
     private func obey(_ text: String) {
         switch VoiceCommand(text) {
