@@ -44,6 +44,7 @@ struct ContentView: View {
     @AppStorage("arisu.faceX") private var faceX = 0.0
     @AppStorage("arisu.faceY") private var faceY = 0.0
     @AppStorage(Skin.freeFormKey) private var freeForm = false
+    @AppStorage(Look.key) private var look = Look.classic
     @State private var showSettings = false
     /// The deck: his Mac's buttons, on the iPad.
     /// The deck rail, on the right of both modes. Up by default and kept across
@@ -175,6 +176,8 @@ struct ContentView: View {
     }
 
     var body: some View {
+        ZStack {
+        if look == .classic {
         GeometryReader { geo in
             // Her name is the app's, not the conversation's: it sits over the
             // whole window, deck included (Oscar, 2026-09-28). It used to be
@@ -203,6 +206,18 @@ struct ContentView: View {
                 }
             }
         }
+        } else {
+            // A version that is all her (Oscar, 2026-10-01).
+            RealmView(look: look, level: Double(pet.level), idle: voiceState == .idle,
+                      tint: phaseColor, status: (pet.running ? stateWord : "not listening").uppercased(),
+                      micOn: pet.running && !live.muted) {
+                if pet.running { live.muted.toggle() }
+            }
+            .transition(.opacity)
+        }
+        }
+        .animation(.easeInOut(duration: 0.4), value: look)
+        .background(FourFingerSwipe { look = look.step($0) })
         .background(Color.black)
         .background(PencilWatch(enabled: !scribbling) { scribbling = true })
         .overlay { if scribbling { ScribbleCanvas { scribbling = false } } }
@@ -399,14 +414,24 @@ struct ContentView: View {
         // tagline drops out first when the window is narrow, as the
         // dashboard's own wordmark does.
         return HStack(alignment: .firstTextBaseline, spacing: 14) {
-            Text("Arisuへようこそ！")
-                // As tall as the button beside it: the title is the other half
-                // of that row, not a caption over it (Oscar, 2026-09-29).
-                .font(Skin.mono(26, .bold))
-                .tracking(4.5)
+            // The title is the menu of versions (Oscar, 2026-10-01).
+            Menu {
+                Picker("Version", selection: $look) {
+                    ForEach(Look.allCases) { Text($0.label).tag($0) }
+                }
+            } label: {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("Arisuへようこそ！")
+                        // As tall as the button beside it: the title is the other half
+                        // of that row, not a caption over it (Oscar, 2026-09-29).
+                        .font(Skin.mono(26, .bold))
+                        .tracking(4.5)
+                    Image(systemName: "chevron.down").font(.system(size: 14, weight: .bold))
+                }
                 .foregroundStyle(Self.mag)
                 .shadow(color: Self.mag.opacity(0.7 * flicker), radius: 12)
                 .fixedSize()
+            }
             Text("PRESENT DAY · PRESENT TIME")
                 .font(Skin.mono(11, .medium))
                 .tracking(2.8)
