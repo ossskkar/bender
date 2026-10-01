@@ -13,9 +13,11 @@ import AudioToolbox
 import CoreAudio
 import Foundation
 
-/// Music RMS sits around 0.05-0.3; this maps a loud track near 1.
-/// ponytail: one fixed gain, an auto-gain if quiet and loud tracks differ too much.
-let gain: Float = 3.5
+/// Mastered music is loud all the time, so plain RMS barely moves. The level
+/// is a quiet base from loudness plus a kick from how far this 33 ms rose above
+/// the last second -- which is the beat.
+/// ponytail: fixed gains, an auto-gain if quiet and loud tracks differ too much.
+let base: Float = 2.0, kick: Float = 25
 let port: UInt16 = 8885
 
 func get<T>(_ obj: AudioObjectID, _ sel: AudioObjectPropertySelector, _ value: inout T) -> OSStatus {
@@ -64,6 +66,7 @@ final class Tap {
     var tap = AudioObjectID(0), device = AudioObjectID(0)
     var proc: AudioDeviceIOProcID?
     var sum: Float = 0, count = 0
+    var slow: Float = 0
     var last = Date()
 
     init?(_ processes: [AudioObjectID]) {
@@ -106,7 +109,9 @@ final class Tap {
             count += n
         }
         guard Date().timeIntervalSince(last) >= 1.0 / 30, count > 0 else { return }
-        send(min(1, (sum / Float(count)).squareRoot() * gain))
+        let fast = (sum / Float(count)).squareRoot()
+        slow += (fast - slow) * 0.06          // about a second at 30 Hz
+        send(min(1, fast * base + max(0, fast - slow) * kick))
         sum = 0; count = 0; last = Date()
     }
 

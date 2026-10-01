@@ -2,11 +2,12 @@ import SwiftUI
 import UIKit
 
 /// The versions of the iPad app (Oscar, 2026-10-01). Classic is the screen
-/// with the deck, the record panel and the chat; the other three are the whole
-/// screen given to her voice, with the deck's apps and actions moving round
-/// it. A three-finger swipe walks through them; the title's menu picks one.
+/// with the deck, the record panel and the chat; Singularity is the whole
+/// screen given to her, the deck falling into her eye. Sigil and Clockwork
+/// were built and dropped the same day: Singularity is the one he kept.
+/// A three-finger swipe flips between them; the title's menu picks one.
 enum Look: String, CaseIterable, Identifiable {
-    case classic, singularity, sigil, clockwork
+    case classic, singularity
     static let key = "arisu.look"
     var id: String { rawValue }
     var label: String { rawValue.uppercased() }
@@ -60,28 +61,46 @@ struct ThreeFingerSwipe: UIViewRepresentable {
 // MARK: - The screen
 
 /// Everything that changes frame to frame and is not worth a SwiftUI update:
-/// the smoothed level, the ripples, where each tappable thing was last drawn.
+/// the smoothed level, the ripples, her arrival, where each tappable thing was
+/// last drawn.
 private final class RealmClock {
-    var start = Date()
+    let start = Date()
+    var last = 0.0
+    var tw = 0.0
     var amp = 0.0
+    var energy = 0.0
     var lastAmp = 0.0
     var waves: [(t0: Double, s: Double)] = []
     var glitchUntil = 0.0
+    var summonAt: Double?
+    var dismissAt: Double?
+    var banged = false
+    /// The shake and zoom the last frame was drawn with, to map a tap back.
+    var offset = CGSize.zero
+    var zoom = 1.0
+    var size = CGSize.zero
     var hits: [(at: CGPoint, r: Double, tap: Tap)] = []
-    var trail: [CGPoint] = []
 
     enum Tap { case app(String), button(DeckButton), her }
+
+    var now: Double { Date().timeIntervalSince(start) }
 }
 
+/// Singularity (Oscar, 2026-10-01): her eye is a black hole, every app of the
+/// deck a spiral arm of its actions falling in. A long press anywhere summons
+/// her -- the screen is sucked into the eye, goes dark, and she arrives in a
+/// flash and a shockwave -- and while she speaks, all of it moves with her.
 struct RealmView: View {
-    let look: Look
     /// Her own level, before the Mac's music is mixed in.
     let level: Double
     let idle: Bool
+    let speaking: Bool
+    let running: Bool
     let tint: Color
     let status: String
     let micOn: Bool
     let onHer: () -> Void
+    let onSummon: () -> Void
 
     @StateObject private var deck = Deck()
     @StateObject private var music = MacMusic()
@@ -93,41 +112,134 @@ struct RealmView: View {
         TimelineView(.animation) { tl in
             Canvas { ctx, size in
                 let t = tl.date.timeIntervalSince(clock.start)
-                let target = idle ? max(level, music.level) : level
-                clock.amp += (target - clock.amp) * 0.25
+                step(t)
+                clock.size = size
+                let stage = stage(t)
                 clock.hits = []
+                // The whole frame breathes in and shakes with her voice.
+                let e = clock.energy
+                let shake = e * e * 9 + stage.shake
+                clock.offset = CGSize(width: Double.random(in: -1...1) * shake,
+                                      height: Double.random(in: -1...1) * shake)
+                clock.zoom = 1 + e * 0.06
                 var c = ctx
-                draw(&c, size, t)
-                if t < clock.glitchUntil { glitch(ctx, size, t) }
+                c.translateBy(x: size.width / 2 + clock.offset.width, y: size.height / 2 + clock.offset.height)
+                c.scaleBy(x: clock.zoom, y: clock.zoom)
+                c.translateBy(x: -size.width / 2, y: -size.height / 2)
+                draw(c, size, t, stage)
+                if t < clock.glitchUntil { glitch(c, size, t, stage) }
+                overlay(ctx, size, stage)
                 scanlines(ctx, size)
             }
         }
         .background(Color.black)
         .contentShape(Rectangle())
-        .gesture(SpatialTapGesture().onEnded { tap($0.location) })
+        .gesture(
+            LongPressGesture(minimumDuration: 0.5)
+                .onEnded { _ in onSummon() }
+                .exclusively(before: SpatialTapGesture().onEnded { tap($0.location) })
+        )
         .ignoresSafeArea()
         .task { await deck.load() }
         .task { await deck.watchFront() }
         .task(id: idle) { if idle { await music.listen() } }
         .onChange(of: deck.front) { _, g in if !g.isEmpty { chosen = g } }
+        .onChange(of: running) { _, on in
+            if on { clock.summonAt = clock.now; clock.dismissAt = nil; clock.banged = false }
+            else { clock.dismissAt = clock.now; clock.summonAt = nil }
+        }
     }
 
-    private func draw(_ ctx: inout GraphicsContext, _ size: CGSize, _ t: Double) {
-        let s = Scene(ctx: ctx, size: size, t: t, amp: max(0.08, clock.amp), clock: clock,
-                      groups: groups, chosen: current, tint: tint, status: status, micOn: micOn,
-                      frontApp: deck.frontApp, outcome: deck.outcome)
-        switch look {
-        case .singularity: s.singularity()
-        case .sigil:       s.sigil()
-        case .clockwork:   s.clockwork()
-        case .classic:     break
+    /// Advance what carries over from frame to frame. Once per frame, never
+    /// from the glitch's redraws.
+    private func step(_ t: Double) {
+        let dt = min(0.05, max(0, t - clock.last))
+        clock.last = t
+        let target = idle ? max(level, music.level) : level
+        clock.amp += (target - clock.amp) * 0.25
+        clock.energy += ((speaking ? clock.amp : 0) - clock.energy) * 0.3
+        clock.tw += dt * ((running ? 1 : 0.5) + clock.energy * 3.5)
+        // A syllable or a beat sends a ripple through space; hers are bigger.
+        if clock.amp - clock.lastAmp > (speaking ? 0.07 : 0.18) {
+            clock.waves.append((t, speaking ? 0.8 + clock.amp * 2.2 : 0.6 + clock.amp))
         }
+        clock.lastAmp = clock.amp
+        clock.waves.removeAll { t - $0.t0 > 3 }
+        if Double.random(in: 0...1) < 0.003 + clock.energy * 0.02 { clock.glitchUntil = t + 0.12 }
+        // The moment she arrives.
+        if let s = clock.summonAt, t - s >= 1, !clock.banged {
+            clock.banged = true
+            clock.waves.append((t, 5))
+            clock.glitchUntil = t + 0.35
+        }
+    }
+
+    /// Her arrival: pulled into the eye and dark for a second, then a flash, a
+    /// shockwave and everything thrown back out past where it was. Her leaving:
+    /// a shudder inward and the eye closing to a slit.
+    private func stage(_ t: Double) -> Stage {
+        func ease(_ x: Double) -> Double { let u = min(1, max(0, x)); return u * u * (3 - 2 * u) }
+        var s = Stage()
+        if let a = clock.summonAt, t - a < 3.4 {
+            let k = t - a
+            if k < 1 {
+                let p = ease(k)
+                s.rf = 1 - 0.7 * p
+                s.eye = 1 - 0.8 * p
+                s.lids = 0.72 + 0.28 * p
+                s.dark = 0.8 * p
+                s.presence = 0.5 + 0.2 * p
+                s.shake = 4 * p
+            } else {
+                let u = k - 1
+                s.rf = 1 + 0.3 * exp(-u * 2.5) * cos(u * 8)
+                s.eye = 1 + 0.7 * exp(-u * 2)
+                s.flash = max(0, 1 - u / 0.6)
+                s.kana = sin(min(1, u / 2.4) * .pi) * 0.7
+                s.shake = 24 * exp(-u * 4)
+            }
+        } else if let d = clock.dismissAt, t - d < 1.4 {
+            let p = ease((t - d) / 1.4)
+            s.rf = 1 - 0.25 * sin(p * .pi)
+            s.lids = 0.72 * p
+            s.presence = 1 - 0.5 * p
+            s.shake = 3 * (1 - p)
+        } else if !running {
+            s.lids = 0.72
+            s.presence = 0.5
+        } else {
+            let bp = clock.tw.truncatingRemainder(dividingBy: 7.3) / 7.3
+            s.lids = bp > 0.96 ? sin((bp - 0.96) / 0.04 * .pi) : 0
+        }
+        return s
+    }
+
+    private func draw(_ ctx: GraphicsContext, _ size: CGSize, _ t: Double, _ stage: Stage) {
+        let s = Scene(ctx: ctx, size: size, t: t, tw: clock.tw, amp: max(0.08, clock.amp),
+                      energy: clock.energy, stage: stage, clock: clock, groups: groups,
+                      chosen: current, tint: tint, status: status, running: running, micOn: micOn,
+                      outcome: deck.outcome)
+        s.singularity()
         if let p = pressed {
             let k = t - p.t
             if k < 2.2 {
                 let col = deck.outcome[p.id].map { $0 ? Skin.good : Skin.recording } ?? Skin.cyan
                 s.flash(p.label, col, k / 2.2)
             }
+        }
+    }
+
+    /// The dark she gathers in, and the white she arrives in.
+    private func overlay(_ ctx: GraphicsContext, _ size: CGSize, _ stage: Stage) {
+        let all = Path(CGRect(origin: .zero, size: size))
+        if stage.dark > 0 { ctx.fill(all, with: .color(.black.opacity(stage.dark))) }
+        if stage.flash > 0 {
+            var c = ctx
+            c.blendMode = .plusLighter
+            c.fill(all, with: .radialGradient(
+                Gradient(colors: [.white.opacity(stage.flash), tint.opacity(stage.flash * 0.6)]),
+                center: CGPoint(x: size.width / 2, y: size.height / 2),
+                startRadius: 0, endRadius: max(size.width, size.height) * 0.7))
         }
     }
 
@@ -141,12 +253,16 @@ struct RealmView: View {
         groups.contains { $0.name == chosen } ? chosen : (groups.first?.name ?? "")
     }
 
-    private func tap(_ p: CGPoint) {
+    private func tap(_ screen: CGPoint) {
+        // Back through the frame's shake and zoom to where things were drawn.
+        let w = clock.size.width / 2, h = clock.size.height / 2
+        let p = CGPoint(x: (screen.x - clock.offset.width - w) / clock.zoom + w,
+                        y: (screen.y - clock.offset.height - h) / clock.zoom + h)
         let near = clock.hits
             .map { ($0, hypot($0.at.x - p.x, $0.at.y - p.y)) }
             .filter { $0.1 < $0.0.r }
             .min { $0.1 < $1.1 }?.0
-        let t = Date().timeIntervalSince(clock.start)
+        let t = clock.now
         guard let near else { clock.waves.append((t, 0.8)); return }
         switch near.tap {
         case .app(let g):
@@ -168,20 +284,22 @@ struct RealmView: View {
         var p = Path()
         var y = 0.0
         while y < size.height { p.addRect(CGRect(x: 0, y: y, width: size.width, height: 1)); y += 3 }
-        ctx.fill(p, with: .color(.black.opacity(0.18)))
+        ctx.fill(p, with: .color(.black.opacity(0.10)))
     }
 
     /// Bands of the screen slid sideways for a moment.
-    private func glitch(_ ctx: GraphicsContext, _ size: CGSize, _ t: Double) {
-        for k in 0..<4 {
+    private func glitch(_ ctx: GraphicsContext, _ size: CGSize, _ t: Double, _ stage: Stage) {
+        let hits = clock.hits
+        for _ in 0..<4 {
             let y = Double.random(in: 0..<size.height), h = Double.random(in: 4..<28)
             let band = CGRect(x: 0, y: y, width: size.width, height: h)
             var c = ctx
             c.clip(to: Path(band))
             c.fill(Path(band), with: .color(.black))
             c.translateBy(x: Double.random(in: -30...30), y: 0)
-            draw(&c, size, t + Double(k) * 0.01)
+            draw(c, size, t, stage)
         }
+        clock.hits = hits
         var c = ctx
         c.blendMode = .plusLighter
         c.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Skin.mag.opacity(0.06)))
@@ -190,8 +308,6 @@ struct RealmView: View {
 
 // MARK: - Drawing
 
-private let blood = Color(red: 0.82, green: 0.13, blue: 0.25)
-private let bone = Color(red: 0.94, green: 0.90, blue: 0.84)
 private let tau = Double.pi * 2
 
 private func symbol(for group: String) -> String {
@@ -211,20 +327,38 @@ private func hash(_ i: Int, _ k: Double) -> Double {
     return v - v.rounded(.down)
 }
 
+/// Where her arrival or departure is, as numbers the drawing reads.
+private struct Stage {
+    var rf = 1.0        // how far out everything sits; < 1 is being pulled in
+    var eye = 1.0       // her eye's size
+    var lids = 0.0      // 0 open, 1 shut
+    var dark = 0.0      // black over everything, while she gathers herself
+    var flash = 0.0     // white, the moment she arrives
+    var kana = 0.0      // her name, huge, behind her
+    var shake = 0.0     // points of shake
+    var presence = 1.0  // 0.5 asleep, 1 here
+}
+
 /// One frame of one look. A value: it draws and records where the tappable
 /// things landed, nothing else.
 private struct Scene {
     let ctx: GraphicsContext
     let size: CGSize
+    /// Real time, for ripples; `tw` is time that runs faster while she
+    /// speaks, for everything that turns.
     let t: Double
+    let tw: Double
     let amp: Double
+    /// Her speech, 0 when silent: what makes the whole screen move.
+    let energy: Double
+    let stage: Stage
     let clock: RealmClock
     let groups: [(name: String, buttons: [DeckButton])]
     let chosen: String
     let tint: Color
     let status: String
+    let running: Bool
     let micOn: Bool
-    let frontApp: String
     let outcome: [String: Bool]
 
     var cx: Double { size.width / 2 }
@@ -232,7 +366,17 @@ private struct Scene {
     var M: Double { min(size.width, size.height) }
     var center: CGPoint { CGPoint(x: cx, y: cy) }
 
-    func at(_ r: Double, _ a: Double) -> CGPoint { CGPoint(x: cx + cos(a) * r, y: cy + sin(a) * r) }
+    /// Orbits are stretched to the screen's shape, so the long side is used
+    /// too rather than leaving a band of nothing either side of a circle
+    /// (Oscar, 2026-10-01). Her own ring and the halos stay round.
+    var ax: Double { max(1, size.width / M * 0.92) }
+    var ay: Double { max(1, size.height / M * 0.92) }
+    func at(_ r: Double, _ a: Double) -> CGPoint { CGPoint(x: cx + cos(a) * r * ax, y: cy + sin(a) * r * ay) }
+    /// The same, unstretched: her eye is round.
+    func round(_ r: Double, _ a: Double) -> CGPoint { CGPoint(x: cx + cos(a) * r, y: cy + sin(a) * r) }
+    func orbit(_ r: Double) -> Path {
+        Path(ellipseIn: CGRect(x: cx - r * ax, y: cy - r * ay, width: r * ax * 2, height: r * ay * 2))
+    }
     func circle(_ p: CGPoint, _ r: Double) -> Path {
         Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2))
     }
@@ -272,25 +416,31 @@ private struct Scene {
 
     /// The glow ring: wide and faint to thin and bright, no hard edge.
     func softRing(_ p: CGPoint, _ r: Double, _ col: Color, _ lw: Double, _ o: Double = 1) {
+        softPath(circle(p, r), col, lw, o)
+    }
+
+    func softPath(_ path: Path, _ col: Color, _ lw: Double, _ o: Double = 1) {
         for (w, b, a) in [(lw * 5, M * 0.04, 0.2), (lw * 2.2, M * 0.015, 0.4), (lw, M * 0.004, 0.85)] {
             var c = lit
             c.addFilter(.blur(radius: b))
-            c.stroke(circle(p, r), with: .color(col.opacity(a * o)), lineWidth: w)
+            c.stroke(path, with: .color(col.opacity(a * o)), lineWidth: w)
         }
     }
 
     func textOnCircle(_ s: String, r: Double, start: Double, _ col: Color, _ size: Double,
                       opacity: Double = 1, inward: Bool = false) {
-        let step = size * 0.62 / r
         var c = ctx
         c.opacity = opacity
-        // One lap at most: a longer string would write over its own start.
-        for (i, ch) in s.prefix(Int(tau / step)).enumerated() {
-            let a = start + Double(i) * step
+        var a = start
+        for ch in s {
+            // One lap at most: a longer string would write over its own start.
+            guard a - start < tau else { break }
             let p = at(r, a)
+            let tangent = atan2(cos(a) * ay, -sin(a) * ax)
+            a += size * 0.62 / (r * hypot(ax * sin(a), ay * cos(a)))
             var g = c
             g.translateBy(x: p.x, y: p.y)
-            g.rotate(by: .radians(a + (inward ? -Double.pi / 2 : Double.pi / 2)))
+            g.rotate(by: .radians(tangent + (inward ? -Double.pi : 0)))
             g.draw(Text(String(ch)).font(.system(size: size, design: .monospaced)).foregroundColor(col),
                    at: .zero)
         }
@@ -318,38 +468,52 @@ private struct Scene {
              glow: 14, opacity: 1 - k * k, weight: .bold)
     }
 
-    /// Her, as each look draws her: a ring that breathes with her level.
-    func voiceRing(_ R0: Double, _ col: Color) -> Double {
-        let r = R0 * (1 + amp * 0.12) * (1 + 0.03 * sin(t * 1.1))
-        halo(center, r * 2.2, col, 0.12 + amp * 0.18)
-        smoke(r)
-        softRing(center, r, col, M * 0.006 * (1 + amp))
-        hit(center, r, .her)
-        return r
+    /// Lightning from her eye while she speaks hard: a few jagged bolts, each
+    /// alive for one frame.
+    func lightning(_ from: Double) {
+        guard energy > 0.35 else { return }
+        var c = lit
+        c.addFilter(.blur(radius: 2))
+        for _ in 0..<3 where Double.random(in: 0...1) < energy * 0.6 {
+            var a = Double.random(in: 0..<tau), r = from
+            var bolt = Path()
+            bolt.move(to: round(r, a))
+            while r < M * (0.3 + energy * 0.25) {
+                r += M * Double.random(in: 0.02...0.05)
+                a += Double.random(in: -0.12...0.12)
+                bolt.addLine(to: at(r, a))
+            }
+            c.stroke(bolt, with: .color(tint.opacity(0.9)), lineWidth: 4)
+            lit.stroke(bolt, with: .color(.white.opacity(0.9)), lineWidth: 1.2)
+        }
     }
 
     // ------------------------------------------------------- singularity
 
     /// Her eye is a black hole; every app is a spiral arm of words falling in.
     func singularity() {
-        if amp - clock.lastAmp > 0.18 { clock.waves.append((t, 0.6 + amp)) }
-        clock.lastAmp = amp
-        clock.waves.removeAll { t - $0.t0 > 3 }
-        if Double.random(in: 0...1) < 0.003 { clock.glitchUntil = t + 0.15 }
-
-        let Rh = M * 0.06
+        let st = stage, e = energy, pres = st.presence
+        let Rh = M * 0.06 * st.rf
         func warp(_ r: Double, _ th: Double) -> CGPoint {
-            var rr = r - (M * M * 0.012) / (r + M * 0.04)
+            var rr = r - (M * M * 0.012 * (1 + e)) / (r + M * 0.04)
             for w in clock.waves {
                 let wr = (t - w.t0) * M * 0.55, fade = 1 - (t - w.t0) / 3
                 rr += exp(-pow((r - wr) / (M * 0.035), 2)) * M * 0.03 * w.s * fade
             }
-            let twist = 1.6 * exp(-r / (M * 0.16)) + t * 0.03
-            return at(max(Rh, rr), th + twist)
+            let twist = (1.6 + e * 1.2) * exp(-r / (M * 0.16)) + tw * 0.03
+            return at(max(Rh, rr * st.rf), th + twist)
         }
 
-        // space
+        // space: a nebula wash under a glowing mesh, both pulled in by her,
+        // brighter while she is here and brighter again while she speaks
         let reach = hypot(size.width, size.height) / 2
+        let lum = pres * (1 + e * 0.6)
+        ctx.fill(Path(CGRect(origin: .zero, size: size)), with: .radialGradient(
+            Gradient(colors: [Color(red: 0.10, green: 0.16, blue: 0.32).opacity(min(1, 0.9 * lum + amp * 0.1)),
+                              tint.opacity(0.12 * e),
+                              Color(red: 0.16, green: 0.06, blue: 0.22).opacity(0.7 * lum),
+                              Color(red: 0.03, green: 0.03, blue: 0.08)]),
+            center: center, startRadius: M * 0.05, endRadius: reach))
         var rings = Path(), spokes = Path(), marks = Path()
         for k in 1...20 {
             let r = pow(Double(k) / 20, 1.6) * reach
@@ -366,58 +530,71 @@ private struct Scene {
             }
             if j % 6 == 0 { marks.addPath(s) } else { spokes.addPath(s) }
         }
-        lit.stroke(rings, with: .color(Skin.cyan.opacity(0.07)), lineWidth: 1)
-        lit.stroke(spokes, with: .color(Skin.cyan.opacity(0.04)), lineWidth: 1)
-        lit.stroke(marks, with: .color(Skin.mag.opacity(0.09)), lineWidth: 1)
+        let meshInk = e > 0.05 ? tint : Skin.cyan
+        var meshGlow = lit
+        meshGlow.addFilter(.blur(radius: 3 + e * 4))
+        meshGlow.stroke(rings, with: .color(meshInk.opacity((0.22 + amp * 0.15 + e * 0.3) * pres)), lineWidth: 2)
+        meshGlow.stroke(marks, with: .color(Skin.mag.opacity(0.3 * pres)), lineWidth: 2)
+        lit.stroke(rings, with: .color(meshInk.opacity((0.22 + amp * 0.1) * pres)), lineWidth: 1)
+        lit.stroke(spokes, with: .color(Skin.cyan.opacity(0.12 * pres)), lineWidth: 1)
+        lit.stroke(marks, with: .color(Skin.mag.opacity(0.28 * pres)), lineWidth: 1)
+
+        // her name, huge, the moment she arrives
+        if st.kana > 0 {
+            text("アリス", CGPoint(x: cx, y: cy), .white, M * 0.32, glow: 40, opacity: st.kana, weight: .black)
+        }
 
         // the clockwork rim
-        let rim = M * 0.47
+        let rim = M * 0.47 * st.rf
         var ticks = Path(), big = Path()
         for k in 0..<180 {
-            let a = -t * 0.05 + Double(k) / 180 * tau, long = k % 15 == 0
+            let a = -tw * 0.05 + Double(k) / 180 * tau, long = k % 15 == 0
+            let out = long ? 14 + e * 30 * hash(k, 6) : 6.0
             var p = Path()
-            p.move(to: at(rim, a)); p.addLine(to: at(rim + (long ? 14 : 6), a))
+            p.move(to: at(rim, a)); p.addLine(to: at(rim + out, a))
             if long { big.addPath(p) } else { ticks.addPath(p) }
         }
-        lit.stroke(ticks, with: .color(Skin.cyan.opacity(0.15)), lineWidth: 1)
-        lit.stroke(big, with: .color(Skin.cyan.opacity(0.5)), lineWidth: 1)
+        lit.stroke(ticks, with: .color(Skin.cyan.opacity(0.15 * pres)), lineWidth: 1)
+        lit.stroke(big, with: .color(Skin.cyan.opacity(0.5 * pres + e * 0.5)), lineWidth: 1 + e * 2)
         let now = Date().formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute().second())
-        let rimText = "ARISU ∴ EVENT HORIZON ∴ \(now) ∴ \(chosen.uppercased()) ∴ \(status) ∴ "
-        textOnCircle(rimText + rimText, r: rim + 26, start: t * 0.03, Skin.mag, 10, opacity: 0.5)
+        let call = running ? status : "HOLD TO SUMMON"
+        let rimText = "ARISU ∴ EVENT HORIZON ∴ \(now) ∴ \(chosen.uppercased()) ∴ \(call) ∴ "
+        textOnCircle(rimText + rimText, r: rim + 26, start: tw * 0.03, e > 0.05 ? tint : Skin.mag, 10 + e * 4,
+                     opacity: 0.5 + e * 0.5)
 
         // spiral arms of words
         let n = max(1, groups.count), Rmax = M * 0.44
         for (i, g) in groups.enumerated() {
             let on = g.name == chosen, col = on ? Skin.mag : Skin.cyan
-            let base = Double(i) / Double(n) * tau + t * 0.07
+            let base = Double(i) / Double(n) * tau + tw * 0.07
             func pos(_ r: Double) -> CGPoint { warp(r, base + 2.2 * log(Rmax / r)) }
             var arm = Path()
             for k in 0...70 {
-                let p = pos(Rmax - (Rmax - Rh * 1.4) * Double(k) / 70)
+                let p = pos(Rmax - (Rmax - M * 0.06 * 1.4) * Double(k) / 70)
                 k == 0 ? arm.move(to: p) : arm.addLine(to: p)
             }
             var a = lit
-            a.addFilter(.blur(radius: 6))
-            a.stroke(arm, with: .color(col.opacity(on ? 0.7 : 0.25)), lineWidth: on ? 5 : 3)
-            lit.stroke(arm, with: .color(col.opacity(on ? 0.5 : 0.15)), lineWidth: on ? 1.5 : 1)
+            a.addFilter(.blur(radius: 6 + e * 6))
+            a.stroke(arm, with: .color(col.opacity((on ? 0.7 : 0.25) * pres + e * 0.4)), lineWidth: (on ? 5 : 3) + e * 6)
+            lit.stroke(arm, with: .color(col.opacity((on ? 0.5 : 0.15) * pres + e * 0.3)), lineWidth: on ? 1.5 : 1)
 
             let tip = pos(Rmax)
-            halo(tip, M * (on ? 0.07 : 0.04), col, on ? 0.4 : 0.18)
-            glyph(symbol(for: g.name), tip, on ? .white : col, M * (on ? 0.045 : 0.032))
+            halo(tip, M * (on ? 0.07 : 0.04) * (1 + e), col, (on ? 0.4 : 0.18) * pres)
+            glyph(symbol(for: g.name), tip, on ? .white : col, M * (on ? 0.06 : 0.045))
             text(g.name.uppercased(), CGPoint(x: tip.x, y: tip.y + M * 0.04), col, 10, glow: 6,
                  opacity: on ? 1 : 0.55)
-            hit(tip, M * 0.05, .app(g.name))
+            hit(tip, M * 0.09, .app(g.name))
 
-            let count = max(1, g.buttons.count), speed = on ? 0.018 : 0.05
+            let count = max(1, g.buttons.count), speed = on ? 0.008 : 0.04
             for (k, b) in g.buttons.enumerated() {
-                let u = (Double(k) / Double(count) + t * speed + Double(i) * 0.13).truncatingRemainder(dividingBy: 1)
-                let r = Rh * 1.3 + (Rmax * 0.93 - Rh * 1.3) * pow(1 - u, 1.4)
+                let u = (Double(k) / Double(count) + tw * speed + Double(i) * 0.13).truncatingRemainder(dividingBy: 1)
+                let r = M * 0.06 * 1.3 + (Rmax * 0.93 - M * 0.06 * 1.3) * pow(1 - u, 1.4)
                 let p = pos(r), q = pos(r * 0.97)
                 var ang = atan2(q.y - p.y, q.x - p.x)
                 if cos(ang) < 0 { ang += .pi }
                 let near = 1 - r / Rmax
-                let fs = (on ? 15 : 11) * (0.45 + 0.75 * r / Rmax)
-                let alpha = (on ? 1 : 0.5) * min(1, u * 6) * min(1, (r - Rh) / (M * 0.05))
+                let fs = (on ? 22 : 13) * (0.45 + 0.75 * r / Rmax)
+                let alpha = (on ? 1 : 0.5) * min(1, u * 6) * min(1, (r - M * 0.06) / (M * 0.05))
                 var c = ctx
                 c.translateBy(x: p.x, y: p.y)
                 c.rotate(by: .radians(ang))
@@ -430,160 +607,53 @@ private struct Scene {
                 gl.addFilter(.blur(radius: 5))
                 gl.draw(txt, at: .zero)
                 c.draw(txt, at: .zero)
-                if on && alpha > 0.3 { hit(p, M * 0.04, .button(b)) }
+                if on && alpha > 0.3 { hit(p, M * 0.075, .button(b)) }
             }
         }
 
         // the eye
-        let Ri = M * 0.12 * (1 + amp * 0.15)
-        halo(center, Ri * 3, tint, 0.08 + amp * 0.15)
-        smoke(Ri)
+        let Ri = M * 0.12 * st.eye * (1 + amp * 0.15 + e * 0.35)
+        halo(center, Ri * 3 * (1 + e * 1.5), tint, (0.08 + amp * 0.15 + e * 0.35) * pres)
+        smoke(Ri * (1 + e))
+        lightning(Ri)
+        // An almond the eye is seen through: a slit while she sleeps, open
+        // while she is here.
+        let open = 1 - st.lids
+        var eyeCtx = ctx
+        if open < 0.99 {
+            let L = Ri * 1.9, h = Ri * 1.25 * open
+            var almond = Path()
+            almond.move(to: CGPoint(x: cx - L, y: cy))
+            almond.addQuadCurve(to: CGPoint(x: cx + L, y: cy), control: CGPoint(x: cx, y: cy - h * 2))
+            almond.addQuadCurve(to: CGPoint(x: cx - L, y: cy), control: CGPoint(x: cx, y: cy + h * 2))
+            softPath(almond, tint, 1.5, 0.8)
+            eyeCtx.clip(to: almond)
+        }
+        var eyeLit = eyeCtx
+        eyeLit.blendMode = .plusLighter
         var fibres = Path(), red = Path()
         for k in 0..<160 {
-            let a = Double(k) / 160 * tau + t * 0.04
-            let len = 0.55 + 0.45 * hash(k, 4) + amp * 0.3 * sin(t * 9 + Double(k))
+            let a = Double(k) / 160 * tau + tw * 0.04
+            let len = 0.55 + 0.45 * hash(k, 4) + (amp * 0.3 + e * 0.5) * sin(t * 9 + Double(k))
             var p = Path()
-            p.move(to: at(Ri * 0.45, a)); p.addLine(to: at(Ri * len, a + 0.05))
+            p.move(to: round(Ri * 0.45, a)); p.addLine(to: round(Ri * len, a + 0.05))
             if k % 9 == 0 { red.addPath(p) } else { fibres.addPath(p) }
         }
-        lit.stroke(fibres, with: .color(tint.opacity(0.4)), lineWidth: 1)
-        lit.stroke(red, with: .color(Skin.mag.opacity(0.5)), lineWidth: 1)
-        let pr = Ri * 0.44 * (1 - amp * 0.18)
-        softRing(CGPoint(x: cx - 2, y: cy), pr, Color(red: 1, green: 0.2, blue: 0.33), 2, 0.6)
-        softRing(CGPoint(x: cx + 2, y: cy), pr, Color(red: 0.2, green: 0.53, blue: 1), 2, 0.6)
-        softRing(center, pr, Color(red: 1, green: 0.95, blue: 0.75), 2.5, 0.9)
-        ctx.fill(circle(center, pr * 0.94), with: .color(.black))
-        softRing(center, Ri, micOn ? tint : Skin.cyan, M * 0.004 * (1 + amp))
+        eyeLit.stroke(fibres, with: .color(tint.opacity(0.4 + e * 0.4)), lineWidth: 1 + e)
+        eyeLit.stroke(red, with: .color(Skin.mag.opacity(0.5)), lineWidth: 1)
+        // The pupil opens wide when she speaks: the hole is her voice.
+        let pr = Ri * 0.44 * (1 - amp * 0.18 + e * 0.25)
+        let split = 2 + e * 10
+        for (dx, col, o) in [(-split, Color(red: 1, green: 0.2, blue: 0.33), 0.6),
+                             (split, Color(red: 0.2, green: 0.53, blue: 1), 0.6)] {
+            var c = eyeLit
+            c.addFilter(.blur(radius: M * 0.01))
+            c.stroke(circle(CGPoint(x: cx + dx, y: cy), pr), with: .color(col.opacity(o)), lineWidth: 3)
+        }
+        eyeLit.stroke(circle(center, pr), with: .color(Color(red: 1, green: 0.95, blue: 0.75).opacity(0.9)),
+                      lineWidth: 2.5 + e * 3)
+        eyeCtx.fill(circle(center, pr * 0.94), with: .color(.black))
+        softRing(center, Ri, micOn ? tint : Skin.cyan, M * 0.004 * (1 + amp + e * 2), open)
         hit(center, Ri, .her)
-
-        // a blink every few seconds
-        let bp = t.truncatingRemainder(dividingBy: 7.3) / 7.3
-        if bp > 0.96 {
-            let close = sin((bp - 0.96) / 0.04 * .pi) * Ri * 1.05, L = Ri * 1.6
-            for sgn in [-1.0, 1.0] {
-                var lid = Path()
-                let edge = cy + sgn * Ri * 1.3
-                lid.move(to: CGPoint(x: cx - L, y: edge)); lid.addLine(to: CGPoint(x: cx + L, y: edge))
-                lid.addQuadCurve(to: CGPoint(x: cx - L, y: edge),
-                                 control: CGPoint(x: cx, y: edge - sgn * close * 2))
-                ctx.fill(lid, with: .color(.black))
-            }
-        }
-    }
-
-    // ------------------------------------------------------- sigil
-
-    /// Imu, without the star: a rosette of curves through the apps, rune rings
-    /// turning against each other, the chosen app's actions drifting round her.
-    func sigil() {
-        let R = M * 0.42 * (1 + amp * 0.015), turn = t * 0.04
-        halo(center, M * 0.75, blood, 0.16 + amp * 0.12)
-        _ = voiceRing(M * 0.09, blood)
-        softRing(center, M * 0.05, micOn ? tint : Skin.cyan, 1.5, 0.8)
-        for (r, lw, o) in [(R, 2.0, 0.9), (R * 1.07, 1.0, 0.6), (R * 0.36, 1.0, 0.5)] {
-            softRing(center, r, blood, lw, o)
-        }
-        let names = groups.map { $0.name.uppercased() }.joined(separator: " ✠ ") + " ✠ "
-        textOnCircle(names + names, r: R * 1.035, start: -turn * 1.6, bone, 11, opacity: 0.55)
-        let acts = groups.first { $0.name == chosen }?.buttons ?? []
-        let runes = acts.map { $0.label.uppercased() }.joined(separator: " · ") + " · "
-        textOnCircle(runes + runes, r: R * 0.33, start: turn * 2.4, bone, 10, opacity: 0.5, inward: true)
-
-        // Nothing to draw a rose through until the deck has loaded.
-        guard groups.count >= 2 else { return }
-        let n = groups.count
-        let P = (0..<n).map { at(R, turn + Double($0) / Double(n) * tau - .pi / 2) }
-        let pull = 0.18 + 0.06 * sin(t * 0.6) + amp * 0.05
-        var rose = Path()
-        rose.move(to: P[0])
-        for k in 0..<n {
-            let mid = turn + (Double(k) + 0.5) / Double(n) * tau - .pi / 2
-            rose.addQuadCurve(to: P[(k + 1) % n], control: at(R * pull, mid))
-        }
-        for (lw, b, o) in [(10.0, 20.0, 0.15), (3.0, 6.0, 0.5), (1.2, 1.0, 0.9)] {
-            var c = lit
-            c.addFilter(.blur(radius: b))
-            c.stroke(rose, with: .color(blood.opacity(o)), lineWidth: lw * (1 + amp * 0.6))
-        }
-        for (i, p) in P.enumerated() {
-            let on = groups[i].name == chosen
-            lit.stroke(circle(p, M * 0.055), with: .color(blood.opacity(0.6)),
-                       style: StrokeStyle(lineWidth: 1.5, dash: [3, 6], dashPhase: t * 20 * (i % 2 == 0 ? 1 : -1)))
-            halo(p, M * (on ? 0.09 : 0.05), on ? bone : blood, on ? 0.45 : 0.3)
-            glyph(symbol(for: groups[i].name), p, on ? .white : bone, M * (on ? 0.05 : 0.035))
-            text(groups[i].name.uppercased(), CGPoint(x: p.x, y: p.y + M * 0.05), bone, 11, glow: 6,
-                 opacity: on ? 1 : 0.5)
-            hit(p, M * 0.06, .app(groups[i].name))
-        }
-        // the actions drift round a ring of their own between her and the rose
-        let ra = R * 0.6
-        for (k, b) in acts.enumerated() {
-            let a = Double(k) / Double(max(1, acts.count)) * tau - t * 0.05
-            let p = at(ra + sin(t * 0.7 + Double(k)) * M * 0.01, a)
-            let ink = outcome[b.id].map { $0 ? Skin.good : Skin.recording } ?? bone
-            text(b.label.uppercased(), p, ink, 14, glow: 12, weight: .semibold)
-            hit(p, M * 0.045, .button(b))
-        }
-    }
-
-    // ------------------------------------------------------- clockwork
-
-    /// Rings of words turning against each other under a beam at twelve.
-    func clockwork() {
-        _ = voiceRing(M * 0.11, micOn ? tint : Skin.cyan)
-        var beam = Path()
-        beam.move(to: CGPoint(x: cx, y: cy - M * 0.14))
-        beam.addLine(to: CGPoint(x: cx - M * 0.05, y: cy - M * 0.48))
-        beam.addLine(to: CGPoint(x: cx + M * 0.05, y: cy - M * 0.48))
-        beam.closeSubpath()
-        lit.fill(beam, with: .linearGradient(
-            Gradient(colors: [Skin.cyan.opacity(0), Skin.cyan.opacity(0.10 + amp * 0.15)]),
-            startPoint: CGPoint(x: cx, y: cy - M * 0.48), endPoint: CGPoint(x: cx, y: cy - M * 0.15)))
-
-        let acts = groups.first { $0.name == chosen }?.buttons ?? []
-        let day = Date().formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)).uppercased()
-        let time = Date().formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute())
-        let info = [time, day, "MAC // " + (frontApp.isEmpty ? "—" : frontApp.uppercased()),
-                    micOn ? "MIC ON" : "MIC OFF", status]
-        enum Kind { case app, act, info }
-        let rings: [(r: Double, items: [String], w: Double, col: Color, size: Double, kind: Kind)] = [
-            (M * 0.22, groups.map { $0.name.uppercased() }, t * 0.09, Skin.cyan, 13, .app),
-            (M * 0.31, acts.map { $0.label.uppercased() }, -t * 0.06, Skin.mag, 13, .act),
-            (M * 0.39, info, t * 0.035, Skin.ink, 11, .info),
-        ]
-        for ring in rings {
-            var ticks = Path(), big = Path()
-            for k in 0..<120 {
-                let a = ring.w + Double(k) / 120 * tau, long = k % 10 == 0
-                var p = Path()
-                p.move(to: at(ring.r + 14, a)); p.addLine(to: at(ring.r + (long ? 22 : 18), a))
-                if long { big.addPath(p) } else { ticks.addPath(p) }
-            }
-            lit.stroke(ticks, with: .color(ring.col.opacity(0.12)), lineWidth: 1)
-            lit.stroke(big, with: .color(ring.col.opacity(0.4)), lineWidth: 1)
-
-            let n = max(1, ring.items.count)
-            for (k, s) in ring.items.enumerated() {
-                let start = ring.w + Double(k) / Double(n) * tau - .pi / 2
-                let span = Double(s.count) * ring.size * 0.62 / ring.r
-                let mid = (start + span / 2).truncatingRemainder(dividingBy: tau)
-                let m = mid < 0 ? mid + tau : mid
-                let under = min(abs(m - tau * 0.75), tau - abs(m - tau * 0.75)) < 0.18
-                var col = ring.col
-                if ring.kind == .app && ring.items[k] == chosen.uppercased() { col = .white }
-                if ring.kind == .act, let ok = outcome[acts[k].id] { col = ok ? Skin.good : Skin.recording }
-                textOnCircle(s, r: ring.r, start: start, under ? .white : col, ring.size,
-                             opacity: under || col == .white ? 1 : 0.5)
-                let p = at(ring.r, start + span / 2)
-                switch ring.kind {
-                case .app: hit(p, M * 0.045, .app(groups[k].name))
-                case .act: hit(p, M * 0.045, .button(acts[k]))
-                case .info: break
-                }
-            }
-        }
-        if let g = groups.first(where: { $0.name == chosen }) {
-            glyph(symbol(for: g.name), center, Skin.cyan, M * 0.06, glow: 20)
-        }
     }
 }

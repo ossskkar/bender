@@ -208,11 +208,16 @@ struct ContentView: View {
         }
         } else {
             // A version that is all her (Oscar, 2026-10-01).
-            RealmView(look: look, level: Double(pet.level), idle: voiceState == .idle,
+            RealmView(level: Double(pet.level), idle: voiceState == .idle,
+                      speaking: voiceState == .speaking, running: pet.running,
                       tint: phaseColor, status: (pet.running ? stateWord : "not listening").uppercased(),
-                      micOn: pet.running && !live.muted) {
-                if pet.running { live.muted.toggle() }
-            }
+                      micOn: pet.running && !live.muted,
+                      onHer: { if pet.running { live.muted.toggle() } },
+                      onSummon: {
+                          // Held anywhere: she comes, listening; held again: she goes.
+                          if pet.running { pet.toggleRunning() }
+                          else { showChat = false; live.muted = false; pet.toggleRunning() }
+                      })
             .transition(.opacity)
         }
         }
