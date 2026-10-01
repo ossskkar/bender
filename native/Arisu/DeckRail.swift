@@ -205,22 +205,35 @@ struct DeckRail: View {
         .padding(.bottom, 10)
     }
 
+    /// The groups as a wheel (Oscar, 2026-10-01): the active one in the
+    /// centre, its neighbours either side, smaller, dimmer and turned away the
+    /// further out they sit. It wraps. A tap on a neighbour or a swipe turns it.
     private var groups: some View {
-        // A row that wraps: six short names do not fit across 196pt, and a
-        // horizontal scroller hides half of them behind a gesture.
-        FlowRow(spacing: 5) {
-            ForEach(deck.groups, id: \.self) { name in
-                let on = name == shown
-                Button { group = name } label: {
+        let all = deck.groups
+        let at = all.firstIndex(of: shown) ?? 0
+        let reach = min(2, max(0, all.count - 1))
+        return HStack(spacing: 4) {
+            ForEach(-reach...reach, id: \.self) { off in
+                let name = all.isEmpty ? "" : all[((at + off) % all.count + all.count) % all.count]
+                let d = Double(abs(off))
+                Button { step(off) } label: {
                     Text("[\(name.uppercased())]")
-                        .font(Skin.mono(13, .semibold))
-                        .foregroundStyle(on ? cyan : cyan.opacity(0.45))
-                        .shadow(color: on ? cyan : .clear, radius: 5)
-                        .padding(.horizontal, 4).padding(.vertical, 6)
+                        .font(Skin.mono(off == 0 ? 15 : 12, .semibold))
+                        .foregroundStyle(cyan.opacity(off == 0 ? 1 : 0.6 - 0.2 * d))
+                        .shadow(color: off == 0 ? cyan : .clear, radius: 5)
+                        .lineLimit(1).minimumScaleFactor(0.6)
+                        .padding(.vertical, 6)
+                        // Equal slots, so the active one sits dead centre.
+                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.plain)
+                .scaleEffect(1 - 0.1 * d)
+                .rotation3DEffect(.degrees(Double(off) * -28), axis: (0, 1, 0),
+                                  perspective: 0.6)
             }
         }
+        .frame(maxWidth: .infinity)
+        .clipped()
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
     }
@@ -410,38 +423,6 @@ struct DeckRail: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
-    }
-}
-
-/// A row that wraps, which SwiftUI has no stack for. Only the group chips use
-/// it, so it does the one thing they need: lay out in order, break on width.
-struct FlowRow: Layout {
-    var spacing: CGFloat = 6
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let width = proposal.width ?? 0
-        var x: CGFloat = 0, y: CGFloat = 0, line: CGFloat = 0
-        for s in subviews {
-            let size = s.sizeThatFits(.unspecified)
-            if x > 0 && x + size.width > width { x = 0; y += line + spacing; line = 0 }
-            x += size.width + spacing
-            line = max(line, size.height)
-        }
-        return CGSize(width: width, height: y + line)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize,
-                       subviews: Subviews, cache: inout ()) {
-        var x = bounds.minX, y = bounds.minY, line: CGFloat = 0
-        for s in subviews {
-            let size = s.sizeThatFits(.unspecified)
-            if x > bounds.minX && x + size.width > bounds.maxX {
-                x = bounds.minX; y += line + spacing; line = 0
-            }
-            s.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
-            x += size.width + spacing
-            line = max(line, size.height)
-        }
     }
 }
 
