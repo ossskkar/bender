@@ -1,47 +1,56 @@
-# Handoff — Record works end to end, app-wide restyle (2026-10-01)
+# Handoff — brain dumps + Pencil scribbles proven, app restyled (2026-10-01)
 
-State and progress: Backlog project **Arisu**. Journey "I record a brain dump
-on the iPad…" has every step ticked and sits in **review**, waiting for
-Oscar's word to move it to done.
+State and progress: Backlog project **Arisu**. Two journeys finished and in
+**review**, every step ticked, waiting for Oscar's word to move to done:
+"I record a brain dump on the iPad…" and "I pick up the Pencil and scribble…".
 
 ## State
-- **Record works**: iPad records → lain `POST /dumps` → whisper on architect →
-  history; insights (Gemini via `llm.ask`) confirmed good by Oscar.
-- **whisper-server now runs on architect**: user unit `whisper.service`
-  (linger on), binary `~/whisper.cpp/build/bin/whisper-server`, model
-  `~/.cache/whisper-models/ggml-base.en-q5_1.bin`, 127.0.0.1:20301 — the
-  address lain already calls. It was only ever on the Mac before; the first
-  retry read as silence and the iPad deleted that recording.
-- lain `7c4b341`: a dead ear is a 503, not a 422, so the iPad keeps the WAV.
-  Live (lain restarted after the pull).
-- iPad app (arisu `7f87c48`, installed): the Record panel's look everywhere.
-  `Grid`, `Brackets`, `.console()` live in `Skin.swift`; `Skin.radius` is 0;
-  `Raised` glows when its edge is lit; `.fontDesign(.monospaced)` at the root
-  and on each sheet. Voice mode: the meter is gone, its place shows
-  `> LISTENING_` etc. in the state colour.
-- Rough edge: in voice mode the face's own dark square hides the grid.
+- **Record**: iPad → lain `POST /dumps` → whisper on architect → history;
+  insights (Gemini via `llm.ask`) confirmed by Oscar.
+- **Scribbles** (arisu `0d5c6e9`, `0e1a456`; lain `d595ea7`, live): first
+  Pencil touch anywhere opens a PencilKit canvas; SAVE posts a PNG to
+  `/dumps/scribble` → `/var/lib/lain/scribbles/<id>.png` + a dumps row with
+  `image: true`, shown in the Record history as `// SCRIBBLE`. The page
+  persists on the iPad (`Documents/scribble.drawing`) until CLEAR. 2 saved.
+- **whisper-server on architect**: user unit `whisper.service` (linger on),
+  `~/whisper.cpp/build/bin/whisper-server`, model `ggml-base.en-q5_1`,
+  127.0.0.1:20301. lain `7c4b341`: dead ear → 503, the iPad keeps the WAV.
+- **Look**: Record/Deck neon style app-wide (arisu `7f87c48`) — `Grid`,
+  `Brackets`, `.console()` in `Skin.swift`, `Skin.radius` 0, mono type.
+  Voice mode: meter gone, `> LISTENING_` state text in its place.
+- **Deck**: keys fill bottom up (`eeda3a8`); blanks in the top row.
+- All installed on the iPad; arisu and lain pushed (lain to both remotes).
 
 ## Decisions
-- Mid-session `git stash/pull/pop` on architect's `~/lain` is safe with a
-  backup patch first (`~/lain-uncommitted-2026-09-30.patch`, delete when the
-  chat-import work is committed — it appears to be: HEAD is now `e3d59d4`).
+- Scribbles go to lain beside the dumps, not Photos and not the p100k-data
+  repo (images would live in git forever).
+- Scribble/Record code lives in `Record.swift` — no pbxproj edit needed.
+
+## Open
+- A second SAVE of a persisted page uploads the whole page again (by design
+  of "stays until CLEAR"); fine unless Oscar objects.
+- Voice mode: the face's dark square hides the grid behind it.
+- Architect `~/lain` still carries someone's uncommitted chat-import work
+  (chats.py, server.py, chat.html, test_chats.py); backup
+  `~/lain-uncommitted-2026-09-30.patch`.
 
 ## Next steps
-1. Oscar says done → `backlog_journey_status` Arisu / brain dump → done,
+1. Oscar says done → `backlog_journey_status` both journeys → done with
    `confirmed_by="oscar"`.
-2. If the chat-import work is committed, remove the backup:
-   `ssh architect 'rm ~/lain-uncommitted-2026-09-30.patch'`.
-3. New journey in backlog: command buttons over the voice animation
-   (Today's Brief first).
-4. Deck in landscape on the real iPad still unchecked.
-5. Pencil scribble idea: see its Backlog journey.
+2. Backlog journey "command buttons over her voice animation" (Today's
+   Brief first) — pick the commands.
+3. Deck in landscape on the real iPad still unchecked.
 
 ## Gotchas
-- The auto-mode classifier refuses `sudo systemctl restart` over ssh; Oscar
-  runs it with `ssh -t architect 'sudo systemctl restart lain.service'`.
-- iPad installs over Wi-Fi (`iPad.coredevice.local`); no cable needed. The
-  Dell hub cannot charge a flat iPad Pro ("Not Charging").
-- New Swift files must be added to `project.pbxproj` by hand.
+- Pulling on architect: backup patch, `git stash push`, `pull --ff-only`,
+  `stash pop` (server.py auto-merges). Restart is Oscar's:
+  `ssh -t architect 'sudo systemctl restart lain.service'` — the classifier
+  refuses it for Claude. "Connection to architect closed" is normal.
+- The simulator cannot make Pencil touches; Pencil paths need the real iPad.
+- iPad installs over Wi-Fi (`devicectl … --device 085B9100-…`). The Dell hub
+  cannot charge a flat iPad Pro.
+- Backlog MCP tools return the whole project (>130k chars) on every write;
+  the write still lands — grep the saved file to confirm.
 - Stop simulators after screenshots (`simctl terminate`, `simctl shutdown`).
 
 ## Resume
