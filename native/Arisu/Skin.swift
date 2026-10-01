@@ -84,6 +84,7 @@ struct IconButton: View {
     let label: String
     var tint: Color = Skin.cyan
     var lit = false
+    var stroke = 0.35
     let action: () -> Void
 
     var body: some View {
@@ -92,7 +93,7 @@ struct IconButton: View {
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(lit ? Skin.onLit : tint)
                 .frame(width: 48, height: 40)
-                .raised(tint, stroke: lit ? 0 : 0.35,
+                .raised(tint, stroke: lit ? 0 : stroke,
                         fill: lit ? tint : Color.black.opacity(0.35))
         }
         .accessibilityLabel(label)

@@ -234,8 +234,8 @@ struct ContentView: View {
     /// The lit divider, and the handle that moves it. Clamped so neither side
     /// can be dragged away to nothing.
     private func seam(total: CGFloat) -> some View {
-        Rectangle().fill(phaseColor.opacity(0.5)).frame(width: 2)
-            .animation(.easeInOut(duration: 0.35), value: phaseColor)
+        // No line: only the drag handle stays (Oscar, 2026-10-01).
+        Color.clear.frame(width: 2)
             .overlay(Color.clear.frame(width: 24).contentShape(Rectangle()))
             .gesture(
                 DragGesture(minimumDistance: 1)
@@ -456,23 +456,20 @@ struct ContentView: View {
             // appears only after the room is already wrong.
             if room.members.count > 1 {
                 squareButton(room.isListener ? "ear.fill" : "ear",
-                             "Listen here", tint: room.isListener ? listener : off) {
+                             "Listen here", tint: room.isListener ? listener : Skin.cyan, stroke: 0.5) {
                     room.listenHere()
                 }
             }
-            squareButton("slider.horizontal.3", "Settings", tint: off) {
+            squareButton("slider.horizontal.3", "Settings", tint: Skin.cyan, stroke: 0.5) {
                 showSettings = true
             }
             // Shared by both screens.
             squareButton("square.grid.3x3.fill", "Deck",
-                         tint: deckShown ? glow : off) { deckShown.toggle() }
+                         tint: deckShown ? glow : Skin.cyan, stroke: 0.5) { deckShown.toggle() }
         }
         .padding(.vertical, 14)
         .padding(.horizontal, 22)
         .background(Grid(tint: Skin.mag))
-        .overlay(Rectangle().frame(height: 1).foregroundStyle(Self.mag.opacity(0.6))
-                    .shadow(color: Self.mag, radius: 4),
-                 alignment: .bottom)
     }
 
     /// Things he asks for often enough to press (Backlog: command buttons
@@ -518,8 +515,10 @@ struct ContentView: View {
     }
 
     private func squareButton(_ symbol: String, _ label: String, tint: Color? = nil,
+                              stroke: Double = 0.35,
                               action: @escaping () -> Void) -> some View {
-        IconButton(symbol: symbol, label: label, tint: tint ?? Skin.cyan, action: action)
+        IconButton(symbol: symbol, label: label, tint: tint ?? Skin.cyan,
+                   stroke: stroke, action: action)
     }
 
     /// Five minutes of silence ends the call and puts the keyboard back. Not
@@ -540,7 +539,8 @@ struct ContentView: View {
     private func toVoice() {
         showChat = false
         lastSpoke = Date()
-        live.muted = false
+        // Mic off on the way in; he unmutes when he wants to talk (Oscar, 2026-10-01).
+        live.muted = true
         if !pet.running { pet.toggleRunning() }
     }
 
