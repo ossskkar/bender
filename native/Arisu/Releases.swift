@@ -38,7 +38,8 @@ struct TourStep: Identifiable {
     let text: String
 }
 
-enum TourScene { case keep, chat, voice, singularity }
+/// `glance` is voice mode with its chrome up, so the panel beside her shows.
+enum TourScene { case keep, chat, voice, glance, singularity }
 
 enum Releases {
     /// The version this build is, from the bundle -- the time machine stamps
@@ -49,6 +50,42 @@ enum Releases {
     static var current: Release { all.first { $0.version == running } ?? all[0] }
 
     static let all: [Release] = [
+        Release(version: "12.0", name: "At a glance", date: "2026-10-02", highlights: [
+            Highlight(symbol: "rectangle.leadinghalf.inset.filled", name: "Today beside her",
+                      what: "In voice mode a panel shows your day next to her: what is next on the plan, "
+                          + "what is due, your running and your habits. She moves aside to make room.",
+                      how: "Go to voice mode and tap the screen once. Tap again to hide it."),
+            Highlight(symbol: "chart.bar", name: "Running chart",
+                      what: "Kilometres per week for the last eight weeks, this week lit, the days left to "
+                          + "the race and your last run with its pace."),
+            Highlight(symbol: "checkmark.square", name: "Habits week",
+                      what: "Each habit with the last seven days as squares, green where it was done, and "
+                          + "today's count for habits with a target, such as water."),
+            Highlight(symbol: "text.bubble", name: "Charts come with the answer",
+                      what: "When you or she talk about running or habits, the panel comes up by itself with "
+                          + "that chart lit, and goes again a minute and a half later.",
+                      how: "Ask \"How is my running going?\" or press the HOW'S MY RUNNING? bubble."),
+        ], tour: [
+            TourStep(scene: .chat, title: "Arisu 12.0 — At a glance",
+                     text: "Your day now sits next to her in voice mode, with charts for running and habits. "
+                         + "Tap anywhere to go on."),
+            TourStep(scene: .glance, spot: "glance", title: "Today beside her",
+                     text: "In voice mode, one tap on the screen brings this panel up with the transcript and "
+                         + "the bubbles. It reads lain, the same data as the dashboard, every five minutes."),
+            TourStep(scene: .glance, spot: "glanceToday", title: "Next",
+                     text: "The next three blocks still to come on today's plan."),
+            TourStep(scene: .glance, spot: "glanceRunning", title: "Running",
+                     text: "Kilometres per week for eight weeks, this week brightest. On top, the days left "
+                         + "to the race; below, your last run and its pace."),
+            TourStep(scene: .glance, spot: "glanceHabits", title: "Habits",
+                     text: "Seven squares per habit, today on the right: green is done, an empty square is "
+                         + "missed, and no square means it was not due. Water shows today's glasses."),
+            TourStep(scene: .glance, spot: "commands", title: "Charts come with the answer",
+                     text: "Ask about your running or habits, by voice or with these bubbles, and the panel "
+                         + "comes up by itself with that chart lit."),
+            TourStep(scene: .chat, spot: "whatsNew", title: "Earlier releases",
+                     text: "Behind the sparkles: every release, this tour again, and the time machine."),
+        ]),
         Release(version: "11.0", name: "Time machine", date: "2026-10-02", highlights: [
             Highlight(symbol: "clock.arrow.circlepath", name: "Time machine",
                       what: "Every version of this app, back to the very first one from 9 September, can be "
@@ -202,9 +239,11 @@ struct TourSpots: PreferenceKey {
 }
 
 extension View {
-    /// Name this view for guided tours.
+    /// Name this view for guided tours. Added to the names inside it rather
+    /// than replacing them: a plain anchorPreference hid every spot within a
+    /// named view, which is why 11.0's tour lit nothing for the voice button.
     func tourSpot(_ name: String) -> some View {
-        anchorPreference(key: TourSpots.self, value: .bounds) { [name: $0] }
+        transformAnchorPreference(key: TourSpots.self, value: .bounds) { $0[name] = $1 }
     }
 }
 

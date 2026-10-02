@@ -692,6 +692,8 @@ private struct Scene {
     @Published private(set) var next = ""
     @Published private(set) var due = ""
     @Published private(set) var body = ""
+    /// The same reading, kept whole for the panel beside her (12.0).
+    @Published private(set) var glance = Glance()
 
     static let url = URL(string: "https://architect-server.tailaa64e9.ts.net:8443/data.json")!
 
@@ -731,6 +733,9 @@ private struct Scene {
             .prefix(4)
             .map { "\($0["start"] as? String ?? "") \(($0["title"] as? String ?? "").uppercased())" }
         next = coming.isEmpty ? "NOTHING LEFT ON THE PLAN TODAY" : "NEXT ∴ " + coming.joined(separator: " ∴ ")
+        var g = Glance()
+        g.loaded = true
+        g.plan = Array(coming.prefix(3))
 
         // the todo: overdue and due within three days
         let soon = Self.iso(cal.date(byAdding: .day, value: 3, to: now)!)
@@ -748,6 +753,8 @@ private struct Scene {
             (when < day ? "! " : "") + String(title.uppercased().prefix(38)) + " · " + Self.short(when)
         }
         due = (lines.isEmpty ? "NOTHING DUE" : "DUE ∴ " + lines.joined(separator: " ∴ ")) + " ∴ \(open) OPEN"
+        g.due = Array(lines.prefix(3))
+        g.open = open
 
         // the race, the week's running, today's habits
         var parts: [String] = []
@@ -755,6 +762,7 @@ private struct Scene {
            let r = Self.parse(race), let left = cal.dateComponents([.day], from: cal.startOfDay(for: now), to: r).day,
            left >= 0 {
             parts.append("P100K ∴ \(left) DAYS TO THE RACE")
+            g.raceDays = left
         }
         let monday = cal.date(byAdding: .day, value: -((wd + 6) % 7), to: cal.startOfDay(for: now))!
         var km = 0.0
@@ -769,15 +777,17 @@ private struct Scene {
             parts.append("HABITS \(done)/\(due)")
         }
         body = parts.joined(separator: " ∴ ")
+        g.read(d, now: now, monday: monday)
+        glance = g
     }
 
-    private static func iso(_ d: Date) -> String {
+    nonisolated static func iso(_ d: Date) -> String {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f.string(from: d)
     }
-    private static func parse(_ s: String) -> Date? {
+    nonisolated static func parse(_ s: String) -> Date? {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f.date(from: s)
     }
-    private static func short(_ s: String) -> String {
+    nonisolated static func short(_ s: String) -> String {
         guard let d = parse(s) else { return s }
         return d.formatted(.dateTime.day().month(.abbreviated)).uppercased()
     }

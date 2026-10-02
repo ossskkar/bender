@@ -81,6 +81,12 @@ struct ContentView: View {
     /// thing, and re-fetching it every time he speaks would make it blink.
     @StateObject private var chat = Chat()
     @StateObject private var music = MacMusic()
+    /// lain's day, for the panel beside her (12.0).
+    @StateObject private var info = LainInfo()
+    /// What the conversation is about, lit on the panel for a minute and a
+    /// half after it was last said, with the panel up even if the chrome is not.
+    @State private var focus: GlanceFocus?
+    @State private var focusAt = Date.distantPast
     /// Open the chat on its history the moment it is shown -- the room's
     /// History button leaves the room and lands there.
     @State private var chatHistory = false
@@ -261,10 +267,10 @@ struct ContentView: View {
         .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet, live: live) }
         .sheet(isPresented: $showNew) { ReleasesSheet { startTour() } }
         .onChange(of: pet.heard) { _, t in
-            lastSpoke = Date(); say(t, mine: true); obey(t); record(t, "heard")
+            lastSpoke = Date(); say(t, mine: true); obey(t); notice(t); record(t, "heard")
         }
         .onChange(of: pet.line) { _, t in
-            lastSpoke = Date(); say(t, mine: false); record(t, "answer")
+            lastSpoke = Date(); say(t, mine: false); notice(t); record(t, "answer")
         }
         .onChange(of: pet.running) { _, on in
             record(on ? "call started" : "call ended", "call")
@@ -305,7 +311,7 @@ struct ContentView: View {
     }
 
     private func endTour() {
-        withAnimation { tour = nil }
+        withAnimation { tour = nil; chrome = false }
         stage(.chat)
         look = lookBeforeTour
     }
@@ -317,6 +323,7 @@ struct ContentView: View {
         case .keep: break
         case .chat: look = .classic; deckShown = true; showChat = true
         case .voice: look = .classic; showChat = false
+        case .glance: look = .classic; showChat = false; withAnimation { chrome = true }
         case .singularity: look = .singularity
         }
     }
@@ -369,11 +376,29 @@ struct ContentView: View {
                 face
                 scanlines.allowsHitTesting(false)
 
+                // The day beside her, top left: up with the chrome, or by
+                // itself while they talk about his running or habits.
+                VStack {
+                    HStack {
+                        if glanceShown {
+                            // Narrower on a narrow pane, so the bubbles on the right stay clear.
+                            GlancePanel(glance: info.glance, focus: focus,
+                                        width: min(320, max(240, geo.size.width - 250)))
+                                .tourSpot("glance")
+                                .transition(.move(edge: .leading).combined(with: .opacity))
+                        }
+                        Spacer()
+                    }
+                    Spacer()
+                }
+                .padding(.top, 24)
+                .padding(.leading, 34)
+
                 // Top right, clear of her: she is drawn in the middle.
                 VStack {
                     HStack {
                         Spacer()
-                        if chrome { commandButtons.transition(.opacity) }
+                        if chrome { commandButtons.tourSpot("commands").transition(.opacity) }
                     }
                     Spacer()
                 }
@@ -397,6 +422,8 @@ struct ContentView: View {
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .overlay(Brackets(tint: Skin.mag).padding(10))
+            .animation(.easeOut(duration: 0.3), value: glanceShown)
+            .task { await info.watch() }
             .contentShape(Rectangle())
             // Double tap: the conversation on or off. Single tap: the chrome.
             .onTapGesture(count: 2) { pet.toggleRunning() }
@@ -448,6 +475,21 @@ struct ContentView: View {
         .padding(.top, 10)
         // 28pt off the screen's edge, the same as the deck's keys (18 + its 10 inset).
         .padding(.bottom, 28)
+    }
+
+    private var glanceShown: Bool { chrome || focus != nil }
+
+    /// A line about his running or habits brings the panel up with that part
+    /// lit; it goes again ninety seconds after the last such line.
+    private func notice(_ line: String) {
+        guard let f = GlanceFocus(line) else { return }
+        let mark = Date()
+        focusAt = mark
+        withAnimation { focus = f }
+        Task {
+            try? await Task.sleep(for: .seconds(90))
+            if focusAt == mark { withAnimation { focus = nil } }
+        }
     }
 
     /// What she is doing, in a word, for the bar when the meter is off.
@@ -605,6 +647,7 @@ struct ContentView: View {
 
     private func press(_ line: String?, _ ask: String?) {
         lastSpoke = Date()
+        if let ask { notice(ask) }
         Task {
             if let line {
                 guard let text = await brain.line(line) else { return }
@@ -697,7 +740,8 @@ struct ContentView: View {
                            // Mic off reads as cyan (Oscar, 2026-10-01).
                            tint: live.muted || !pet.running ? Skin.cyan : phaseColor,
                            scale: faceScale, bloom: faceBloom, speed: faceSpeed, smoke: freeForm)
-            .offset(x: faceX, y: faceY)
+            // She steps aside for the panel rather than sitting under it.
+            .offset(x: faceX + (glanceShown ? 150 : 0), y: faceY)
             .task(id: voiceState == .idle) {
                 if voiceState == .idle { await music.listen() }
             }
