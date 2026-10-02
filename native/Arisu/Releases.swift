@@ -51,6 +51,38 @@ enum Releases {
     static var current: Release { all.first { $0.version == running } ?? all[0] }
 
     static let all: [Release] = [
+        Release(version: "19.0", name: "Light rings", date: "2026-10-02", highlights: [
+            Highlight(symbol: "circle.dashed", name: "Singularity costs a quarter of what it did",
+                      what: "The words turning on Singularity's rings were laid out letter by letter, sixty "
+                          + "times a second, which kept a whole processor core busy with nothing happening. "
+                          + "Each ring is now one shape, its letters made once and reused. Measured in the "
+                          + "simulator: four times less work per picture, so it moves more smoothly and the "
+                          + "battery lasts longer."),
+            Highlight(symbol: "tortoise", name: "Slower when she is away",
+                      what: "While she is not in a call, Singularity draws thirty pictures a second instead "
+                          + "of sixty. Space only drifts then; the difference cannot be seen, the battery "
+                          + "can. When she arrives it goes back to sixty."),
+            Highlight(symbol: "person.2.wave.2", name: "Your agents on the rim",
+                      what: "The builder agents that are working now ride Singularity's outer rim, after "
+                          + "the clock: the agent's name, AT WORK, and what it last said. The same news the "
+                          + "deck shows above its buttons in Classic, refreshed every half minute. When no "
+                          + "agent is working, the rim is as before.",
+                      how: "Switch to Singularity and read the outer rim, after the time."),
+        ], tour: [
+            TourStep(scene: .chat, title: "Arisu 19.0 — Light rings",
+                     text: "Singularity does a quarter of the work it did, and shows your agents. "
+                         + "Tap anywhere to go on."),
+            TourStep(scene: .singularity, title: "Lighter rings",
+                     text: "Each ring of words is now one shape, made once, so Singularity moves more "
+                         + "smoothly and keeps the iPad cooler. With her away it draws half as often."),
+            TourStep(scene: .singularity, title: "Your agents on the rim",
+                     text: "Read the outer rim after the time: every builder agent at work, with what it "
+                         + "last said. Nothing extra shows when none is working."),
+            TourStep(scene: .chat, spot: "agents", title: "The same news in Classic",
+                     text: "Above the deck's buttons, as in 18.0. Tap AGENTS to open lain's Agents page."),
+            TourStep(scene: .chat, spot: "whatsNew", title: "Earlier releases",
+                     text: "Behind the sparkles: every release, this tour again, and the time machine."),
+        ]),
         Release(version: "18.0", name: "At work", date: "2026-10-02", highlights: [
             Highlight(symbol: "person.2.wave.2", name: "Your agents, above the deck",
                       what: "The empty space above the deck's buttons now shows what each builder agent is "

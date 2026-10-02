@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import CoreText
 
 /// The versions of the iPad app (Oscar, 2026-10-01). Classic is the screen
 /// with the deck, the record panel and the chat; Singularity is the whole
@@ -83,6 +84,40 @@ private final class RealmClock {
     var zoom = 1.0
     var size = CGSize.zero
     var hits: [(at: CGPoint, r: Double, tap: Tap)] = []
+    /// Every piece of text already laid out, by text, size, weight and colour.
+    /// Laying out each letter of the rings afresh 60 times a second was most
+    /// of the screen's cost: a whole core with nothing happening (19.0).
+    // ponytail: cleared wholesale when it passes 3000; an LRU if her lines churn.
+    var laid: [Ink: GraphicsContext.ResolvedText] = [:]
+    struct Ink: Hashable { let s: String, size: Double, weight: Font.Weight, col: Color }
+    /// The outline of each letter the rings use, centred on the origin as
+    /// `Text` drawn at a point would be, in the same monospaced system font.
+    var letters: [String: Path] = [:]
+
+    func letter(_ ch: Character, _ size: Double) -> Path {
+        let key = "\(ch)\u{1}\(size)"
+        if let p = letters[key] { return p }
+        let base = UIFont.monospacedSystemFont(ofSize: size, weight: .regular) as CTFont
+        let str = String(ch) as CFString
+        // A letter SF Mono lacks (∴, kana) comes from the font iOS falls back to.
+        let font = CTFontCreateForString(base, str, CFRange(location: 0, length: CFStringGetLength(str)))
+        var units = Array(String(ch).utf16)
+        var glyphs = [CGGlyph](repeating: 0, count: units.count)
+        CTFontGetGlyphsForCharacters(font, &units, &glyphs, units.count)
+        var path = Path()
+        if let g = glyphs.first, g != 0 {
+            var adv = CGSize.zero
+            CTFontGetAdvancesForGlyphs(font, .horizontal, [g], &adv, 1)
+            let mid = (CTFontGetAscent(font) - CTFontGetDescent(font)) / 2
+            if let cg = CTFontCreatePathForGlyph(font, g, nil) {
+                // Glyphs are drawn y-up; the canvas is y-down.
+                path = Path(cg).applying(CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: -adv.width / 2, ty: mid))
+            }
+        }
+        if letters.count > 3000 { letters.removeAll() }
+        letters[key] = path
+        return path
+    }
 
     enum Tap { case app(String), button(DeckButton), her }
 
@@ -108,12 +143,17 @@ struct RealmView: View {
     @StateObject private var deck = Deck()
     @StateObject private var music = MacMusic()
     @StateObject private var info = LainInfo()
+    /// The builder agents, as the deck rail shows them in Classic (18.0):
+    /// the ones at work ride the clockwork rim (19.0).
+    @StateObject private var agents = Agents()
     @State private var clock = RealmClock()
     @State private var chosen = ""
     @State private var pressed: (label: String, id: String, t: Double)?
 
     var body: some View {
-        TimelineView(.animation) { tl in
+        // Thirty frames a second while she is away: space only drifts then, and
+        // sixty cost twice the battery for nothing he could see (19.0).
+        TimelineView(.animation(minimumInterval: running ? nil : 1.0 / 30)) { tl in
             Canvas { ctx, size in
                 let t = tl.date.timeIntervalSince(clock.start)
                 step(t)
@@ -147,6 +187,7 @@ struct RealmView: View {
         .task { await deck.load() }
         .task { await deck.watchFront() }
         .task { await info.watch() }
+        .task { await agents.watch() }
         .task(id: idle) { if idle { await music.listen() } }
         .onChange(of: deck.front) { _, g in if !g.isEmpty { chosen = g } }
         .onChange(of: running) { _, on in
@@ -234,7 +275,10 @@ struct RealmView: View {
         let s = Scene(ctx: ctx, size: size, t: t, tw: clock.tw, amp: max(0.08, clock.amp),
                       energy: clock.energy, stage: stage, clock: clock, groups: groups,
                       chosen: current, tint: tint, status: status, running: running, micOn: micOn,
-                      outcome: deck.outcome, info: [info.next, info.due, info.body])
+                      outcome: deck.outcome, info: [info.next, info.due, info.body],
+                      work: agents.runs.filter(\.busy)
+                          .map { "\($0.id.uppercased()) AT WORK: \($0.doing.uppercased())" }
+                          .joined(separator: " ∴ "))
         s.singularity()
         if let p = pressed {
             let k = t - p.t
@@ -385,6 +429,8 @@ private struct Scene {
     let outcome: [String: Bool]
     /// What the magenta rings say: next on the plan, what is due, the body.
     let info: [String]
+    /// The agents at work, one line each; empty when none is.
+    let work: String
 
     var cx: Double { size.width / 2 }
     var cy: Double { size.height / 2 }
@@ -413,13 +459,23 @@ private struct Scene {
               anchor: UnitPoint = .center, opacity: Double = 1, weight: Font.Weight = .medium) {
         var c = ctx
         c.opacity = opacity
-        let txt = Text(s).font(.system(size: size, weight: weight, design: .monospaced)).foregroundColor(col)
+        let txt = laid(s, col, size, weight)
         if glow > 0 {
             var g = c
             g.addFilter(.blur(radius: glow / 2))
             g.draw(txt, at: p, anchor: anchor)
         }
         c.draw(txt, at: p, anchor: anchor)
+    }
+
+    /// Text laid out once and drawn from the clock's store after that.
+    func laid(_ s: String, _ col: Color, _ size: Double, _ weight: Font.Weight) -> GraphicsContext.ResolvedText {
+        let key = RealmClock.Ink(s: s, size: size, weight: weight, col: col)
+        if let r = clock.laid[key] { return r }
+        if clock.laid.count > 3000 { clock.laid.removeAll() }
+        let r = ctx.resolve(Text(s).font(.system(size: size, weight: weight, design: .monospaced)).foregroundColor(col))
+        clock.laid[key] = r
+        return r
     }
 
     func glyph(_ name: String, _ p: CGPoint, _ col: Color, _ size: Double, glow: Double = 14) {
@@ -457,6 +513,10 @@ private struct Scene {
         let ax = stretched ? self.ax : 1, ay = stretched ? self.ay : 1
         var c = ctx
         c.opacity = opacity
+        // The whole ring is one shape, its letters placed along the orbit, and
+        // filled once. Drawing each letter as text was most of the screen's
+        // cost: a whole core with nothing happening (19.0).
+        var ring = Path()
         var a = start
         for ch in s {
             // One lap at most: a longer string would write over its own start.
@@ -464,12 +524,10 @@ private struct Scene {
             let p = stretched ? at(r, a) : round(r, a)
             let tangent = atan2(cos(a) * ay, -sin(a) * ax)
             a += size * 0.62 / (r * hypot(ax * sin(a), ay * cos(a)))
-            var g = c
-            g.translateBy(x: p.x, y: p.y)
-            g.rotate(by: .radians(tangent + (inward ? -Double.pi : 0)))
-            g.draw(Text(String(ch)).font(.system(size: size, design: .monospaced)).foregroundColor(col),
-                   at: .zero)
+            ring.addPath(clock.letter(ch, size), transform: CGAffineTransform(translationX: p.x, y: p.y)
+                .rotated(by: tangent + (inward ? -Double.pi : 0)))
         }
+        c.fill(ring, with: .color(col))
     }
 
     /// White cloud off a ring round her, rising, fuller when she is loud.
@@ -585,6 +643,7 @@ private struct Scene {
         let now = Date().formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute().second())
         let call = running ? status : "HOLD TO SUMMON"
         let rimText = "ARISU ∴ EVENT HORIZON ∴ \(now) ∴ \(chosen.uppercased()) ∴ \(call) ∴ "
+            + (work.isEmpty ? "" : work + " ∴ ")
         textOnCircle(rimText + rimText, r: rim + 26, start: tw * 0.03, Skin.mag, 10,
                      opacity: 0.5)
 
