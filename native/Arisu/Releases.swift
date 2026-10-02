@@ -51,6 +51,44 @@ enum Releases {
     static var current: Release { all.first { $0.version == running } ?? all[0] }
 
     static let all: [Release] = [
+        Release(version: "14.0", name: "Landscape", date: "2026-10-02", highlights: [
+            Highlight(symbol: "rectangle.portrait.rotate", name: "Turning the iPad keeps your place",
+                      what: "When you turn the iPad, open or close the day panel, or move the divider, the "
+                          + "chat stays on the newest message. Turning it used to leave the chat in the "
+                          + "middle of an old answer, or blank until you scrolled.",
+                      how: "Turn the iPad while a long conversation is open."),
+            Highlight(symbol: "rectangle.split.2x1", name: "Your day in two columns",
+                      what: "With the iPad on its side, the day panel above the chat is laid out in two "
+                          + "columns: the plan and what is due on the left, running and habits on the right. "
+                          + "It takes about a third of the chat's height instead of two thirds.",
+                      how: "In landscape, press the panel button next to Send."),
+            Highlight(symbol: "text.below.photo", name: "Tour cards beside what they explain",
+                      what: "In a guided tour, when a lit control is too tall for the card to fit above or "
+                          + "below it, as voice mode is in landscape, the card now sits beside it "
+                          + "instead of covering it.",
+                      how: "Sparkles, then TAKE THE TOUR, with the iPad on its side."),
+        ], tour: [
+            TourStep(scene: .chat, title: "Arisu 14.0 — Landscape",
+                     text: "This release is about the iPad on its side, the way it stands on the desk. "
+                         + "Tap anywhere to go on."),
+            TourStep(scene: .chat, spot: "thread", title: "Your place is kept",
+                     text: "Turn the iPad, open the day panel or drag the divider: the chat stays on the "
+                         + "newest message instead of jumping into an old answer or going blank."),
+            TourStep(scene: .chatGlance, spot: "chatGlance", title: "Your day in two columns",
+                     text: "In landscape the panel above the chat has two columns: the plan and what is due "
+                         + "on the left, running and habits on the right. More of the chat stays visible."),
+            TourStep(scene: .chat, spot: "chatGlanceButton", title: "The panel button",
+                     text: "Opens and closes the panel, as before. Upright, the panel keeps one column, "
+                         + "because two would be too narrow to read."),
+            TourStep(scene: .voice, spot: "her", title: "Cards beside what they explain",
+                     text: "When the lit part is too tall for this card to fit above or below it, as voice "
+                         + "mode is with the iPad on its side, the card sits beside it instead of covering it."),
+            TourStep(scene: .glance, spot: "glance", title: "Beside her, sideways",
+                     text: "Voice mode with the iPad on its side: the panel at her top left, the bubbles on "
+                         + "the right, and her in the middle."),
+            TourStep(scene: .chat, spot: "whatsNew", title: "Earlier releases",
+                     text: "Behind the sparkles: every release, this tour again, and the time machine."),
+        ]),
         Release(version: "13.0", name: "Chat at a glance", date: "2026-10-02", highlights: [
             Highlight(symbol: "rectangle.leadinghalf.inset.filled", name: "Your day in the chat",
                       what: "The panel from voice mode, with the plan, what is due, the running chart and the "
@@ -330,11 +368,23 @@ struct TourOverlay: View {
     }
 
     /// Below the lit control if it is in the top half, above it otherwise,
-    /// kept on screen; the middle when nothing is lit.
+    /// kept on screen; the middle when nothing is lit. When neither fits --
+    /// a tall panel on the iPad held in landscape, where the screen is only
+    /// 1032pt high -- beside it, on the wider side, so the card never covers
+    /// the thing it is explaining (14.0).
     private func cardPoint(_ hole: CGRect?, in size: CGSize) -> CGPoint {
         guard let hole else { return CGPoint(x: size.width / 2, y: size.height / 2) }
+        // ponytail: a fixed guess at the card's size; measure it if long texts start to overlap.
+        let cardH: CGFloat = 260, cardW = min(520, size.width - 48)
         let x = min(max(hole.midX, 284), size.width - 284)
-        let y = hole.midY < size.height / 2 ? hole.maxY + 120 : hole.minY - 120
+        let below = hole.midY < size.height / 2
+        let room = below ? size.height - hole.maxY : hole.minY
+        let left = hole.minX, right = size.width - hole.maxX
+        if room < cardH, max(left, right) >= cardW + 40 {
+            let sideX = right >= left ? hole.maxX + 20 + cardW / 2 : hole.minX - 20 - cardW / 2
+            return CGPoint(x: sideX, y: min(max(hole.midY, 150), size.height - 150))
+        }
+        let y = below ? hole.maxY + 120 : hole.minY - 120
         return CGPoint(x: x, y: min(max(y, 130), size.height - 130))
     }
 

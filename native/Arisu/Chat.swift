@@ -226,7 +226,10 @@ struct ChatPane: View {
     }
 
     private func panel(width: CGFloat) -> some View {
-        GlancePanel(glance: glance, focus: focus, width: width)
+        // Above a pane this wide -- landscape with the deck at half -- the
+        // panel goes in two columns, so it takes a third of the thread rather
+        // than two thirds (14.0).
+        GlancePanel(glance: glance, focus: focus, width: width, columns: width >= 560)
             .padding(.top, 14).padding(.horizontal, 18)
             .tourSpot("chatGlance")
             .transition(.move(edge: .top).combined(with: .opacity))
@@ -236,6 +239,7 @@ struct ChatPane: View {
         ScrollViewReader { scroll in
             threadBody(scroll)
         }
+        .tourSpot("thread")
         // A double tap on the thread is voice (Oscar, 2026-10-02); on the
         // thread only, so a double tap in the composer still selects a word.
         .simultaneousGesture(TapGesture(count: 2).onEnded { toVoice() })
@@ -268,27 +272,32 @@ struct ChatPane: View {
             }
             // Pulled down past the top of the thread: the older conversations.
             .refreshable { showHistory = true }
-            .onChange(of: chat.lines.count) { _, _ in
-                withAnimation { scroll.scrollTo("end", anchor: .bottom) }
-            }
-            .onChange(of: chat.thinking) { _, _ in
-                withAnimation { scroll.scrollTo("end", anchor: .bottom) }
-            }
+            .onChange(of: chat.lines.count) { _, _ in rest(scroll) }
+            .onChange(of: chat.thinking) { _, _ in rest(scroll) }
             // The keyboard takes the bottom of the thread, which is where the
             // newest lines are: once it is up, go back to them (Backlog, Arisu:
             // "With the keyboard up, the newest messages are the ones I see").
-            // The panel takes the top of the pane; the newest lines stay put.
-            .onChange(of: glanceUp) { _, _ in
-                withAnimation { scroll.scrollTo("end", anchor: .bottom) }
-            }
-            .onChange(of: writing) { _, on in
-                guard on else { return }
-                Task {
-                    try? await Task.sleep(for: .milliseconds(400))
-                    withAnimation { scroll.scrollTo("end", anchor: .bottom) }
-                }
-            }
+            .onChange(of: writing) { _, on in if on { rest(scroll, after: 400) } }
+            // Any change of the thread's own size -- the iPad turned, the day
+            // panel opened or closed above it, the deck's seam moved -- leaves
+            // it resting on the newest line (14.0). Turning the iPad used to
+            // leave it in the middle of an old answer, or on an empty grid
+            // until it was scrolled.
+            .onGeometryChange(for: CGSize.self) { $0.size } action: { _ in rest(scroll) }
             .defaultScrollAnchor(.bottom)
+        }
+    }
+
+    /// To the newest line, and once more when the layout has settled. The
+    /// thread is lazy: rows it has not drawn have guessed heights, so one jump
+    /// made while a rotation or the panel is still animating lands short --
+    /// the second, a beat later, lands on the real end.
+    private func rest(_ scroll: ScrollViewProxy, after ms: Int = 0) {
+        Task {
+            if ms > 0 { try? await Task.sleep(for: .milliseconds(ms)) }
+            withAnimation { scroll.scrollTo("end", anchor: .bottom) }
+            try? await Task.sleep(for: .milliseconds(450))
+            scroll.scrollTo("end", anchor: .bottom)
         }
     }
 

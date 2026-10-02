@@ -108,6 +108,10 @@ struct GlancePanel: View {
     let glance: Glance
     var focus: GlanceFocus?
     var width: CGFloat = 320
+    /// The plan and what is due on the left, the charts on the right: for a
+    /// panel laid across the top of a wide pane, where one tall column would
+    /// push the conversation off the screen (14.0).
+    var columns = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -119,13 +123,17 @@ struct GlancePanel: View {
             }
             if !glance.loaded {
                 Text("Reading lain…").font(Skin.mono(13)).foregroundStyle(Skin.off)
+            } else if columns {
+                HStack(alignment: .top, spacing: 22) {
+                    VStack(alignment: .leading, spacing: 14) { next; due }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 14) { charts }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             } else {
-                section("Next", glance.plan, empty: "Nothing left on the plan").tourSpot("glanceToday")
-                running
-                    .tourSpot("glanceRunning")
-                habits
-                    .tourSpot("glanceHabits")
-                section("Due", glance.due, empty: "Nothing due · \(glance.open) open")
+                next
+                charts
+                due
             }
         }
         .padding(16)
@@ -133,6 +141,19 @@ struct GlancePanel: View {
         .plate { Rectangle().fill(Color.black.opacity(0.62)) }
         .edge { Rectangle().stroke(Skin.cyan.opacity(0.45), lineWidth: 1) }
         .animation(.easeInOut(duration: 0.3), value: focus)
+    }
+
+    private var next: some View {
+        section("Next", glance.plan, empty: "Nothing left on the plan").tourSpot("glanceToday")
+    }
+
+    private var due: some View {
+        section("Due", glance.due, empty: "Nothing due · \(glance.open) open")
+    }
+
+    @ViewBuilder private var charts: some View {
+        running.tourSpot("glanceRunning")
+        habits.tourSpot("glanceHabits")
     }
 
     private func section(_ title: String, _ lines: [String], empty: String) -> some View {
