@@ -72,7 +72,7 @@ import SwiftUI
     func load() async {
         do {
             let (data, _) = try await net.data(from: Brain.base.appendingPathComponent("chat"))
-            lines = try JSONDecoder().decode(Thread.self, from: data).messages.map(Self.line)
+            lines = Self.once(try JSONDecoder().decode(Thread.self, from: data).messages.map(Self.line))
             failed = nil
         } catch {
             failed = "could not reach the desk"
@@ -106,10 +106,31 @@ import SwiftUI
         }
     }
 
+    /// Her line said again straight after itself is drawn once. The desk
+    /// stored "Good morning" three times a second apart (2026-10-02), one per
+    /// "new" that arrived while the first was still being made; the stored
+    /// thread stays as it is, the screen just does not repeat her.
+    static func once(_ lines: [Line]) -> [Line] {
+        var kept: [Line] = []
+        for l in lines {
+            if let last = kept.last, !l.mine, !last.mine, last.text == l.text { continue }
+            kept.append(l)
+        }
+        return kept
+    }
+
+    /// A "new" already on its way. The two-finger double tap and the + can
+    /// both fire while the desk is still composing the greeting, and each
+    /// one it receives adds another greeting to the same thread.
+    private var starting = false
+
     /// A clean thread. The old one stays in history; the desk decides what
     /// "new" means for her mind, which is why this is a POST and not a
     /// `lines.removeAll()`.
     func new() async {
+        guard !starting else { return }
+        starting = true
+        defer { starting = false }
         struct Fresh: Decodable { let greeting: String? }
         var r = URLRequest(url: Brain.base.appendingPathComponent("chat/new"))
         r.httpMethod = "POST"
@@ -154,11 +175,21 @@ struct ChatPane: View {
     let toVoice: () -> Void
     /// The app's title row is above this view now, not over it.
     var topInset: CGFloat = 0
+    /// lain's day, the same panel voice mode has beside her (13.0).
+    var glance = Glance()
+    /// What the conversation is about; the panel comes up lit for it.
+    @Binding var focus: GlanceFocus?
+    /// Held up by a tour stop, without touching his own setting.
+    var shown = false
 
     /// Bubbles or terminal lines, the chat's own answer.
     @AppStorage("arisu.bubbles.chat") private var bubbles = true
     @State private var typing = ""
     @State private var showHistory = false
+    /// The day panel, pinned open from its button. Kept: whether he reads
+    /// the chat with his day beside it is a habit, not a moment.
+    @AppStorage("arisu.glance.chat") private var glancePinned = false
+    private var glanceUp: Bool { glancePinned || focus != nil || shown }
     @FocusState private var writing: Bool
 
     /// She is white, he is cyan -- the same rule the room's subtitles follow.
@@ -167,7 +198,20 @@ struct ChatPane: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            thread
+            GeometryReader { g in
+                // Beside the thread when the pane is wide (landscape), above it
+                // when it is not: a 320pt column would leave a portrait thread
+                // too narrow to read.
+                let wide = g.size.width >= 700
+                let stack = wide ? AnyLayout(HStackLayout(alignment: .top, spacing: 0))
+                                 : AnyLayout(VStackLayout(spacing: 0))
+                stack {
+                    if glanceUp && !wide { panel(width: g.size.width - 36) }
+                    thread
+                    if glanceUp && wide { panel(width: 320) }
+                }
+                .animation(.easeOut(duration: 0.3), value: glanceUp)
+            }
             composer
         }
         .padding(.top, topInset)
@@ -179,6 +223,13 @@ struct ChatPane: View {
         .task { await chat.load() }
         .onAppear { if openHistory { showHistory = true; openHistory = false } }
         .sheet(isPresented: $showHistory) { ChatHistory(chat: chat) }
+    }
+
+    private func panel(width: CGFloat) -> some View {
+        GlancePanel(glance: glance, focus: focus, width: width)
+            .padding(.top, 14).padding(.horizontal, 18)
+            .tourSpot("chatGlance")
+            .transition(.move(edge: .top).combined(with: .opacity))
     }
 
     private var thread: some View {
@@ -223,6 +274,21 @@ struct ChatPane: View {
             .onChange(of: chat.thinking) { _, _ in
                 withAnimation { scroll.scrollTo("end", anchor: .bottom) }
             }
+            // The keyboard takes the bottom of the thread, which is where the
+            // newest lines are: once it is up, go back to them (Backlog, Arisu:
+            // "With the keyboard up, the newest messages are the ones I see").
+            // The panel takes the top of the pane; the newest lines stay put.
+            .onChange(of: glanceUp) { _, _ in
+                withAnimation { scroll.scrollTo("end", anchor: .bottom) }
+            }
+            .onChange(of: writing) { _, on in
+                guard on else { return }
+                Task {
+                    try? await Task.sleep(for: .milliseconds(400))
+                    withAnimation { scroll.scrollTo("end", anchor: .bottom) }
+                }
+            }
+            .defaultScrollAnchor(.bottom)
         }
     }
 
@@ -297,6 +363,15 @@ struct ChatPane: View {
                             .allowsHitTesting(false)
                     }
                 }
+            // The day beside the thread, lit while it is up (13.0).
+            IconButton(symbol: "rectangle.leadinghalf.inset.filled", label: "Today",
+                       tint: glanceUp ? Skin.cyan : Skin.off, lit: glanceUp) {
+                // Closing closes it, even if the conversation brought it up.
+                withAnimation {
+                    if glanceUp { glancePinned = false; focus = nil } else { glancePinned = true }
+                }
+            }
+            .tourSpot("chatGlanceButton")
             IconButton(symbol: "arrow.up", label: "Send",
                        tint: typing.isEmpty ? Skin.off : mag, lit: !typing.isEmpty, action: send)
             // The way into her voice. Her state colours it, so the button he

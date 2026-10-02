@@ -195,11 +195,16 @@ struct GlancePanel: View {
             ForEach(glance.habits) { h in
                 HStack(spacing: 6) {
                     Text(h.icon).font(.system(size: 13))
+                    // Two lines rather than an ellipsis: in portrait the panel
+                    // is 266pt and "Wake Up by 9:00" lost its time (13.0).
                     Text(h.name).font(Skin.mono(12)).foregroundStyle(.white)
-                        .lineLimit(1).truncationMode(.tail)
+                        .lineLimit(2).minimumScaleFactor(0.85)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutPriority(1)
                     Spacer(minLength: 4)
                     if !h.progress.isEmpty {
                         Text(h.progress).font(Skin.mono(11, .semibold)).foregroundStyle(Skin.cyan)
+                            .fixedSize()
                     }
                     // Today is the last square.
                     HStack(spacing: 3) {

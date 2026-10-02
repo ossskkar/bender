@@ -283,6 +283,15 @@ struct ContentView: View {
         .animation(.easeInOut(duration: 0.25), value: live.thinking)
         .animation(.easeInOut(duration: 0.25), value: pet.running)
         .task { await closeQuietRoom() }
+        // lain's day, for the panel in both modes; one reader for the app.
+        .task { await info.watch() }
+        // A typed exchange about his running or habits brings the panel up in
+        // the chat, as a spoken one does beside her. Only lines just added:
+        // a whole thread loading is not anyone talking.
+        .onChange(of: chat.lines.count) { old, new in
+            guard new > old, new - old <= 2 else { return }
+            for l in chat.lines.suffix(new - old) { notice(l.text) }
+        }
         // 醒来, heard on the device while she is asleep and the app is in front.
         .task(id: pet.running || scene != .active) {
             guard !pet.running && scene == .active else { wake.stop(); return }
@@ -300,6 +309,12 @@ struct ContentView: View {
     }
 
     // MARK: Tours
+
+    /// The scene of the tour stop showing now, if a tour is running.
+    private var tourScene: TourScene? {
+        guard let tour, tourIndex < tour.count else { return nil }
+        return tour[tourIndex].scene
+    }
 
     private func startTour() {
         let steps = Releases.current.tour
@@ -322,6 +337,7 @@ struct ContentView: View {
         switch scene {
         case .keep: break
         case .chat: look = .classic; deckShown = true; showChat = true
+        case .chatGlance: look = .classic; deckShown = true; showChat = true
         case .voice: look = .classic; showChat = false
         case .glance: look = .classic; showChat = false; withAnimation { chrome = true }
         case .singularity: look = .singularity
@@ -351,7 +367,8 @@ struct ContentView: View {
     /// draws no chrome of its own here: the row along the top is the app's.
     @ViewBuilder private var conversation: some View {
         if showChat {
-            ChatPane(chat: chat, phase: phaseColor, openHistory: $chatHistory) { toVoice() }
+            ChatPane(chat: chat, phase: phaseColor, openHistory: $chatHistory, toVoice: { toVoice() },
+                     glance: info.glance, focus: $focus, shown: tourScene == .chatGlance)
         } else {
             hologram.tourSpot("her")
         }
@@ -423,7 +440,6 @@ struct ContentView: View {
             .frame(width: geo.size.width, height: geo.size.height)
             .overlay(Brackets(tint: Skin.mag).padding(10))
             .animation(.easeOut(duration: 0.3), value: glanceShown)
-            .task { await info.watch() }
             .contentShape(Rectangle())
             // Double tap: the conversation on or off. Single tap: the chrome.
             .onTapGesture(count: 2) { pet.toggleRunning() }

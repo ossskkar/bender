@@ -38,8 +38,9 @@ struct TourStep: Identifiable {
     let text: String
 }
 
-/// `glance` is voice mode with its chrome up, so the panel beside her shows.
-enum TourScene { case keep, chat, voice, glance, singularity }
+/// `glance` is voice mode with its chrome up, so the panel beside her shows;
+/// `chatGlance` is the chat with the same panel held up (13.0).
+enum TourScene { case keep, chat, chatGlance, voice, glance, singularity }
 
 enum Releases {
     /// The version this build is, from the bundle -- the time machine stamps
@@ -50,6 +51,48 @@ enum Releases {
     static var current: Release { all.first { $0.version == running } ?? all[0] }
 
     static let all: [Release] = [
+        Release(version: "13.0", name: "Chat at a glance", date: "2026-10-02", highlights: [
+            Highlight(symbol: "rectangle.leadinghalf.inset.filled", name: "Your day in the chat",
+                      what: "The panel from voice mode, with the plan, what is due, the running chart and the "
+                          + "habits week, now opens in the typed chat too. It sits beside the conversation "
+                          + "when the screen is wide and above it when it is narrow.",
+                      how: "Press the panel button next to Send. Press it again to close it. It stays the "
+                          + "way you left it."),
+            Highlight(symbol: "text.bubble", name: "Typed questions bring the chart",
+                      what: "When you type about your running or habits, or she answers about them, the panel "
+                          + "comes up by itself with that chart lit, as it does when you talk to her.",
+                      how: "Type \"How is my running going?\" in the chat."),
+            Highlight(symbol: "sun.max", name: "One greeting",
+                      what: "A new conversation opens with her greeting once. Starting new conversations "
+                          + "quickly one after another could show \"Good morning\" two or three times."),
+            Highlight(symbol: "keyboard", name: "Newest messages stay in view",
+                      what: "When the keyboard comes up, the chat moves to the latest messages instead of "
+                          + "leaving them hidden behind it."),
+            Highlight(symbol: "checkmark.square", name: "Full habit names",
+                      what: "Habit names in the panel wrap onto a second line instead of being cut short "
+                          + "when the iPad is upright."),
+        ], tour: [
+            TourStep(scene: .chat, title: "Arisu 13.0 — Chat at a glance",
+                     text: "Your day, which 12.0 put next to her in voice mode, now comes to the typed chat. "
+                         + "Tap anywhere to go on."),
+            TourStep(scene: .chat, spot: "chatGlanceButton", title: "The panel button",
+                     text: "Next to Send. Press it to open your day beside the conversation; press it again "
+                         + "to close it. It stays open or closed until you change it."),
+            TourStep(scene: .chatGlance, spot: "chatGlance", title: "Your day in the chat",
+                     text: "The plan, the running chart, the habits week and what is due, read from lain "
+                         + "every five minutes. Beside the chat when the screen is wide, above it when narrow."),
+            TourStep(scene: .glance, spot: "glanceHabits", title: "Full habit names",
+                     text: "Beside her in voice mode the panel is narrower. Names that do not fit now wrap "
+                         + "onto a second line instead of being cut short."),
+            TourStep(scene: .chat, spot: "composer", title: "Typed questions bring the chart",
+                     text: "Type about your running or habits and the panel comes up by itself with that "
+                         + "chart lit. When the keyboard comes up, the newest messages stay in view."),
+            TourStep(scene: .chat, title: "One greeting",
+                     text: "+ or a two-finger double tap starts a new conversation, and her greeting now "
+                         + "appears once however quickly you press."),
+            TourStep(scene: .chat, spot: "whatsNew", title: "Earlier releases",
+                     text: "Behind the sparkles: every release, this tour again, and the time machine."),
+        ]),
         Release(version: "12.0", name: "At a glance", date: "2026-10-02", highlights: [
             Highlight(symbol: "rectangle.leadinghalf.inset.filled", name: "Today beside her",
                       what: "In voice mode a panel shows your day next to her: what is next on the plan, "
