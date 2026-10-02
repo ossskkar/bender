@@ -445,6 +445,200 @@ def app_icon(name: str):
         return None
 
 
+# --- The time machine -----------------------------------------------------
+#
+# Any build of the iPad app, back to the very first commit, installed on the
+# iPad from the iPad (Oscar, 2026-10-02). The releases are the annotated tags
+# `arisu-N.N`; every commit that touched `native/` in between is reachable too.
+#
+# Everything lives under ~/.local/share/arisu-timemachine, never ~/Documents:
+# launchd is denied that directory (see BUTTONS above). The repo there is a bare
+# mirror the release flow pushes to (`git push timemachine main --tags`), and a
+# build is `git archive` of one commit into src/<sha>, built once and kept.
+#
+# /deck/travel takes a sha that must be one of the listed commits -- never a
+# ref, a path or a flag off the wire.
+TM = os.path.expanduser("~/.local/share/arisu-timemachine")
+TM_REPO = os.path.join(TM, "arisu.git")
+IPAD = os.environ.get("ARISU_IPAD", "085B9100-31D5-5A2D-B44C-82D143A30ACA")
+BUNDLE = "com.oscar.arisu"
+_travel = {"state": "idle", "sha": "", "target": "", "detail": "", "at": 0.0}
+_travel_lock = threading.Lock()
+
+
+def _git(*args) -> str:
+    ok, out = _run_full(["git", "--git-dir", TM_REPO, *args], timeout=30)
+    return out if ok else ""
+
+
+def _run_full(cmd, timeout: int = 900, cwd=None):
+    """Like _run, but the whole output: build logs are long and the error is
+    at the end."""
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd)
+    except subprocess.TimeoutExpired:
+        return False, f"timed out after {timeout}s"
+    except OSError as exc:
+        return False, str(exc)
+    return proc.returncode == 0, (proc.stdout or "") + (proc.stderr or "")
+
+
+def timeline() -> list:
+    """Every commit of the app, newest first, with the release it belongs to.
+    A release row carries its name and notes; the rest carry their subject."""
+    tags = {}
+    raw = _git("for-each-ref", "refs/tags/arisu-*",
+               "--format=%(*objectname)%00%(refname:short)%00%(contents:subject)%00%(contents:body)%01")
+    for rec in raw.split("\x01"):
+        parts = rec.strip("\n").split("\x00")
+        if len(parts) == 4 and parts[0]:
+            sha, tag, subject, body = parts
+            name = subject.split("\u2014", 1)[-1].strip()
+            tags[sha] = {"version": tag[len("arisu-"):], "name": name, "notes": body.strip()}
+    rows, current = [], None
+    log = _git("log", "--format=%H%x00%ad%x00%s", "--date=format:%Y-%m-%d %H:%M", "main", "--", "native")
+    lines = [l.split("\x00") for l in log.splitlines() if l.count("\x00") == 2]
+    # Oldest first to count commits since each release, then flip.
+    since = 0
+    for sha, when, subject in reversed(lines):
+        if sha in tags:
+            current, since = tags[sha]["version"], 0
+        else:
+            since += 1
+        row = {"sha": sha, "date": when, "subject": subject,
+               "version": current if since == 0 else f"{current or '0.0'}.{since}",
+               "built": any(os.path.isdir(_app_path(sha, t)) for t in ("ipad", "sim"))}
+        if sha in tags:
+            row.update(release=True, name=tags[sha]["name"], notes=tags[sha]["notes"])
+        rows.append(row)
+    rows.reverse()
+    return rows
+
+
+def _app_path(sha: str, target: str) -> str:
+    sdk = "iphoneos" if target == "ipad" else "iphonesimulator"
+    return os.path.join(TM, "src", sha, "build", f"Debug-{sdk}", "Arisu.app")
+
+
+def _booted_sim() -> str:
+    ok, out = _run_full(["xcrun", "simctl", "list", "devices", "booted", "-j"], timeout=30)
+    try:
+        for devs in json.loads(out)["devices"].values():
+            for d in devs:
+                if d.get("state") == "Booted":
+                    return d["udid"]
+    except (ValueError, KeyError):
+        pass
+    return ""
+
+
+def travel(sha: str, target: str = "ipad", version: str = "", install: bool = True) -> tuple:
+    """Build `sha` once, install it on the iPad (or the booted simulator) and
+    open it. Blocking; the endpoint runs it on a thread. (ok, detail)"""
+    def say(state, detail=""):
+        _travel.update(state=state, detail=detail[-1500:], at=time.time())
+
+    app = _app_path(sha, target)
+    if not os.path.isdir(app):
+        say("building", "about two minutes")
+        src = os.path.join(TM, "src", sha)
+        os.makedirs(src, exist_ok=True)
+        tar = os.path.join(src, "native.tar")
+        ok, out = _run_full(["git", "--git-dir", TM_REPO, "archive", sha, "native", "-o", tar], 60)
+        if not ok:
+            return False, "archive: " + out
+        ok, out = _run_full(["tar", "-xf", tar, "-C", src], 60)
+        if not ok:
+            return False, "untar: " + out
+        cmd = ["xcodebuild", "-project", "Arisu.xcodeproj", "-target", "Arisu",
+               "-configuration", "Debug", "SYMROOT=" + os.path.join(src, "build"), "-quiet"]
+        if version:
+            # Old builds all said 1.0; the time machine labels each with the
+            # release it belongs to, so Settings shows where he landed.
+            cmd.append("MARKETING_VERSION=" + version)
+        if target == "ipad":
+            cmd += ["-sdk", "iphoneos", "-allowProvisioningUpdates",
+                    "-allowProvisioningDeviceRegistration"]
+        else:
+            # Ad hoc, not unsigned: an unsigned build launches and draws a
+            # white screen forever (NOT_CODESIGNED in its log).
+            cmd += ["-sdk", "iphonesimulator", "CODE_SIGN_IDENTITY=-", "CODE_SIGN_STYLE=Manual",
+                    "DEVELOPMENT_TEAM=", "PROVISIONING_PROFILE_SPECIFIER="]
+        ok, out = _run_full(cmd, 900, cwd=os.path.join(src, "native"))
+        if not ok or not os.path.isdir(app):
+            errors = [l for l in out.splitlines() if "error:" in l]
+            return False, "build failed: " + ("\n".join(errors[-6:]) or out[-800:])
+    if not install:
+        return True, "built"
+    say("installing")
+    if target == "ipad":
+        steps = [["xcrun", "devicectl", "device", "install", "app", "--device", IPAD, app],
+                 ["xcrun", "devicectl", "device", "process", "launch", "--device", IPAD,
+                  "--terminate-existing", BUNDLE]]
+    else:
+        sim = _booted_sim()
+        if not sim:
+            return False, "no simulator is booted"
+        steps = [["xcrun", "simctl", "install", sim, app],
+                 ["xcrun", "simctl", "launch", "--terminate-running-process", sim, BUNDLE]]
+    for step in steps:
+        ok, out = _run_full(step, 300)
+        if not ok:
+            return False, out[-800:]
+    return True, "installed"
+
+
+def start_travel(sha: str, target: str) -> dict:
+    rows = {r["sha"]: r for r in timeline()}
+    if sha not in rows:
+        return {"ok": False, "error": "not a commit of the app"}
+    if target not in ("ipad", "sim"):
+        return {"ok": False, "error": "target is ipad or sim"}
+    if not _travel_lock.acquire(blocking=False):
+        return {"ok": False, "error": "already travelling", **_travel}
+    _travel.update(state="starting", sha=sha, target=target, detail="", at=time.time())
+
+    def go():
+        try:
+            ok, detail = travel(sha, target, rows[sha]["version"])
+            _travel.update(state="done" if ok else "failed", detail=detail[-1500:], at=time.time())
+        finally:
+            _travel_lock.release()
+    threading.Thread(target=go, daemon=True).start()
+    return {"ok": True, **_travel}
+
+
+TRAVEL_PAGE = """<!doctype html><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>Arisu time machine</title>
+<style>
+body{background:#000;color:#fff;font:15px ui-monospace,Menlo,monospace;margin:0;padding:24px}
+h1{color:#e94bd8;letter-spacing:3px;font-size:20px}
+.r{border:1px solid #46e6f7;border-radius:10px;padding:14px;margin:12px 0}
+.r b{color:#e94bd8}.r small{color:#46e6f7aa}.c{opacity:.6;padding:4px 14px;font-size:13px}
+button{background:#000;color:#fff;border:1px solid #46e6f7;border-radius:8px;
+ padding:10px 16px;font:inherit;margin-top:8px}
+#s{color:#46e6f7;min-height:1.4em;white-space:pre-wrap}
+</style>
+<h1>ARISU TIME MACHINE</h1><div id=s></div><div id=l></div>
+<script>
+const s=document.getElementById('s'),l=document.getElementById('l');
+async function go(sha){s.textContent='Starting...';
+ await fetch('travel',{method:'POST',body:JSON.stringify({sha,target:'ipad'})});poll()}
+async function poll(){const j=await (await fetch('travel.json?status=1')).json();
+ s.textContent=j.job.state+(j.job.detail?' - '+j.job.detail:'');
+ if(['starting','building','installing'].includes(j.job.state))setTimeout(poll,2000)}
+fetch('travel.json').then(r=>r.json()).then(j=>{
+ for(const r of j.timeline){const d=document.createElement('div');
+  if(r.release){d.className='r';d.innerHTML=`<b>${r.version} ${r.name}</b> <small>${r.date}</small><br>${r.notes}<br>`}
+  else{d.className='c';d.textContent=`${r.version}  ${r.date}  ${r.subject}`}
+  const b=document.createElement('button');b.textContent=r.release?'Travel here':'go';
+  if(!r.release){b.style.cssText='margin:0 0 0 8px;padding:2px 8px'}
+  b.onclick=()=>go(r.sha);d.appendChild(b);l.appendChild(d)}
+ poll()})
+</script>"""
+
+
 class Handler(BaseHTTPRequestHandler):
     path_to_buttons = BUTTONS
     quiet = False
@@ -491,6 +685,20 @@ class Handler(BaseHTTPRequestHandler):
                     time.sleep(1 / 30)
             except OSError:
                 return
+        # The time machine: a page for Safari (how an old build that has no
+        # time machine of its own gets back), and its JSON for the app.
+        if path == "/deck/travel":
+            body = TRAVEL_PAGE.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if path == "/deck/travel.json":
+            if "status" in urllib.parse.urlparse(self.path).query:
+                return self.reply(200, {"job": _travel})
+            return self.reply(200, {"timeline": timeline(), "job": _travel})
         try:
             data = load(self.path_to_buttons)
         except (OSError, ValueError) as exc:
@@ -565,6 +773,10 @@ class Handler(BaseHTTPRequestHandler):
 
         # The iPad's REC button: the Mac goes quiet while he dumps, then back
         # to how it was (Oscar, 2026-10-01). Fixed scripts, nothing off the wire.
+        if path == "/deck/travel":
+            r = start_travel(str(payload.get("sha") or ""), str(payload.get("target") or "ipad"))
+            return self.reply(200 if r.get("ok") else 409, r)
+
         if path == "/deck/mute":
             return self.reply(200, mute(bool(payload.get("on"))))
 
@@ -613,15 +825,30 @@ def serve(port: int, path: str, quiet: bool) -> int:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Arisu's deck: the Mac half.")
-    parser.add_argument("command", choices=("serve", "press", "list", "selftest"))
+    parser.add_argument("command", choices=("serve", "press", "list", "selftest", "travel"))
     parser.add_argument("id", nargs="?", help="button id, for press")
     parser.add_argument("--buttons", default=BUTTONS)
     parser.add_argument("--port", type=int, default=0)
     parser.add_argument("--quiet", action="store_true")
+    parser.add_argument("--sim", action="store_true", help="travel: the booted simulator")
+    parser.add_argument("--build-only", action="store_true", help="travel: build, do not install")
     args = parser.parse_args(argv)
 
     if args.command == "selftest":
         return selftest()
+    # deck.py travel <sha|version|latest> [sim]  -- the time machine from the shell.
+    if args.command == "travel":
+        rows = timeline()
+        want = args.id or "latest"
+        row = rows[0] if want == "latest" else next(
+            (r for r in rows if r["sha"].startswith(want) or r["version"] == want), None)
+        if row is None:
+            print(f"no build {want!r}", file=sys.stderr)
+            return 1
+        ok, detail = travel(row["sha"], "sim" if args.sim else "ipad", row["version"],
+                            install=not args.build_only)
+        print(row["version"], detail)
+        return 0 if ok else 1
 
     try:
         data = load(args.buttons)

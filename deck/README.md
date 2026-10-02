@@ -67,3 +67,20 @@ Privacy & Security ▸ Files and Folders (or Full Disk Access) for
 `launchctl kickstart -k gui/501/com.oscar.arisu-deck`.
 
 Until then the deck answers nothing and the iPad's rail says so after 8s.
+
+## Time machine
+
+Any build of the iPad app, back to the first commit (2026-09-09), installed on
+the iPad from the iPad (Oscar, 2026-10-02). Releases are annotated tags
+`arisu-N.N`; every commit touching `native/` in between is reachable too.
+
+    GET  /deck/travel        a page for Safari: how a pre-11.0 build gets back
+    GET  /deck/travel.json   {"timeline": [...], "job": {...}}  (?status=1: job only)
+    POST /deck/travel        {"sha": "<one of the listed commits>", "target": "ipad"|"sim"}
+    deck.py travel <version|sha|latest> [--sim] [--build-only]
+
+Everything lives in `~/.local/share/arisu-timemachine` (launchd cannot read
+~/Documents): `arisu.git` is a bare mirror -- push to it after every release
+with `git push timemachine main --tags` -- and `src/<sha>/` is one archived,
+built commit, kept so the second trip is quick. Device builds need an Apple ID
+signed in to Xcode (free team, 7-day profiles; a rebuild renews).

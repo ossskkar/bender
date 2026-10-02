@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		A1111111000000000000EF03 /* awaken.wav in Resources */ = {isa = PBXBuildFile; fileRef = A1111111000000000000EF04 /* awaken.wav */; };
+		A1111111000000000000RL01 /* Releases.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1111111000000000000RL02 /* Releases.swift */; };
 		A1111111000000000000EF01 /* Wake.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1111111000000000000EF02 /* Wake.swift */; };
 		187814739FB55B52BCD12622 /* Pet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CDADDCC98515122B7027967 /* Pet.swift */; };
 		A11111110000000000000001 /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11111110000000000000002 /* Settings.swift */; };
@@ -33,6 +34,7 @@
 
 /* Begin PBXFileReference section */
 		A1111111000000000000EF04 /* awaken.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = awaken.wav; sourceTree = "<group>"; };
+		A1111111000000000000RL02 /* Releases.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Releases.swift; sourceTree = "<group>"; };
 		A1111111000000000000EF02 /* Wake.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Wake.swift; sourceTree = "<group>"; };
 		07BAE50857925CE28AFF0464 /* ArisuApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArisuApp.swift; sourceTree = "<group>"; };
 		379107F4BD9D5823990FCC4B /* Arisu.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Arisu.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -97,6 +99,7 @@
 				A1111111000000000000DE02 /* Deck.swift */,
 				A1111111000000000000EE02 /* Realms.swift */,
 				A1111111000000000000EF02 /* Wake.swift */,
+				A1111111000000000000RL02 /* Releases.swift */,
 				A1111111000000000000EF04 /* awaken.wav */,
 				A1111111000000000000DC02 /* Record.swift */,
 				A1111111000000000000DE04 /* DeckRail.swift */,
@@ -194,6 +197,7 @@
 				A1111111000000000000DE01 /* Deck.swift in Sources */,
 				A1111111000000000000EE01 /* Realms.swift in Sources */,
 				A1111111000000000000EF01 /* Wake.swift in Sources */,
+				A1111111000000000000RL01 /* Releases.swift in Sources */,
 				A1111111000000000000DC01 /* Record.swift in Sources */,
 				A1111111000000000000DE03 /* DeckRail.swift in Sources */,
 				A1111111000000000000CH01 /* Chat.swift in Sources */,
@@ -225,7 +229,7 @@
 				INFOPLIST_KEY_UIStatusBarHidden = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 11.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.oscar.arisu;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -250,7 +254,7 @@
 				INFOPLIST_KEY_UIStatusBarHidden = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 11.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.oscar.arisu;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;

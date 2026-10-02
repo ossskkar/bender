@@ -302,11 +302,13 @@ struct ChatPane: View {
             // The way into her voice. Her state colours it, so the button he
             // pressed to start talking is also the light that says she heard.
             IconButton(symbol: "waveform", label: "Voice", tint: phase, action: toVoice)
+                .tourSpot("voiceButton")
         }
         .padding(.horizontal, 18)
         .padding(.top, 10)
         // With the pane's 10pt inset, 28pt off the edge like the deck's keys.
         .padding(.bottom, 18)
+        .tourSpot("composer")
     }
 
     private func send() {
