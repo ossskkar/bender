@@ -247,7 +247,7 @@ struct DeckRail: View {
         page = 0
     }
 
-    @ViewBuilder private var keys: some View {
+    private var keys: some View {
         let all = ordered
         let pages = max(1, (all.count + Self.perPage - 1) / Self.perPage)
         let at = min(page, pages - 1)

@@ -82,8 +82,14 @@ final class Pet: ObservableObject {
         levelSink = Task { [weak self] in
             while !Task.isCancelled {
                 if let self {
-                    self.level = !self.running ? 0
+                    let next = !self.running ? 0
                         : (self.mode == .whisper ? self.ear.level : self.live.level)
+                    // Only a change is published. Setting 0 over 0 twenty times
+                    // a second still told every view watching Pet to redraw:
+                    // the whole screen -- chat, deck, Record -- was rebuilt 20
+                    // times a second with nobody talking, about one CPU core in
+                    // the simulator (17.0).
+                    if next != self.level { self.level = next }
                 }
                 try? await Task.sleep(nanoseconds: 50_000_000)
             }

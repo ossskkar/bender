@@ -12,7 +12,7 @@ import Charts
 
 /// What the panel shows. Filled by `LainInfo.read`, which already works out
 /// the plan, the due list and the race for the rings.
-struct Glance {
+struct Glance: Equatable {
     var loaded = false
     var plan: [String] = []
     var due: [String] = []
@@ -23,13 +23,13 @@ struct Glance {
     var lastRun: String?
     var habits: [Habit] = []
 
-    struct Week: Identifiable {
+    struct Week: Identifiable, Equatable {
         let start: Date
         let km: Double
         var id: Date { start }
     }
 
-    struct Habit: Identifiable {
+    struct Habit: Identifiable, Equatable {
         let id: String
         let name: String
         let icon: String

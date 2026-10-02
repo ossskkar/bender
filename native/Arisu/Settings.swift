@@ -517,7 +517,7 @@ struct SettingsSheet: View {
         next.voice = name
         draft = next
         Task {
-            try? await brain.setPersona(["voice": name])
+            _ = try? await brain.setPersona(["voice": name])
             // Instructions and voice are both fixed at mint time, so a live
             // session keeps the old one until it is replaced.
             await live.reconnect()
@@ -533,7 +533,7 @@ struct SettingsSheet: View {
         notesPush = Task {
             try? await Task.sleep(nanoseconds: 700_000_000)
             guard !Task.isCancelled else { return }
-            try? await brain.setPersona(["notes": text])
+            _ = try? await brain.setPersona(["notes": text])
         }
     }
 

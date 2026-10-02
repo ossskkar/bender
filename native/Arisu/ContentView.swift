@@ -368,7 +368,9 @@ struct ContentView: View {
     @ViewBuilder private var conversation: some View {
         if showChat {
             ChatPane(chat: chat, phase: phaseColor, openHistory: $chatHistory, toVoice: { toVoice() },
-                     show: { live.page = $0 }, glance: info.glance, focus: $focus, shown: tourScene == .chatGlance)
+                     show: { live.page = $0 }, glance: info.glance, focus: $focus, shown: tourScene == .chatGlance,
+                     character: room.character, calling: pet.running)
+                .equatable()
         } else {
             hologram.tourSpot("her")
         }
@@ -595,8 +597,7 @@ struct ContentView: View {
     /// all, and they looked nothing like the buttons an inch away at the top.
     /// They are the same square button in the same row now (Oscar, 2026-09-26).
     private var topBar: some View {
-        let cyan = Color(red: 0.27, green: 0.90, blue: 0.97)
-        return HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: 10) {
             masthead.tourSpot("title")
             Spacer(minLength: 12)
             // Is the microphone hot. Its own control since 2026-09-27, because

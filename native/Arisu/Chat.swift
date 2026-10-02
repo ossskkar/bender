@@ -168,6 +168,26 @@ import SwiftUI
         suggestions = got
     }
 
+    private let brain = Brain()
+
+    /// What the desk queued for this screen while he is reading the chat
+    /// with no call running (17.0, Backlog: "Arisu puts a page on screen
+    /// inside her own tab"). A call takes these itself and says them; with
+    /// no call nothing collected them, so a page she put up waited up to an
+    /// hour, or until he came back to the app, and then started a call. Her
+    /// line goes on the thread -- this screen only, the desk's stored thread
+    /// does not have it -- and the page, if there is one, is returned for
+    /// the app's page sheet. Same pop-on-read queue: exactly one screen gets
+    /// each batch.
+    func collect(character: String) async -> ShowPage? {
+        var page: ShowPage?
+        for cmd in await brain.commands(character: character) {
+            if !cmd.text.isEmpty { lines.append(Line(mine: false, text: cmd.text, at: Date())) }
+            if let p = cmd.show, p.worthShowing { page = p }
+        }
+        return page
+    }
+
     /// A page made showable by the desk, the same reading a call's page gets
     /// (lain's GET /reader, server/reader.py). When the desk cannot be
     /// reached the sheet still opens, says so and offers Safari.
@@ -205,7 +225,7 @@ import SwiftUI
 /// The thread and the composer. The composer is the whole navigation of this
 /// app now (Oscar, 2026-09-28): Send types at her, Voice hands the screen to
 /// the hologram, and there is no mode toggle in the corner to find first.
-struct ChatPane: View {
+struct ChatPane: View, Equatable {
     @ObservedObject var chat: Chat
     /// Her state, so the composer can carry the same colour the room does.
     let phase: Color
@@ -224,6 +244,11 @@ struct ChatPane: View {
     @Binding var focus: GlanceFocus?
     /// Held up by a tour stop, without touching his own setting.
     var shown = false
+    /// Whose queue this screen collects, and whether a call is collecting it
+    /// already (17.0).
+    var character = ""
+    var calling = false
+    @Environment(\.scenePhase) private var scene
 
     /// Bubbles or terminal lines, the chat's own answer.
     @AppStorage("arisu.bubbles.chat") private var bubbles = true
@@ -288,8 +313,31 @@ struct ChatPane: View {
                 try? await Task.sleep(for: .seconds(60))
             }
         }
+        // Her queued lines and pages, every 8 s while the chat is up, the app
+        // is in front and no call is taking them (17.0). It waits first: on
+        // arrival Pet.arrive takes the queue and a brief is a call, which is
+        // voice (Oscar, 2026-09-30), so the chat must not get there first.
+        .task(id: !calling && scene == .active) {
+            guard !calling && scene == .active else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(8))
+                guard !Task.isCancelled else { return }
+                if let page = await chat.collect(character: character) { show(page) }
+            }
+        }
         .onAppear { if openHistory { showHistory = true; openHistory = false } }
         .sheet(isPresented: $showHistory) { ChatHistory(chat: chat) }
+    }
+
+    /// Compared by what it draws, so the app redrawing around it -- her level
+    /// twenty times a second in a call, the title's flicker -- does not
+    /// rebuild the thread (17.0). The closures are left out: they always
+    /// differ and always do the same thing. Its own state and the chat it
+    /// watches still redraw it as before.
+    static func == (a: ChatPane, b: ChatPane) -> Bool {
+        a.chat === b.chat && a.phase == b.phase && a.openHistory == b.openHistory
+            && a.topInset == b.topInset && a.glance == b.glance && a.focus == b.focus
+            && a.shown == b.shown && a.character == b.character && a.calling == b.calling
     }
 
     private func panel(width: CGFloat) -> some View {
@@ -424,7 +472,7 @@ struct ChatPane: View {
     /// sheet, the same one a call opens, without starting a call. Tapping the
     /// link itself still goes to the browser.
     @ViewBuilder private func pages(_ text: String) -> some View {
-        let urls = webLinks(text).map(\.0).reduce(into: [URL]()) { if !$0.contains($1) { $0.append($1) } }
+        let urls = pageLinks(text)
         if !urls.isEmpty {
             HStack(spacing: 6) {
                 ForEach(urls.prefix(3), id: \.self) { url in
@@ -667,7 +715,32 @@ struct ChatHistory: View {
 /// chat (the email list, 2026-10-02) and the raw asterisks made it hard to
 /// read (16.0). Nothing else is interpreted -- an underscore in a file name or
 /// a lone asterisk stays as she wrote it, and no HTML is ever rendered.
-func conversationLinks(_ text: String) -> AttributedString {
+///
+/// Worked out once per line and kept (17.0): a line never changes, but every
+/// line on screen was formatted again -- a regex and a link scan each -- on
+/// every redraw of the chat.
+@MainActor func conversationLinks(_ text: String) -> AttributedString {
+    if let done = formatted[text] { return done }
+    if formatted.count > 600 { formatted.removeAll() }   // ponytail: flush, not LRU; a thread is a few hundred lines
+    let made = formatLine(text)
+    formatted[text] = made
+    return made
+}
+
+@MainActor private var formatted: [String: AttributedString] = [:]
+@MainActor private var linked: [String: [URL]] = [:]
+
+/// The distinct web addresses in one of her lines, for its page chips; kept
+/// like the formatting.
+@MainActor func pageLinks(_ text: String) -> [URL] {
+    if let done = linked[text] { return done }
+    if linked.count > 600 { linked.removeAll() }
+    let made = webLinks(text).map(\.0).reduce(into: [URL]()) { if !$0.contains($1) { $0.append($1) } }
+    linked[text] = made
+    return made
+}
+
+private func formatLine(_ text: String) -> AttributedString {
     let listed = text.replacingOccurrences(of: #"(?m)^(\s*)\* "#, with: "$1• ",
                                            options: .regularExpression)
     // Pairs only: an odd ** at the end is left as written.

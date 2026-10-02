@@ -51,6 +51,41 @@ enum Releases {
     static var current: Release { all.first { $0.version == running } ?? all[0] }
 
     static let all: [Release] = [
+        Release(version: "17.0", name: "Steady", date: "2026-10-02", highlights: [
+            Highlight(symbol: "battery.100", name: "The screen rests when nothing changes",
+                      what: "With nobody talking, the app was redrawing the whole screen, chat, deck and "
+                          + "brain dumps, twenty times a second, which kept about one processor core busy all "
+                          + "day. It now redraws only what changed. Measured in the simulator: from 96 percent "
+                          + "of a core to under 1 percent with the chat open."),
+            Highlight(symbol: "text.bubble", name: "A calmer chat during a call",
+                      what: "When you type while she is listening, the chat no longer redraws with every "
+                          + "movement of her voice, and each message is formatted once instead of on every "
+                          + "redraw. Long conversations scroll more smoothly."),
+            Highlight(symbol: "rectangle.portrait.on.rectangle.portrait", name: "Pages she puts up open in the chat",
+                      what: "When she puts a page on your screen while you are reading the chat, it now opens "
+                          + "in the app's page window straight away, with her line about it in the chat. It "
+                          + "used to wait until your next call, or up to an hour.",
+                      how: "Ask her in a call to show you a page, then go back to the chat; or wait for one "
+                          + "she sends on her own."),
+            Highlight(symbol: "checkmark.seal", name: "A clean build",
+                      what: "Seven small faults the build tools pointed out are fixed, so a new warning "
+                          + "stands out the day it appears."),
+        ], tour: [
+            TourStep(scene: .chat, title: "Arisu 17.0 — Steady",
+                     text: "Nothing new to learn in this one: the app does less work and keeps up with her. "
+                         + "Tap anywhere to go on."),
+            TourStep(scene: .chat, spot: "thread", title: "Pages she puts up open here",
+                     text: "When she puts a page on your screen while you read, her line lands here and the "
+                         + "page opens in the app's page window at once."),
+            TourStep(scene: .chat, spot: "thread", title: "A calmer chat",
+                     text: "Each message is formatted once, and the chat no longer redraws with every "
+                         + "movement of her voice."),
+            TourStep(scene: .chat, spot: "deck", title: "The screen rests",
+                     text: "The deck, the brain dumps and the chat used to be redrawn twenty times a second "
+                         + "with nobody talking. Now they are redrawn only when something on them changes."),
+            TourStep(scene: .chat, spot: "whatsNew", title: "Earlier releases",
+                     text: "Behind the sparkles: every release, this tour again, and the time machine."),
+        ]),
         Release(version: "16.0", name: "On the page", date: "2026-10-02", highlights: [
             Highlight(symbol: "bold", name: "Bold reads as bold",
                       what: "When she marks words in bold, they are now shown in bold, and a line she starts "
