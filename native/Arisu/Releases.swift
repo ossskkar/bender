@@ -51,6 +51,28 @@ enum Releases {
     static var current: Release { all.first { $0.version == running } ?? all[0] }
 
     static let all: [Release] = [
+        Release(version: "20.0", name: "Loud", date: "2026-10-02", highlights: [
+            Highlight(symbol: "waveform.path.ecg", name: "Music explodes on Singularity",
+                      what: "While she is away and Spotify plays on the Mac, every beat throws a ring of light "
+                          + "to the edge of the screen and sends a shockwave through space. The louder the "
+                          + "music, the more space bends and twists, and the colours turn through cyan, "
+                          + "magenta and violet. When the music stops, she goes back to her own cyan.",
+                      how: "Pick SINGULARITY and play something in Spotify on the Mac."),
+            Highlight(symbol: "ear", name: "Wake her with 醒来, and see whether she can hear it",
+                      what: "Whenever no call is on, in Classic and Singularity alike, she listens for 醒来. "
+                          + "She now also accepts how the iPad often writes that word (星来, 兴来, 行来). "
+                          + "The line under her says SAY 醒来 TO WAKE HER while she is listening, or why "
+                          + "she cannot, for example when Chinese is missing as a dictation language.",
+                      how: "Say 醒来 with the app open and no call on. If the line says WAKE WORD OFF, do "
+                          + "what it says."),
+        ], tour: [
+            TourStep(scene: .singularity, title: "Arisu 20.0 — Loud",
+                     text: "Play music on the Mac: every beat is a shockwave of light, space bends with the "
+                         + "music and the colours turn with it."),
+            TourStep(scene: .singularity, title: "Wake her by voice",
+                     text: "With no call on, say 醒来. The line at the bottom says whether she is listening "
+                         + "for it, or why she cannot."),
+        ]),
         Release(version: "19.0", name: "Light rings", date: "2026-10-02", highlights: [
             Highlight(symbol: "circle.dashed", name: "Singularity costs a quarter of what it did",
                       what: "The words turning on Singularity's rings were laid out letter by letter, sixty "

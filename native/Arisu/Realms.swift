@@ -72,6 +72,16 @@ private final class RealmClock {
     var energy = 0.0
     var lastAmp = 0.0
     var waves: [(t0: Double, s: Double)] = []
+    /// The Mac's music while she is away (Oscar, 2026-10-02: "more explosive,
+    /// more shockwaves and space warping, and colour"): `groove` is its
+    /// smoothed level, which bends and twists space; every beat is a `boom`,
+    /// a ring of light of its own; `hue` turns the colours with it and
+    /// settles back to her cyan when the music stops.
+    var groove = 0.0
+    var lastMusic = 0.0
+    var lastBoom = 0.0
+    var hue = 0.0
+    var booms: [(t0: Double, s: Double, hue: Double)] = []
     var glitchUntil = 0.0
     var summonAt: Double?
     var dismissAt: Double?
@@ -214,6 +224,22 @@ struct RealmView: View {
             clock.waves.append((t, speaking ? 0.25 + clock.amp * 0.5 : 0.6 + clock.amp))
         }
         clock.lastAmp = clock.amp
+        let m = idle ? music.level : 0
+        clock.groove += (m - clock.groove) * 0.2
+        clock.hue += dt * clock.groove * 0.25
+        if m - clock.lastMusic > 0.08, t - clock.lastBoom > 0.12 {
+            let strength = 0.8 + m * 2.5
+            clock.waves.append((t, strength))
+            clock.booms.append((t, strength, clock.hue))
+            clock.hue += 0.06 + m * 0.1
+            clock.lastBoom = t
+        }
+        clock.lastMusic = m
+        if clock.groove < 0.03 {   // silence: back to her own colour
+            clock.hue += (clock.hue.rounded() - clock.hue) * min(1, dt * 0.8)
+        }
+        clock.booms.removeAll { t - $0.t0 > 1.6 }
+        if clock.booms.count > 6 { clock.booms.removeFirst(clock.booms.count - 6) }
         clock.waves.removeAll { t - $0.t0 > 3 }
         if Double.random(in: 0...1) < 0.003 { clock.glitchUntil = t + 0.12 }
         // アリス, back at a random moment and place, about once a minute
@@ -557,14 +583,15 @@ private struct Scene {
     /// Her eye is a black hole; every app is a spiral arm of words falling in.
     func singularity() {
         let st = stage, e = energy, pres = st.presence   // e: the warp only
+        let g = clock.groove                                // the music, while she is away
         let Rh = M * 0.06 * st.rf
         func warp(_ r: Double, _ th: Double) -> CGPoint {
-            var rr = r - (M * M * 0.012 * (1 + e)) / (r + M * 0.04)
+            var rr = r - (M * M * 0.012 * (1 + e + g * 2.2)) / (r + M * 0.04)
             for w in clock.waves {
                 let wr = (t - w.t0) * M * 0.55, fade = 1 - (t - w.t0) / 3
                 rr += exp(-pow((r - wr) / (M * 0.035), 2)) * M * 0.03 * w.s * fade
             }
-            let twist = (1.6 + e * 1.2) * exp(-r / (M * 0.16)) + tw * 0.03
+            let twist = (1.6 + e * 1.2 + g * 1.4) * exp(-r / (M * 0.16)) + tw * 0.03
             return at(max(Rh, rr * st.rf), th + twist)
         }
 
@@ -574,7 +601,8 @@ private struct Scene {
         let lum = pres
         ctx.fill(Path(CGRect(origin: .zero, size: size)), with: .radialGradient(
             Gradient(colors: [Color(red: 0.10, green: 0.16, blue: 0.32).opacity(min(1, 0.9 * lum + deco * 0.1)),
-                                                            Color(red: 0.16, green: 0.06, blue: 0.22).opacity(0.7 * lum),
+                              Color(hue: frac(0.80 + clock.hue), saturation: 0.75, brightness: 0.24)
+                                  .opacity(min(1, 0.7 * lum + g * 0.5)),
                               Color(red: 0.03, green: 0.03, blue: 0.08)]),
             center: center, startRadius: M * 0.05, endRadius: reach))
         var rings = Path(), spokes = Path(), marks = Path()
@@ -593,7 +621,9 @@ private struct Scene {
             }
             if j % 6 == 0 { marks.addPath(s) } else { spokes.addPath(s) }
         }
-        let meshInk = Skin.cyan
+        // Her cyan at rest; with music the mesh turns through magenta and violet.
+        let meshInk = clock.hue == clock.hue.rounded() ? Skin.cyan
+            : Color(hue: palette(clock.hue), saturation: 0.72, brightness: 0.97)
         var meshGlow = lit
         meshGlow.addFilter(.blur(radius: 3))
         meshGlow.stroke(rings, with: .color(meshInk.opacity((0.22 + deco * 0.15) * pres)), lineWidth: 2)
@@ -601,6 +631,18 @@ private struct Scene {
         lit.stroke(rings, with: .color(meshInk.opacity((0.22 + deco * 0.1) * pres)), lineWidth: 1)
         lit.stroke(spokes, with: .color(Skin.cyan.opacity(0.12 * pres)), lineWidth: 1)
         lit.stroke(marks, with: .color(Skin.mag.opacity(0.28 * pres)), lineWidth: 1)
+
+        // a beat of his music: a ring of light thrown out to the screen's edge,
+        // brightest as it leaves, in the colour of that moment
+        for b in clock.booms {
+            let k = (t - b.t0) / 1.6, fade = (1 - k) * (1 - k)
+            let ink = Color(hue: palette(b.hue), saturation: 0.8, brightness: 1)
+            softPath(orbit(M * (0.07 + k * 0.62) * st.rf), ink, 1.5 + b.s, fade * pres)
+            if k < 0.12 && b.s > 1.6 {
+                lit.fill(Path(CGRect(origin: .zero, size: size)),
+                         with: .color(ink.opacity(0.10 * (1 - k / 0.12) * pres)))
+            }
+        }
 
         // the information rings (Oscar, 2026-10-01): magenta text on its own
         // dotted orbit, turning against its neighbours, warped by her like the
@@ -856,3 +898,10 @@ private struct Scene {
         return d.formatted(.dateTime.day().month(.abbreviated)).uppercased()
     }
 }
+
+/// The fractional part, for hues that turn without end.
+private func frac(_ x: Double) -> Double { x - x.rounded(.down) }
+
+/// Her colours only: a hue that swings between cyan (0.52) and magenta (0.92)
+/// through violet as `turn` runs, never through green or amber.
+private func palette(_ turn: Double) -> Double { 0.52 + 0.4 * (0.5 - 0.5 * cos(turn * 2 * .pi)) }

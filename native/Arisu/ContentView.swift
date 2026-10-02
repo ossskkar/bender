@@ -239,7 +239,7 @@ struct ContentView: View {
             Metered(meter: pet.meter, music: music) { level, _ in
                 RealmView(level: level, idle: voiceState == .idle,
                           speaking: voiceState == .speaking, running: pet.running,
-                          tint: phaseColor, status: (pet.running ? stateWord : "not listening").uppercased(),
+                          tint: phaseColor, status: (pet.running ? stateWord : idleWord).uppercased(),
                           micOn: pet.running && !live.muted,
                           onHer: { if pet.running { live.muted.toggle() } },
                           onSummon: {
@@ -310,6 +310,13 @@ struct ContentView: View {
             }
             withAnimation(.linear(duration: 5.6).repeatForever(autoreverses: false)) { sweep = true }
         }
+    }
+
+    /// What the screen says while no call is on: that she can be woken, or
+    /// why she cannot be by voice.
+    private var idleWord: String {
+        if let p = wake.problem { return "wake word off: " + p }
+        return wake.listening ? "say 醒来 to wake her" : "not listening"
     }
 
     // MARK: Tours
@@ -484,7 +491,7 @@ struct ContentView: View {
             // under her, where he is already looking (Oscar, 2026-09-29).
             // Her state in words where the bars were: the bars moved, the
             // words said which way (Oscar, 2026-09-30).
-            Text("> " + (pet.running ? stateWord : "not listening").uppercased() + "_")
+            Text("> " + (pet.running ? stateWord : idleWord).uppercased() + "_")
                 .font(Skin.mono(16, .bold)).tracking(3)
                 .foregroundStyle(pet.running ? phaseColor : Skin.ink)
                 .shadow(color: pet.running ? phaseColor.opacity(0.8) : .clear, radius: 6)

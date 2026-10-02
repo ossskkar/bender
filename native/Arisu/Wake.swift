@@ -1,4 +1,5 @@
 import AVFoundation
+import Observation
 import Speech
 
 /// 醒来 wakes her (Oscar, 2026-10-01). While no call is on and the app is in
@@ -6,41 +7,50 @@ import Speech
 /// device only: his data goes to Gemini or Anthropic and nowhere else, so on a
 /// device that cannot recognise Mandarin locally this does not listen at all.
 /// Nothing is paid for until she hears it; then the real call starts.
-@MainActor final class WakeListener {
+/// Observable so the screen can say why it is not listening: a listener that
+/// silently does nothing looked exactly like one that did not hear him
+/// (Oscar, 2026-10-02: "wake word should work when not in conversation").
+@MainActor @Observable final class WakeListener {
     private(set) var problem: String?
-    var onWake: () -> Void = {}
+    /// True while it is actually listening for the word.
+    private(set) var listening = false
+    @ObservationIgnored var onWake: () -> Void = {}
 
-    private let recogniser = SFSpeechRecognizer(locale: Locale(identifier: "zh-CN"))
+    @ObservationIgnored private let recogniser = SFSpeechRecognizer(locale: Locale(identifier: "zh-CN"))
     /// Made on first listen, not with the listener. ContentView holds this in
     /// @State, whose initial value is built again every time the app's body
     /// runs -- several times a second while she is on screen -- and each
     /// throwaway listener used to make and destroy an audio engine: the
     /// "stop / pause" pair in the log, 620 times in two minutes (16.0).
-    private var engine: AVAudioEngine?
-    private var request: SFSpeechAudioBufferRecognitionRequest?
-    private var task: SFSpeechRecognitionTask?
-    private var active = false
+    @ObservationIgnored private var engine: AVAudioEngine?
+    @ObservationIgnored private var request: SFSpeechAudioBufferRecognitionRequest?
+    @ObservationIgnored private var task: SFSpeechRecognitionTask?
+    @ObservationIgnored private var active = false
     /// Which request is current, so a stale callback cannot restart a new one.
-    private var generation = 0
+    @ObservationIgnored private var generation = 0
 
-    static let words = ["醒来", "醒來"]
+    /// 醒来 and how the recogniser also writes what he says: xǐng lái comes
+    /// back as 星来, 兴来 or 行来 often enough to miss him (2026-10-02).
+    static let words = ["醒来", "醒來", "星来", "兴来", "行来"]
 
     func start() async {
         guard !active else { return }
         let allowed = await withCheckedContinuation { c in
             SFSpeechRecognizer.requestAuthorization { c.resume(returning: $0 == .authorized) }
         }
-        guard allowed else { problem = "Speech recognition is not allowed."; return }
+        guard allowed else { problem = "speech recognition is not allowed in Settings"; return }
         guard let recogniser, recogniser.supportsOnDeviceRecognition else {
-            problem = "This iPad cannot recognise Mandarin on the device."
+            problem = "add Chinese (Mandarin) as a dictation language to wake her by voice"
             return
         }
+        problem = nil
         active = true
         listen(recogniser)
     }
 
     func stop() {
         active = false
+        listening = false
         teardown()
     }
 
@@ -64,7 +74,10 @@ import Speech
             req.append(buf)
         }
         engine.prepare()
-        do { try engine.start() } catch { problem = "The microphone would not start."; active = false; return }
+        do { try engine.start() } catch {
+            problem = "the microphone would not start"; active = false; listening = false; return
+        }
+        listening = true
 
         task = recogniser.recognitionTask(with: req) { [weak self] result, error in
             let text = result?.bestTranscription.formattedString ?? ""
