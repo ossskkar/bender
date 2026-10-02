@@ -11,7 +11,12 @@ import Speech
     var onWake: () -> Void = {}
 
     private let recogniser = SFSpeechRecognizer(locale: Locale(identifier: "zh-CN"))
-    private let engine = AVAudioEngine()
+    /// Made on first listen, not with the listener. ContentView holds this in
+    /// @State, whose initial value is built again every time the app's body
+    /// runs -- several times a second while she is on screen -- and each
+    /// throwaway listener used to make and destroy an audio engine: the
+    /// "stop / pause" pair in the log, 620 times in two minutes (16.0).
+    private var engine: AVAudioEngine?
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
     private var active = false
@@ -51,6 +56,8 @@ import Speech
         req.requiresOnDeviceRecognition = true
         req.contextualStrings = Self.words
         request = req
+        let engine = self.engine ?? AVAudioEngine()
+        self.engine = engine
         let input = engine.inputNode
         input.removeTap(onBus: 0)
         input.installTap(onBus: 0, bufferSize: 1024, format: input.outputFormat(forBus: 0)) { buf, _ in
@@ -87,6 +94,7 @@ import Speech
         task = nil
         request?.endAudio()
         request = nil
+        guard let engine else { return }
         engine.inputNode.removeTap(onBus: 0)
         if engine.isRunning { engine.stop() }
     }

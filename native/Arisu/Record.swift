@@ -176,10 +176,17 @@ struct RecordPanel: View {
                     Spacer(minLength: 0)
                 }
                 .frame(width: 170)
-                ScrollView {
-                    if showInsights { insights } else { history }
+                ScrollViewReader { scroll in
+                    ScrollView {
+                        if showInsights { insights } else { history }
+                    }
+                    .defaultScrollAnchor(showInsights ? .top : .bottom)
+                    // Turning the iPad, or the deck's seam moving, resizes the
+                    // log; it rests on the newest dump again, as the chat has
+                    // since 14.0 (16.0). A new dump arriving does the same.
+                    .onGeometryChange(for: CGSize.self) { $0.size } action: { _ in newest(scroll) }
+                    .onChange(of: rec.dumps.count) { _, _ in newest(scroll) }
                 }
-                .defaultScrollAnchor(showInsights ? .top : .bottom)
             }
         }
         .padding(14)
@@ -282,6 +289,17 @@ struct RecordPanel: View {
         return f.string(from: Date(timeIntervalSince1970: ms / 1000))
     }
 
+    /// To the newest dump, and again once the lazy rows have real heights.
+    /// The insights read from the top and are left where they are.
+    private func newest(_ scroll: ScrollViewProxy) {
+        guard !showInsights else { return }
+        Task {
+            scroll.scrollTo("end", anchor: .bottom)
+            try? await Task.sleep(for: .milliseconds(450))
+            scroll.scrollTo("end", anchor: .bottom)
+        }
+    }
+
     private var history: some View {
         LazyVStack(alignment: .leading, spacing: 8) {
             if rec.dumps.isEmpty {
@@ -315,6 +333,7 @@ struct RecordPanel: View {
                     }
                 }
             }
+            Color.clear.frame(height: 1).id("end")
         }
     }
 

@@ -368,7 +368,7 @@ struct ContentView: View {
     @ViewBuilder private var conversation: some View {
         if showChat {
             ChatPane(chat: chat, phase: phaseColor, openHistory: $chatHistory, toVoice: { toVoice() },
-                     glance: info.glance, focus: $focus, shown: tourScene == .chatGlance)
+                     show: { live.page = $0 }, glance: info.glance, focus: $focus, shown: tourScene == .chatGlance)
         } else {
             hologram.tourSpot("her")
         }

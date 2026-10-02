@@ -51,6 +51,47 @@ enum Releases {
     static var current: Release { all.first { $0.version == running } ?? all[0] }
 
     static let all: [Release] = [
+        Release(version: "16.0", name: "On the page", date: "2026-10-02", highlights: [
+            Highlight(symbol: "bold", name: "Bold reads as bold",
+                      what: "When she marks words in bold, they are now shown in bold, and a line she starts "
+                          + "with an asterisk is a bullet. Her lists, such as the emails waiting for you, "
+                          + "used to show the raw asterisks around every name.",
+                      how: "Ask her in the chat what is in your inbox."),
+            Highlight(symbol: "rectangle.portrait.on.rectangle.portrait", name: "Pages from the chat",
+                      what: "When her answer contains a web address, a small button with the site's name "
+                          + "appears under it. It opens the page inside the app, in the same window a call "
+                          + "uses: the site itself, or its headlines or text when that reads better. No call "
+                          + "is started. Tapping the address itself still opens your browser.",
+                      how: "Tap the button with the site's name under her answer."),
+            Highlight(symbol: "ellipsis.bubble", name: "Suggestions wait while she thinks",
+                      what: "The suggested answers and commands above the typing field step aside while she "
+                          + "is working on an answer, and come back fresh when she has replied. They were "
+                          + "made for her previous line, and a command tapped then did nothing.",
+                      how: "Send her a message and watch the rows above the field."),
+            Highlight(symbol: "rectangle.portrait.rotate", name: "Brain dumps keep your place",
+                      what: "When you turn the iPad or move the divider, the Record panel's log stays on your "
+                          + "newest dump, as the chat already did."),
+            Highlight(symbol: "battery.100", name: "Less work in the background",
+                      what: "The app no longer sets up and throws away a microphone engine several times a "
+                          + "second while she is on screen. It was invisible, but it cost battery all day."),
+        ], tour: [
+            TourStep(scene: .chat, title: "Arisu 16.0 — On the page",
+                     text: "Her answers read better, and the pages she mentions open inside the app. "
+                         + "Tap anywhere to go on."),
+            TourStep(scene: .chat, spot: "thread", title: "Bold reads as bold",
+                     text: "Words she marks in bold are bold now, and her lists have bullets instead of "
+                         + "asterisks around every name."),
+            TourStep(scene: .chat, spot: "pageChip", title: "Pages from the chat",
+                     text: "When she gives you a web address, a button with the site's name sits under her "
+                         + "answer. It opens the page inside the app without starting a call."),
+            TourStep(scene: .chat, spot: "composer", title: "Suggestions wait while she thinks",
+                     text: "The suggested answers and commands step aside while she works on an answer and "
+                         + "come back fresh after it."),
+            TourStep(scene: .chat, spot: "record", title: "Brain dumps keep your place",
+                     text: "Turn the iPad or move the divider: the log stays on your newest dump."),
+            TourStep(scene: .chat, spot: "whatsNew", title: "Earlier releases",
+                     text: "Behind the sparkles: every release, this tour again, and the time machine."),
+        ]),
         Release(version: "15.0", name: "Next line", date: "2026-10-02", highlights: [
             Highlight(symbol: "text.bubble", name: "Your likely answers",
                       what: "Above the typing field, four answers to what she just said, the most likely one "

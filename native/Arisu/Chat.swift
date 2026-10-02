@@ -168,6 +168,22 @@ import SwiftUI
         suggestions = got
     }
 
+    /// A page made showable by the desk, the same reading a call's page gets
+    /// (lain's GET /reader, server/reader.py). When the desk cannot be
+    /// reached the sheet still opens, says so and offers Safari.
+    func page(_ url: URL) async -> ShowPage {
+        var c = URLComponents(string: "/reader")!
+        c.queryItems = [URLQueryItem(name: "url", value: url.absoluteString)]
+        // A page the desk could not read comes back as a 502 with the reason
+        // in the same shape, which is worth showing as it is.
+        if let at = c.url(relativeTo: Brain.base), let (data, _) = try? await net.data(from: at),
+           let got = try? JSONDecoder().decode(ShowPage.self, from: data), !got.url.isEmpty {
+            return got
+        }
+        return ShowPage(url: url.absoluteString, host: url.host(), mode: nil, title: nil, text: nil,
+                        headlines: nil, ok: false, error: "The desk could not be reached to read this page.")
+    }
+
     func loadSessions() async {
         guard let url = URL(string: "history", relativeTo: Brain.base) else { return }
         guard let (data, _) = try? await net.data(from: url),
@@ -198,6 +214,8 @@ struct ChatPane: View {
     @Binding var openHistory: Bool
     /// Press Voice: the caller draws her instead of this.
     let toVoice: () -> Void
+    /// A page from one of her lines, for the app's page sheet.
+    var show: (ShowPage) -> Void = { _ in }
     /// The app's title row is above this view now, not over it.
     var topInset: CGFloat = 0
     /// lain's day, the same panel voice mode has beside her (13.0).
@@ -211,6 +229,8 @@ struct ChatPane: View {
     @AppStorage("arisu.bubbles.chat") private var bubbles = true
     @State private var typing = ""
     @State private var showHistory = false
+    /// The page being fetched for the sheet, so its chip can say so.
+    @State private var opening: URL?
     /// The day panel, pinned open from its button. Kept: whether he reads
     /// the chat with his day beside it is a habit, not a moment.
     @AppStorage("arisu.glance.chat") private var glancePinned = false
@@ -237,10 +257,21 @@ struct ChatPane: View {
                 }
                 .animation(.easeOut(duration: 0.3), value: glanceUp)
             }
-            if !chat.suggestions.isEmpty { suggestRow.transition(.opacity) }
+            // Out of the way while she is thinking (16.0): the guesses were
+            // made for her previous line, and a command tapped then is ignored.
+            // Faded rather than removed, so the thread keeps its height: taking
+            // the strip out and putting it back as her answer lands left the
+            // thread an empty grid in the simulator.
+            if !chat.suggestions.isEmpty {
+                suggestRow
+                    .opacity(chat.thinking ? 0 : 1)
+                    .allowsHitTesting(!chat.thinking)
+                    .transition(.opacity)
+            }
             composer
         }
         .animation(.easeOut(duration: 0.25), value: chat.suggestions)
+        .animation(.easeOut(duration: 0.25), value: chat.thinking)
         .padding(.top, topInset)
         .console(Skin.cyan, brackets: Skin.mag)
         // The same 10pt inset as Record and Deck, so the corners line up.
@@ -355,10 +386,13 @@ struct ChatPane: View {
                         .foregroundStyle((line.mine ? mag : cyan).opacity(0.6))
                         .padding(.top, 4)
                 }
-                Text(conversationLinks(speaker(line.mine) + line.text))
-                    .font(Skin.mono(15))
-                    .foregroundStyle(line.mine ? mag : cyan)
-                    .textSelection(.enabled)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(conversationLinks(speaker(line.mine) + line.text))
+                        .font(Skin.mono(15))
+                        .foregroundStyle(line.mine ? mag : cyan)
+                        .textSelection(.enabled)
+                    if !line.mine { pages(line.text) }
+                }
             }
             .opacity(line.spoken ? 0.72 : 1)
             .padding(.horizontal, bubbles ? 14 : 0)
@@ -383,6 +417,44 @@ struct ChatPane: View {
         }
         .frame(maxWidth: .infinity,
                alignment: (line.mine && bubbles) ? .trailing : .leading)
+    }
+
+    /// Under her line, one chip per page she linked (16.0, Backlog: "Arisu
+    /// puts a page on screen inside her own tab"): the page in the app's own
+    /// sheet, the same one a call opens, without starting a call. Tapping the
+    /// link itself still goes to the browser.
+    @ViewBuilder private func pages(_ text: String) -> some View {
+        let urls = webLinks(text).map(\.0).reduce(into: [URL]()) { if !$0.contains($1) { $0.append($1) } }
+        if !urls.isEmpty {
+            HStack(spacing: 6) {
+                ForEach(urls.prefix(3), id: \.self) { url in
+                    Button {
+                        guard opening == nil else { return }
+                        opening = url
+                        Task {
+                            let page = await chat.page(url)
+                            opening = nil
+                            show(page)
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            if opening == url {
+                                ProgressView().tint(Skin.cyan).scaleEffect(0.6).frame(width: 12, height: 12)
+                            } else {
+                                Image(systemName: "rectangle.portrait.on.rectangle.portrait")
+                                    .font(.system(size: 11))
+                            }
+                            Text(url.host() ?? url.absoluteString).font(Skin.mono(12, .semibold)).lineLimit(1)
+                        }
+                        .foregroundStyle(Skin.cyan)
+                        .padding(.horizontal, 9).padding(.vertical, 5)
+                        .raised(Skin.cyan, stroke: 0.45, fill: Color.black.opacity(0.45))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .tourSpot("pageChip")
+        }
     }
 
     private var composer: some View {
@@ -590,22 +662,49 @@ struct ChatHistory: View {
     }
 }
 
-/// Detect web links without interpreting Markdown or HTML in the conversation.
+/// Her line as it should read. Links are tappable, `**bold**` is bold and a
+/// `* ` at the start of a line is a bullet: she writes Markdown in the typed
+/// chat (the email list, 2026-10-02) and the raw asterisks made it hard to
+/// read (16.0). Nothing else is interpreted -- an underscore in a file name or
+/// a lone asterisk stays as she wrote it, and no HTML is ever rendered.
 func conversationLinks(_ text: String) -> AttributedString {
-    var result = AttributedString(text)
-    guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else {
-        return result
+    let listed = text.replacingOccurrences(of: #"(?m)^(\s*)\* "#, with: "$1• ",
+                                           options: .regularExpression)
+    // Pairs only: an odd ** at the end is left as written.
+    var parts = listed.components(separatedBy: "**")
+    if parts.count % 2 == 0 {
+        let tail = parts.removeLast()
+        parts[parts.count - 1] += "**" + tail
     }
-    for match in detector.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
-        guard let url = match.url,
-              ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
-              let range = Range(match.range, in: text),
-              let start = AttributedString.Index(range.lowerBound, within: result),
+    var result = AttributedString()
+    for (i, part) in parts.enumerated() {
+        var piece = AttributedString(part)
+        if i % 2 == 1 { piece.inlinePresentationIntent = .stronglyEmphasized }
+        result += piece
+    }
+    let plain = parts.joined()
+    for (url, range) in webLinks(plain) {
+        guard let start = AttributedString.Index(range.lowerBound, within: result),
               let end = AttributedString.Index(range.upperBound, within: result) else { continue }
         result[start..<end].link = url
         result[start..<end].underlineStyle = .single
     }
     return result
+}
+
+/// Made once: building a detector is the slow part, and every bubble on
+/// screen asks for one each time the chat is drawn (seen in a sample, 16.0).
+private let linkDetector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+
+/// The http and https addresses in a line, in order, with where they are.
+func webLinks(_ text: String) -> [(URL, Range<String.Index>)] {
+    guard let detector = linkDetector else { return [] }
+    return detector.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap { match in
+        guard let url = match.url,
+              ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              let range = Range(match.range, in: text) else { return nil }
+        return (url, range)
+    }
 }
 
 /// A tap with several fingers, which SwiftUI cannot express. Watches the
