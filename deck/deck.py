@@ -532,6 +532,66 @@ def _booted_sim() -> str:
     return ""
 
 
+# Builds from before 11.0 have no time machine of their own, so one is added
+# to them: a corner button that opens /deck/travel inside the app (Oscar,
+# 2026-10-02). The source is deck/TimeMachineButton.m; launchd cannot read
+# ~/Documents, so it is used from TM -- copy it there after editing it.
+BUTTON_SRC = os.path.join(TM, "TimeMachineButton.m")
+BUTTON_MARK = "timemachine-button-2"
+
+
+def _summary(sha: str) -> tuple:
+    """(title, text) for landing on `sha`: the release it belongs to, what it
+    has, what came after it and so is missing, and the honest caveat."""
+    rows = timeline()
+    i = next((k for k, r in enumerate(rows) if r["sha"] == sha), None)
+    if i is None:
+        return "Arisu", ""
+    row = rows[i]
+    rel = next((r for r in rows[i:] if r.get("release")), row)
+    later = [r for r in rows[:i] if r.get("release")]
+    title = "Arisu %s — %s" % (row["version"], rel.get("name") or row["subject"])
+    text = "From %s.\n\nWhat it has: %s" % (row["date"][:10], rel.get("notes") or row["subject"])
+    if row is not rel:
+        text += "\n\nThis build: %s" % row["subject"]
+    if later:
+        text += "\n\nNot here yet: " + "; ".join(
+            "%s %s" % (r["version"], r["name"]) for r in reversed(later))
+    text += ("\n\nIt is the real app as it was, talking to today's desk, so some parts may not "
+             "work. Travel anywhere with the time machine.")
+    return title, text
+
+
+def _objc(s: str) -> str:
+    return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+
+
+def _inject_button(native: str, sha: str, button: bool) -> None:
+    """Add TimeMachineButton.m to the project: the file, filled in for this
+    build, and its four mentions in the hand-kept project file, next to
+    ContentView.swift."""
+    import re
+    title, text = _summary(sha)
+    src = open(BUTTON_SRC).read()
+    src = (src.replace("__BUTTON__", "YES" if button else "NO").replace("__SHA__", sha)
+           .replace("__TITLE__", _objc(title)).replace("__SUMMARY__", _objc(text)))
+    open(os.path.join(native, "Arisu", "TimeMachineButton.m"), "w").write(src)
+    pbx = os.path.join(native, "Arisu.xcodeproj", "project.pbxproj")
+    s = open(pbx).read()
+    ref, bf = "A1111111000000000000TB02", "A1111111000000000000TB01"
+    s = s.replace("/* Begin PBXBuildFile section */", "/* Begin PBXBuildFile section */\n\t\t%s "
+                  "/* TimeMachineButton.m in Sources */ = {isa = PBXBuildFile; fileRef = %s "
+                  "/* TimeMachineButton.m */; };" % (bf, ref), 1)
+    s = s.replace("/* Begin PBXFileReference section */", "/* Begin PBXFileReference section */\n\t\t%s "
+                  "/* TimeMachineButton.m */ = {isa = PBXFileReference; lastKnownFileType = "
+                  "sourcecode.c.objc; path = TimeMachineButton.m; sourceTree = \"<group>\"; };" % ref, 1)
+    s = re.sub(r"(\n(\t+)(\w+) /\* ContentView\.swift \*/,)",
+               lambda m: m.group(1) + "\n%s%s /* TimeMachineButton.m */," % (m.group(2), ref), s, count=1)
+    s = re.sub(r"(\n(\t+)(\w+) /\* ContentView\.swift in Sources \*/,)",
+               lambda m: m.group(1) + "\n%s%s /* TimeMachineButton.m in Sources */," % (m.group(2), bf), s, count=1)
+    open(pbx, "w").write(s)
+
+
 def travel(sha: str, target: str = "ipad", version: str = "", install: bool = True) -> tuple:
     """Build `sha` once, install it on the iPad (or the booted simulator) and
     open it. Blocking; the endpoint runs it on a thread. (ok, detail)"""
@@ -539,6 +599,11 @@ def travel(sha: str, target: str = "ipad", version: str = "", install: bool = Tr
         _travel.update(state=state, detail=detail[-1500:], at=time.time())
 
     app = _app_path(sha, target)
+    src = os.path.join(TM, "src", sha)
+    old = "native/Arisu/Releases.swift" not in _git("ls-tree", "-r", "--name-only", sha, "native/Arisu")
+    if os.path.isdir(app) and not os.path.exists(os.path.join(src, BUTTON_MARK)):
+        import shutil   # built before old builds got their button: build again
+        shutil.rmtree(os.path.join(src, "build"), ignore_errors=True)
     if not os.path.isdir(app):
         say("building", "about two minutes")
         src = os.path.join(TM, "src", sha)
@@ -550,6 +615,11 @@ def travel(sha: str, target: str = "ipad", version: str = "", install: bool = Tr
         ok, out = _run_full(["tar", "-xf", tar, "-C", src], 60)
         if not ok:
             return False, "untar: " + out
+        if True:   # every build: the summary; the button only where it is missing
+            try:
+                _inject_button(os.path.join(src, "native"), sha, old)
+            except OSError as exc:
+                return False, "time machine button: %s" % exc
         cmd = ["xcodebuild", "-project", "Arisu.xcodeproj", "-target", "Arisu",
                "-configuration", "Debug", "SYMROOT=" + os.path.join(src, "build"), "-quiet"]
         if version:
@@ -566,8 +636,12 @@ def travel(sha: str, target: str = "ipad", version: str = "", install: bool = Tr
                     "DEVELOPMENT_TEAM=", "PROVISIONING_PROFILE_SPECIFIER="]
         ok, out = _run_full(cmd, 900, cwd=os.path.join(src, "native"))
         if not ok or not os.path.isdir(app):
+            # A half-built app must not pass for a finished one next time.
+            import shutil
+            shutil.rmtree(os.path.join(src, "build"), ignore_errors=True)
             errors = [l for l in out.splitlines() if "error:" in l]
             return False, "build failed: " + ("\n".join(errors[-6:]) or out[-800:])
+    open(os.path.join(src, BUTTON_MARK), "w").close()
     if not install:
         return True, "built"
     say("installing")
