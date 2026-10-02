@@ -12,7 +12,8 @@
 - **Tours**: `TourOverlay` + `.tourSpot("name")`; a new version starts its tour
   once (`arisu.touredVersion`). 11.0's 10-stop tour checked in the simulator.
 - **Agent** `../.claude/agents/arisu-builder.md` ships one release per run;
-  the session runs it back to back from 12.0 on.
+  12.0 At a glance, 13.0 Chat at a glance, 14.0 Landscape, 15.0 Next line done.
+  The scheduled task `agent-loops` runs it from now on (see ../.claude/HANDOFF.md).
 - **The iPad's installed Arisu expired 2026-10-02 01:34** (free profile). Xcode
   has no Apple ID signed in, so no device build signs until Oscar signs in.
 
