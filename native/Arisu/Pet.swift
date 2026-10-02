@@ -3,6 +3,11 @@ import SwiftUI
 
 /// Everything joined up: the ear hands an utterance to the desk, the desk hands
 /// back a line, the voice says it. One object so the view has one thing to watch.
+/// How loud she is, 0...1, for the faces that move with her.
+@MainActor final class Meter: ObservableObject {
+    @Published var level: Float = 0
+}
+
 @MainActor
 final class Pet: ObservableObject {
     @Published var line = ""
@@ -10,7 +15,11 @@ final class Pet: ObservableObject {
     @Published var mood = "calm"
     @Published var action = "idle"
     @Published var thinking = false
-    @Published var level: Float = 0
+    /// Her voice's level, in its own object (18.0). Published on Pet, every
+    /// change in a call -- twenty a second -- rebuilt everything that watches
+    /// Pet: the whole screen, deck and Record included, about a core in the
+    /// simulator. Only the two faces that draw it watch the meter now.
+    let meter = Meter()
     /// Whether she is in the conversation at all. False is not a mute: the
     /// microphone tap comes down and the socket goes, so nothing is heard,
     /// nothing is recorded and nothing is billed while it is off.
@@ -89,7 +98,7 @@ final class Pet: ObservableObject {
                     // the whole screen -- chat, deck, Record -- was rebuilt 20
                     // times a second with nobody talking, about one CPU core in
                     // the simulator (17.0).
-                    if next != self.level { self.level = next }
+                    if next != self.meter.level { self.meter.level = next }
                 }
                 try? await Task.sleep(nanoseconds: 50_000_000)
             }
@@ -230,7 +239,7 @@ final class Pet: ObservableObject {
         held = nil
         heIsTalking = false
         thinking = false
-        level = 0
+        meter.level = 0
         live.end()
         ear.stop()
         // Stopping is not muting: this device is out of the room, so the ear

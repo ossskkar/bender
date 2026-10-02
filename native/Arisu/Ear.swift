@@ -11,7 +11,7 @@ import Foundation
 /// the session survives backgrounding, and `.voiceChat` turns on the system
 /// echo canceller so she stops hearing herself.
 final class Ear: ObservableObject {
-    @Published var level: Float = 0        // 0...1, for the meter
+    var level: Float = 0        // 0...1, read by Pet; not published, see Live.level
     @Published var listening = false
 
     /// One finished utterance, already 16k mono and gain-corrected. `amend`

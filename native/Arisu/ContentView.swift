@@ -80,7 +80,9 @@ struct ContentView: View {
     /// survives switching to her voice and back -- the conversation is one
     /// thing, and re-fetching it every time he speaks would make it blink.
     @StateObject private var chat = Chat()
-    @StateObject private var music = MacMusic()
+    /// Held, not watched: its level changes thirty times a second, and only
+    /// her face draws it (through `Metered`), not this whole view (18.0).
+    @State private var music = MacMusic()
     /// lain's day, for the panel beside her (12.0).
     @StateObject private var info = LainInfo()
     /// What the conversation is about, lit on the panel for a minute and a
@@ -234,15 +236,17 @@ struct ContentView: View {
         }
         } else {
             // A version that is all her (Oscar, 2026-10-01).
-            RealmView(level: Double(pet.level), idle: voiceState == .idle,
-                      speaking: voiceState == .speaking, running: pet.running,
-                      tint: phaseColor, status: (pet.running ? stateWord : "not listening").uppercased(),
-                      micOn: pet.running && !live.muted,
-                      onHer: { if pet.running { live.muted.toggle() } },
-                      onSummon: {
-                          // Held anywhere: she comes, listening; held again: she goes.
-                          if pet.running { pet.toggleRunning() } else { summon() }
-                      })
+            Metered(meter: pet.meter, music: music) { level, _ in
+                RealmView(level: level, idle: voiceState == .idle,
+                          speaking: voiceState == .speaking, running: pet.running,
+                          tint: phaseColor, status: (pet.running ? stateWord : "not listening").uppercased(),
+                          micOn: pet.running && !live.muted,
+                          onHer: { if pet.running { live.muted.toggle() } },
+                          onSummon: {
+                              // Held anywhere: she comes, listening; held again: she goes.
+                              if pet.running { pet.toggleRunning() } else { summon() }
+                          })
+            }
             .transition(.opacity)
         }
         }
@@ -320,8 +324,13 @@ struct ContentView: View {
         let steps = Releases.current.tour
         guard !steps.isEmpty else { return }
         tourIndex = 0
+        #if DEBUG
+        // For checking a tour in the simulator, where nothing can tap:
+        // `simctl launch … -arisu.tourStop 3` opens the tour on its fourth stop.
+        tourIndex = min(max(0, UserDefaults.standard.integer(forKey: "arisu.tourStop")), steps.count - 1)
+        #endif
         lookBeforeTour = look
-        stage(steps[0].scene)
+        stage(steps[tourIndex].scene)
         withAnimation { tour = steps }
     }
 
@@ -749,19 +758,21 @@ struct ContentView: View {
         // loads are untouched on disk; they are simply not offered any more
         // (Oscar, 2026-09-29), and an old saved portrait reads as the default.
         let saved = FaceStyle(rawValue: faceStyle) ?? .ribbon
-        return VoiceVisual(style: saved == .portrait ? .ribbon : saved,
-                           state: voiceState,
-                           // Idle, she moves with his Spotify on the Mac.
-                           amplitude: voiceState == .idle ? max(Double(pet.level), music.level)
-                                                          : Double(pet.level),
-                           // Mic off reads as cyan (Oscar, 2026-10-01).
-                           tint: live.muted || !pet.running ? Skin.cyan : phaseColor,
-                           scale: faceScale, bloom: faceBloom, speed: faceSpeed, smoke: freeForm)
-            // She steps aside for the panel rather than sitting under it.
-            .offset(x: faceX + (glanceShown ? 150 : 0), y: faceY)
-            .task(id: voiceState == .idle) {
-                if voiceState == .idle { await music.listen() }
-            }
+        let state = voiceState
+        return Metered(meter: pet.meter, music: music) { level, musicLevel in
+            VoiceVisual(style: saved == .portrait ? .ribbon : saved,
+                        state: state,
+                        // Idle, she moves with his Spotify on the Mac.
+                        amplitude: state == .idle ? max(level, musicLevel) : level,
+                        // Mic off reads as cyan (Oscar, 2026-10-01).
+                        tint: live.muted || !pet.running ? Skin.cyan : phaseColor,
+                        scale: faceScale, bloom: faceBloom, speed: faceSpeed, smoke: freeForm)
+        }
+        // She steps aside for the panel rather than sitting under it.
+        .offset(x: faceX + (glanceShown ? 150 : 0), y: faceY)
+        .task(id: voiceState == .idle) {
+            if voiceState == .idle { await music.listen() }
+        }
     }
 
     private var scanlines: some View {
@@ -1038,4 +1049,14 @@ enum VoiceCommand: Equatable {
         else if has(off + ".{0,12}\\bsettings\\b") { self = .settings(false) }
         else { return nil }
     }
+}
+
+/// The one place her level and the Mac's music are watched. Everything else
+/// on screen is built without them, so a call or a song moves her face and
+/// nothing else is rebuilt (18.0).
+struct Metered<Content: View>: View {
+    @ObservedObject var meter: Meter
+    @ObservedObject var music: MacMusic
+    @ViewBuilder let content: (Double, Double) -> Content
+    var body: some View { content(Double(meter.level), music.level) }
 }

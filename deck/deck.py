@@ -676,12 +676,18 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Cache-Control", "no-cache")
             self.end_headers()
+            # A line when the level changes, and once a second regardless so a
+            # dead iPad is noticed; silence used to go out thirty times a
+            # second all day (arisu 18.0).
+            sent, at = None, 0.0
             try:
                 while True:
                     level, when = _music
-                    fresh = level if time.time() - when < 0.5 else 0.0
-                    self.wfile.write(f"data: {fresh:.3f}\n\n".encode())
-                    self.wfile.flush()
+                    fresh = f"{level if time.time() - when < 0.5 else 0.0:.3f}"
+                    if fresh != sent or time.time() - at >= 1:
+                        self.wfile.write(f"data: {fresh}\n\n".encode())
+                        self.wfile.flush()
+                        sent, at = fresh, time.time()
                     time.sleep(1 / 30)
             except OSError:
                 return

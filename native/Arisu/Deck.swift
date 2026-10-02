@@ -32,14 +32,17 @@ enum DeckAPI {
             if let (bytes, _) = try? await URLSession.shared.bytes(from: url) {
                 do {
                     for try await line in bytes.lines where line.hasPrefix("data: ") {
-                        level = Double(line.dropFirst(6)) ?? 0
+                        // A change only: the Mac sends silence thirty times a
+                        // second too, and each assignment redrew her face.
+                        let now = Double(line.dropFirst(6)) ?? 0
+                        if now != level { level = now }
                     }
                 } catch {}
             }
-            level = 0
+            if level != 0 { level = 0 }
             try? await Task.sleep(for: .seconds(5))
         }
-        level = 0
+        if level != 0 { level = 0 }
     }
 }
 
@@ -202,8 +205,10 @@ struct DeckButton: Codable, Equatable, Identifiable {
             if let (data, _) = try? await session.data(
                 from: DeckAPI.base.appendingPathComponent("deck/front")),
                let got = try? JSONDecoder().decode(Answer.self, from: data) {
-                frontApp = got.app ?? ""
-                front = got.group ?? ""
+                // Only a change: the same answer every two seconds redrew
+                // the rail every two seconds.
+                if frontApp != got.app ?? "" { frontApp = got.app ?? "" }
+                if front != got.group ?? "" { front = got.group ?? "" }
             }
             try? await Task.sleep(for: .seconds(2))
         }

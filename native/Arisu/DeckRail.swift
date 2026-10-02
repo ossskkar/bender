@@ -70,7 +70,13 @@ struct DeckRail: View {
         // The title stays up top because he reads it and never touches it.
         VStack(alignment: .leading, spacing: 0) {
             head
-            Spacer(minLength: 0)
+            // The room above the keys, which was empty (Oscar keeps the keys at
+            // the bottom, three rows, a quarter of the screen): what his
+            // builder agents are doing, so he can follow them from the iPad
+            // without opening lain's Agents page (18.0).
+            AgentBoard()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .tourSpot("agents")
             if let failed = deck.failed { note(failed) }
             else if deck.buttons.isEmpty && deck.loading {
                 ProgressView().tint(cyan).padding(.bottom, 30).frame(maxWidth: .infinity)
@@ -498,3 +504,129 @@ extension View {
             .shadow(color: stroke > 0.9 || stroke == 0 ? tint.opacity(0.7) : .clear, radius: 5)
     }
 }
+
+// MARK: - Agents
+
+/// One builder agent as lain's Agents page has it (`GET /agents`, written by
+/// `~/.claude/agent-loops/report.py`). The iPad only reads.
+struct AgentRun: Identifiable, Equatable {
+    let id: String
+    let state: String
+    let doing: String
+    let updated: Date
+    /// When the run in progress began; nil once it is over.
+    let since: Date?
+}
+
+@MainActor final class Agents: ObservableObject {
+    @Published private(set) var runs: [AgentRun] = []
+    static let url = URL(string: "https://architect-server.tailaa64e9.ts.net:8443/agents")!
+
+    /// Every 30 s while the rail is up: a milestone comes every few minutes,
+    /// so faster only repeats the same answer. A failed fetch keeps what was
+    /// showing; a published list only when it changed.
+    func watch() async {
+        while !Task.isCancelled {
+            if let (data, _) = try? await URLSession.shared.data(from: Self.url),
+               let got = Self.parse(data), got != runs {
+                runs = got
+            }
+            try? await Task.sleep(for: .seconds(30))
+        }
+    }
+
+    /// Working first, then the most recent.
+    static func parse(_ data: Data) -> [AgentRun]? {
+        guard let top = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let all = top["agents"] as? [String: [String: Any]] else { return nil }
+        func date(_ v: Any?) -> Date? { (v as? Double).map { Date(timeIntervalSince1970: $0) } }
+        return all.map { name, a in
+            AgentRun(id: name, state: a["state"] as? String ?? "", doing: a["doing"] as? String ?? "",
+                     updated: date(a["updated"]) ?? .distantPast,
+                     since: (a["state"] as? String) == "working" || (a["state"] as? String) == "started"
+                         ? date(a["since"]) : nil)
+        }
+        .sorted { ($0.busy ? 0 : 1, -$0.updated.timeIntervalSince1970)
+                < ($1.busy ? 0 : 1, -$1.updated.timeIntervalSince1970) }
+    }
+}
+
+extension AgentRun {
+    var busy: Bool { state == "working" || state == "started" }
+}
+
+/// The rail's empty middle, put to work: one line per agent -- its name, what
+/// it is doing in its own words, and how long ago. Tapping the title opens
+/// lain's Agents page. Fewer lines when the room is short, nothing when there
+/// is none, so the keys never move.
+struct AgentBoard: View {
+    @StateObject private var agents = Agents()
+    private let page = URL(string: "https://architect-server.tailaa64e9.ts.net:8443/systems/agents.html")!
+
+    var body: some View {
+        // ViewThatFits picks the first that fits the height: two lines of
+        // detail each, one line each, the title alone, then nothing.
+        ViewThatFits(in: .vertical) {
+            board(lines: 2)
+            board(lines: 1)
+            title
+            Color.clear.frame(height: 0)
+        }
+        .padding(.horizontal, 12)
+        .task { await agents.watch() }
+    }
+
+    private var title: some View {
+        Link(destination: page) {
+            HStack(spacing: 6) {
+                Text("AGENTS").font(Skin.mono(12, .bold)).tracking(2).foregroundStyle(Skin.mag)
+                let busy = agents.runs.filter(\.busy).count
+                Text(busy == 0 ? "ALL QUIET" : "\(busy) AT WORK")
+                    .font(Skin.mono(11)).foregroundStyle(Skin.cyan.opacity(0.7))
+                Spacer(minLength: 0)
+                Image(systemName: "arrow.up.right").font(.system(size: 9)).foregroundStyle(Skin.cyan.opacity(0.5))
+            }
+        }
+    }
+
+    @ViewBuilder private func board(lines: Int) -> some View {
+        if agents.runs.isEmpty { title } else {
+            // The ages move on by themselves; the list only when lain says so.
+            TimelineView(.everyMinute) { tl in
+                VStack(alignment: .leading, spacing: 10) {
+                    title
+                    ForEach(agents.runs) { run in row(run, lines: lines, now: tl.date) }
+                }
+            }
+        }
+    }
+
+    private func row(_ run: AgentRun, lines: Int, now: Date) -> some View {
+        let ink: Color = run.busy ? Skin.cyan
+            : run.state == "failed" ? Skin.recording
+            : run.state == "done" ? Skin.good : Skin.cyan.opacity(0.45)
+        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Circle().fill(ink).frame(width: 6, height: 6)
+                .shadow(color: run.busy ? ink : .clear, radius: 4)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(run.id.uppercased()).font(Skin.mono(13, .semibold)).foregroundStyle(.white)
+                    Text(run.state.uppercased()).font(Skin.mono(10)).foregroundStyle(ink)
+                    Spacer(minLength: 0)
+                    Text(Self.ago(run.since ?? run.updated, now: now, running: run.busy))
+                        .font(Skin.mono(10)).foregroundStyle(Skin.cyan.opacity(0.55))
+                }
+                Text(run.doing).font(Skin.mono(12)).foregroundStyle(.white.opacity(0.7))
+                    .lineLimit(lines).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// "FOR 12 MIN" while it works (since it started), "3 H AGO" after.
+    static func ago(_ t: Date, now: Date, running: Bool) -> String {
+        let m = max(0, Int(now.timeIntervalSince(t) / 60))
+        let span = m < 1 ? "<1 MIN" : m < 60 ? "\(m) MIN" : m < 48 * 60 ? "\(m / 60) H" : "\(m / 1440) D"
+        return running ? "FOR " + span : span + " AGO"
+    }
+}
+

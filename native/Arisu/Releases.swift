@@ -51,6 +51,38 @@ enum Releases {
     static var current: Release { all.first { $0.version == running } ?? all[0] }
 
     static let all: [Release] = [
+        Release(version: "18.0", name: "At work", date: "2026-10-02", highlights: [
+            Highlight(symbol: "person.2.wave.2", name: "Your agents, above the deck",
+                      what: "The empty space above the deck's buttons now shows what each builder agent is "
+                          + "doing: its name, working, done or failed, its last message in its own words, "
+                          + "and how long ago. The same news as lain's Agents page, refreshed every half "
+                          + "minute. When space is short it shows less, and the buttons never move.",
+                      how: "Look above the deck's buttons. Tap AGENTS to open lain's Agents page."),
+            Highlight(symbol: "waveform", name: "Only her face moves during a call",
+                      what: "Every change in her voice's loudness, twenty a second, used to rebuild the whole "
+                          + "screen: chat, deck and brain dumps included. Now only her face redraws. Measured "
+                          + "in the simulator with her level moving as in a call: from 94 percent of a "
+                          + "processor core to under 1 percent."),
+            Highlight(symbol: "music.note", name: "A quieter line from the Mac",
+                      what: "The Mac sent the music level thirty times a second even with nothing playing, "
+                          + "and each one redrew her face. It now sends a change, or one line a second, and "
+                          + "the deck no longer redraws every two seconds to say the same app is in front."),
+        ], tour: [
+            TourStep(scene: .chat, title: "Arisu 18.0 — At work",
+                     text: "Your builder agents are on the iPad now, and a call costs the iPad far less. "
+                         + "Tap anywhere to go on."),
+            TourStep(scene: .chat, spot: "agents", title: "Your agents",
+                     text: "Each agent on one line: working, done or failed, what it last said, and how long "
+                         + "ago. Working ones come first. Tap AGENTS to open lain's Agents page."),
+            TourStep(scene: .voice, spot: "her", title: "Only her face moves",
+                     text: "During a call, her face follows her voice and nothing else on screen is rebuilt, "
+                         + "so the deck and the chat stay still and the battery lasts longer."),
+            TourStep(scene: .chat, spot: "deck", title: "A quieter Mac",
+                     text: "The deck and her face are redrawn only when the Mac has something new to say, "
+                         + "not several times a second with the same news."),
+            TourStep(scene: .chat, spot: "whatsNew", title: "Earlier releases",
+                     text: "Behind the sparkles: every release, this tour again, and the time machine."),
+        ]),
         Release(version: "17.0", name: "Steady", date: "2026-10-02", highlights: [
             Highlight(symbol: "battery.100", name: "The screen rests when nothing changes",
                       what: "With nobody talking, the app was redrawing the whole screen, chat, deck and "
