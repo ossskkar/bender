@@ -160,8 +160,11 @@ struct GlancePanel: View {
         VStack(alignment: .leading, spacing: 4) {
             Skin.caption(title, Skin.cyan)
             ForEach(lines.isEmpty ? [empty.uppercased()] : lines, id: \.self) { line in
+                // Two lines rather than an ellipsis: in the left column of the
+                // two-column panel a todo lost the half that said what (15.0).
                 Text(line).font(Skin.mono(13)).foregroundStyle(lines.isEmpty ? Skin.off : .white)
-                    .lineLimit(1).truncationMode(.tail)
+                    .lineLimit(2).truncationMode(.tail)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

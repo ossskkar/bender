@@ -28,6 +28,18 @@ import SwiftUI
     @Published var failed: String?
     /// Conversations, newest first, for the history sheet.
     @Published private(set) var sessions: [Session] = []
+    /// What he is likely to type next, from the desk (Oscar, 2026-10-02):
+    /// four answers to her last line, most likely first, and commands made
+    /// for the moment. lain's server/suggest.py makes them, one cached Gemini
+    /// call shared with the web chat, so asking often costs nothing extra.
+    @Published private(set) var suggestions = Suggestions()
+
+    struct Suggestions: Decodable, Equatable {
+        struct Command: Decodable, Equatable, Hashable { let label: String; let text: String }
+        var replies: [String] = []
+        var commands: [Command] = []
+        var isEmpty: Bool { replies.isEmpty && commands.isEmpty }
+    }
 
     struct Session: Identifiable, Decodable {
         let id: String
@@ -104,6 +116,8 @@ import SwiftUI
         } catch {
             failed = error.localizedDescription
         }
+        // Her answer moved the conversation, so the desk has new guesses.
+        Task { await suggest() }
     }
 
     /// Her line said again straight after itself is drawn once. The desk
@@ -141,6 +155,17 @@ import SwiftUI
            let hello = (try? JSONDecoder().decode(Fresh.self, from: data))?.greeting, !hello.isEmpty {
             lines.append(Line(mine: false, text: hello, at: Date()))
         }
+        Task { await suggest() }
+    }
+
+    /// Fresh suggestions. A failed or empty answer keeps what was showing,
+    /// as the web chat does: a row that blanks on a slow model is worse than
+    /// one that is a minute old.
+    func suggest() async {
+        guard let (data, _) = try? await net.data(from: Brain.base.appendingPathComponent("chat/suggest")),
+              let got = try? JSONDecoder().decode(Suggestions.self, from: data),
+              !got.isEmpty else { return }
+        suggestions = got
     }
 
     func loadSessions() async {
@@ -212,8 +237,10 @@ struct ChatPane: View {
                 }
                 .animation(.easeOut(duration: 0.3), value: glanceUp)
             }
+            if !chat.suggestions.isEmpty { suggestRow.transition(.opacity) }
             composer
         }
+        .animation(.easeOut(duration: 0.25), value: chat.suggestions)
         .padding(.top, topInset)
         .console(Skin.cyan, brackets: Skin.mag)
         // The same 10pt inset as Record and Deck, so the corners line up.
@@ -221,6 +248,15 @@ struct ChatPane: View {
         // A two-finger double tap is a new conversation (Oscar, 2026-10-02).
         .background(MultiTap(touches: 2, taps: 2) { Task { await chat.new() } })
         .task { await chat.load() }
+        // Every minute while the chat is on screen: the desk turns the
+        // commands over every few minutes even when nobody types. The task
+        // ends when the chat leaves the screen.
+        .task {
+            while !Task.isCancelled {
+                await chat.suggest()
+                try? await Task.sleep(for: .seconds(60))
+            }
+        }
         .onAppear { if openHistory { showHistory = true; openHistory = false } }
         .sheet(isPresented: $showHistory) { ChatHistory(chat: chat) }
     }
@@ -284,6 +320,10 @@ struct ChatPane: View {
             // leave it in the middle of an old answer, or on an empty grid
             // until it was scrolled.
             .onGeometryChange(for: CGSize.self) { $0.size } action: { _ in rest(scroll) }
+            // The suggestions strip coming up takes the bottom of the thread
+            // too; the resize alone was seen to leave the newest answer half
+            // under it (15.0), so rest once its animation is over.
+            .onChange(of: chat.suggestions.isEmpty) { _, _ in rest(scroll, after: 300) }
             .defaultScrollAnchor(.bottom)
         }
     }
@@ -393,6 +433,65 @@ struct ChatPane: View {
         // With the pane's 10pt inset, 28pt off the edge like the deck's keys.
         .padding(.bottom, 18)
         .tourSpot("composer")
+    }
+
+    /// Above the composer, as on the web chat (Oscar, 2026-10-02): commands
+    /// for the moment, then his likely answers with the most likely one lit.
+    /// One line each that scrolls sideways, so the strip is always the same
+    /// height and the thread above it never jumps; when it first appears the
+    /// thread's own resize rests it on the newest line (14.0).
+    private var suggestRow: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if !chat.suggestions.commands.isEmpty {
+                chips {
+                    ForEach(chat.suggestions.commands, id: \.self) { c in
+                        // A command is a line he would have typed: sent as his.
+                        chip(Text("> ").foregroundStyle(Skin.cyan.opacity(0.6)) + Text(c.label),
+                             ink: Skin.cyan, stroke: 0.45) {
+                            guard !chat.thinking else { return }
+                            typing = c.text
+                            send()
+                        }
+                    }
+                }
+                .tourSpot("suggestCommands")
+            }
+            if !chat.suggestions.replies.isEmpty {
+                chips {
+                    ForEach(Array(chat.suggestions.replies.enumerated()), id: \.offset) { i, r in
+                        // A reply goes into the field for him to change or
+                        // send; it is never sent for him.
+                        chip(Text(r), ink: i == 0 ? Skin.mag : .white.opacity(0.82),
+                             stroke: i == 0 ? 1 : 0.18) {
+                            typing = r
+                            writing = true
+                        }
+                    }
+                }
+                .tourSpot("suggestReplies")
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 6)
+    }
+
+    private func chips<C: View>(@ViewBuilder _ content: () -> C) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            // Room inside the clip for the lit chip's glow.
+            HStack(spacing: 6) { content() }.padding(.vertical, 4)
+        }
+    }
+
+    /// The web chat's chip: monospaced, a thin edge in its own colour on a
+    /// dark plate, both gone in free form so only the words are left.
+    private func chip(_ label: Text, ink: Color, stroke: Double,
+                      action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            label.font(Skin.mono(13, .semibold)).foregroundStyle(ink).lineLimit(1)
+                .padding(.horizontal, 11).padding(.vertical, 6)
+                .raised(ink, stroke: stroke, fill: Color.black.opacity(0.45))
+        }
+        .buttonStyle(.plain)
     }
 
     private func send() {

@@ -753,7 +753,12 @@ private struct Scene {
             (when < day ? "! " : "") + String(title.uppercased().prefix(38)) + " · " + Self.short(when)
         }
         due = (lines.isEmpty ? "NOTHING DUE" : "DUE ∴ " + lines.joined(separator: " ∴ ")) + " ∴ \(open) OPEN"
-        g.due = Array(lines.prefix(3))
+        // The panel wraps to two lines, so it gets the whole title; the ring's
+        // 38 characters cut "claim the €117 sustainable products refund"
+        // to "...PRODUCTS RE" there (15.0).
+        g.due = pressing.sorted { $0.0 < $1.0 }.prefix(3).map { when, title in
+            (when < day ? "! " : "") + title.uppercased() + " · " + Self.short(when)
+        }
         g.open = open
 
         // the race, the week's running, today's habits

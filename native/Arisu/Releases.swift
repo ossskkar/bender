@@ -51,6 +51,38 @@ enum Releases {
     static var current: Release { all.first { $0.version == running } ?? all[0] }
 
     static let all: [Release] = [
+        Release(version: "15.0", name: "Next line", date: "2026-10-02", highlights: [
+            Highlight(symbol: "text.bubble", name: "Your likely answers",
+                      what: "Above the typing field, four answers to what she just said, the most likely one "
+                          + "lit in magenta. Tapping one puts it in the field, where you can change it or "
+                          + "send it as it is. Nothing is sent until you press Send.",
+                      how: "Open the chat and tap one of the answers above the field."),
+            Highlight(symbol: "chevron.right.2", name: "Commands for the moment",
+                      what: "A row of commands made for right now, from the time of day, today's plan and "
+                          + "what you were just talking about. Tapping one sends it as your message, the "
+                          + "same as typing it. They change after every answer and every few minutes.",
+                      how: "Tap a command that starts with >. Swipe a row sideways to see the rest."),
+            Highlight(symbol: "text.alignleft", name: "Full lines in the day panel",
+                      what: "In the day panel, plan blocks and things that are due wrap onto a second line "
+                          + "instead of being cut short in the narrow column."),
+        ], tour: [
+            TourStep(scene: .chat, title: "Arisu 15.0 — Next line",
+                     text: "The chat now suggests what to say next, the same as the chat in the browser. "
+                         + "Tap anywhere to go on."),
+            TourStep(scene: .chat, spot: "suggestReplies", title: "Your likely answers",
+                     text: "Four answers to her last line, the most likely one lit. Tap one and it goes into "
+                         + "the field for you to change or send. It is not sent for you."),
+            TourStep(scene: .chat, spot: "suggestCommands", title: "Commands for the moment",
+                     text: "Made from the time, your plan and the conversation. Tap one and it is sent as your "
+                         + "message. Swipe the row sideways for more."),
+            TourStep(scene: .chat, spot: "composer", title: "Always fresh",
+                     text: "Both rows change after every answer she gives and every minute while the chat is "
+                         + "open. If the desk is slow, the last ones stay."),
+            TourStep(scene: .chatGlance, spot: "chatGlance", title: "Full lines in the day panel",
+                     text: "Plan blocks and things that are due wrap onto a second line instead of being cut short."),
+            TourStep(scene: .chat, spot: "whatsNew", title: "Earlier releases",
+                     text: "Behind the sparkles: every release, this tour again, and the time machine."),
+        ]),
         Release(version: "14.0", name: "Landscape", date: "2026-10-02", highlights: [
             Highlight(symbol: "rectangle.portrait.rotate", name: "Turning the iPad keeps your place",
                       what: "When you turn the iPad, open or close the day panel, or move the divider, the "
