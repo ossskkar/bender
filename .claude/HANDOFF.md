@@ -12,13 +12,15 @@
 - **Her speech throws real waves**: a syllable is 1.1-3.3 (was 0.25-0.75),
   travelling half again as fast and wide, nearly twice as deep.
 - **Layout**: apps on a smaller circle (0.295), the chosen app's actions on an
-  outer ring of lit segments at 0.44, the clockwork rim out at 0.52.
-- **Rings open on a tap**: they record their own geometry while drawing and a
-  tap that hits nothing opens the nearest one, which swells, stops turning and
-  prints its line flat across the middle for six seconds.
-- **Open**: the flat card has never been caught in a screenshot -- the ring
-  lights and swells, so the tap path works, but whether the card itself draws
-  is unverified. Start there.
+  outer ring at 0.44, the clockwork rim out at 0.52. The actions are drawn the
+  way the apps are -- a lit point, the name in white under it, the shortcut
+  below -- with no band and no background (Oscar, 2026-10-03). Only the apps
+  that are not chosen still trail their buttons down the spiral arms.
+- **Rings open in place on a tap**: they record their own geometry while
+  drawing and a tap that hits nothing opens the nearest one, which stops
+  turning, grows and goes white for six seconds. Verified in the simulator --
+  the earlier shots that looked like nothing happened were taken at the instant
+  the ring opened; read it at about twelve seconds in.
 - **The iPad install is blocked**: iOS will not mount the developer image while
   the device is locked. The build is ready; unlock and install.
 
