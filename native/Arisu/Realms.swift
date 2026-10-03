@@ -97,6 +97,14 @@ private final class RealmClock {
     /// rather than opening a panel (Oscar, 2026-10-03).
     var openRing: Int?
     var openAt = 0.0
+    /// Where the information rings were drawn this frame: the index, the
+    /// radius, and the squash. The tap reads these rather than recomputing
+    /// them -- two copies of the same geometry is how every ring tap went
+    /// missing (Oscar, 2026-10-03).
+    var rings: [(k: Int, r: Double, ax: Double, ay: Double)] = []
+    /// The opened ring's line, which is drawn after everything else: in the
+    /// middle of the scene the spiral painted straight over it.
+    var openCard: (line: String, k: Double, open: Double)?
     /// Her name drifting back now and then: when, where (as a share of the
     /// screen) and how big.
     var echo: (t0: Double, x: Double, y: Double, size: Double)?
@@ -212,6 +220,8 @@ struct RealmView: View {
                 clock.size = size
                 let stage = stage(t)
                 clock.hits = []
+                clock.rings = []
+                clock.openCard = nil
                 // Only her arrival shakes the frame; her speech bends space and
                 // nothing else (Oscar, 2026-10-01).
                 let shake = stage.shake
@@ -230,12 +240,12 @@ struct RealmView: View {
         }
         .background(Color.black)
         .contentShape(Rectangle())
-        .gesture(
-            LongPressGesture(minimumDuration: 0.5)
-                .onEnded { _ in onSummon() }
-                .exclusively(before: SpatialTapGesture(count: 2).onEnded { _ in onTalk() })
-                .exclusively(before: SpatialTapGesture().onEnded { tap($0.location) })
-        )
+        // Three gestures, and the order matters: chaining them with
+        // `exclusively` left the single tap waiting on the double tap forever,
+        // so nothing in the realm answered a touch (Oscar, 2026-10-03).
+        .highPriorityGesture(LongPressGesture(minimumDuration: 0.5).onEnded { _ in onSummon() })
+        .onTapGesture(count: 2) { onTalk() }
+        .gesture(SpatialTapGesture().onEnded { tap($0.location) })
         .ignoresSafeArea()
         .task { await deck.load() }
         .task { await deck.watchFront() }
@@ -422,12 +432,35 @@ struct RealmView: View {
         let w = clock.size.width / 2, h = clock.size.height / 2
         let p = CGPoint(x: (screen.x - clock.offset.width - w) / clock.zoom + w,
                         y: (screen.y - clock.offset.height - h) / clock.zoom + h)
-        let near = clock.hits
+        let t = clock.now
+        // A ring is a band, not a point: if the touch landed on one of the
+        // information orbits, that is what he meant, whatever icon drifted
+        // past it (Oscar, 2026-10-03 -- the first version lost every ring tap
+        // to an app tip).
+        let inRange = clock.hits
             .map { ($0, hypot($0.at.x - p.x, $0.at.y - p.y)) }
             .filter { $0.1 < $0.0.r }
-            .min { $0.1 < $1.1 }?.0
-        let t = clock.now
-        guard let near else { clock.waves.append((t, 0.8)); return }
+        // An information ring wins over an app that happens to be drifting
+        // past it: the icon is the smaller, more deliberate target, and the
+        // ring is most of the screen (Oscar, 2026-10-03).
+        let near = inRange.min { $0.1 < $1.1 }?.0
+        // Nothing under the thumb means the rings: whichever one he was
+        // nearest opens, because a tap in the empty space of this screen can
+        // mean nothing else, and a band thin enough to miss is a control he
+        // cannot find (Oscar, 2026-10-03).
+        guard let near else {
+            clock.waves.append((t, 0.8))
+            let nearest = clock.rings.min {
+                abs(hypot((p.x - clock.size.width / 2) / $0.ax,
+                          (p.y - clock.size.height / 2) / $0.ay) - $0.r)
+                < abs(hypot((p.x - clock.size.width / 2) / $1.ax,
+                            (p.y - clock.size.height / 2) / $1.ay) - $1.r)
+            }
+            guard let nearest else { return }
+            if clock.openRing == nearest.k, t - clock.openAt < 6 { clock.openRing = nil }
+            else { clock.openRing = nearest.k; clock.openAt = t }
+            return
+        }
         switch near.tap {
         case .app(let g):
             chosen = g
@@ -768,23 +801,8 @@ private struct Scene {
                          start: dir * tw * (0.05 - Double(k) * 0.012) * (1 - open),
                          ringInk, (k == 0 ? 12 : 13) + 3 * open,
                          opacity: (0.75 - 0.45 * open) * pres, stretched: k != 0)
-            if open > 0 {
-                // the same line, flat and large, on a panel of its own
-                let y = cy + (Double(k) - 1) * M * 0.11
-                let w = M * 0.92, h = M * 0.085
-                var card = Path(roundedRect: CGRect(x: cx - w / 2, y: y - h / 2, width: w, height: h),
-                                cornerRadius: h * 0.3)
-                var glow = lit
-                glow.addFilter(.blur(radius: 10))
-                glow.stroke(card, with: .color(Skin.mag.opacity(0.5 * open)), lineWidth: 2)
-                ctx.fill(card, with: .color(.black.opacity(0.72 * open)))
-                ctx.stroke(card, with: .color(Skin.mag.opacity(0.8 * open)), lineWidth: 1)
-                text(line, CGPoint(x: cx, y: y), .white, 15, glow: 10, opacity: open, weight: .semibold)
-            }
-            // the ring itself is a target, a band either side of its orbit
-            for a in stride(from: 0.0, to: tau, by: tau / 12) {
-                hit(at(rr, a), M * 0.045, .ring(k))
-            }
+            clock.rings.append((k, rr, ax, ay))
+            if open > 0 { clock.openCard = (line, Double(k), open) }
         }
 
         // her name, faint, wherever it drifted back to
@@ -954,6 +972,22 @@ private struct Scene {
         hit(center, Ri, .her)
 
         // (drawn last, so nothing is over it)
+        // the opened information ring, flat and readable, over everything
+        if let card = clock.openCard {
+            let open = card.open
+            let y = cy + (card.k - 1) * M * 0.11
+            let w = M * 0.88, h = M * 0.075
+            let box = Path(roundedRect: CGRect(x: cx - w / 2, y: y - h / 2, width: w, height: h),
+                           cornerRadius: h * 0.3)
+            var glow = lit
+            glow.addFilter(.blur(radius: 12))
+            glow.stroke(box, with: .color(Skin.mag.opacity(0.6 * open)), lineWidth: 3)
+            ctx.fill(box, with: .color(.black.opacity(0.82 * open)))
+            ctx.stroke(box, with: .color(Skin.mag.opacity(0.9 * open)), lineWidth: 1.5)
+            text(card.line, CGPoint(x: cx, y: y), .white, 16, glow: 12, opacity: open,
+                 weight: .semibold)
+        }
+
         // the chant, struck into the screen in runes and left to cool
         // (Oscar, 2026-10-03: "bright thunder letter ... burn in the screen
         // and then slowly fade"). White-hot first, then the iron colour of a
