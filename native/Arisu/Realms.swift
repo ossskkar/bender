@@ -102,9 +102,6 @@ private final class RealmClock {
     /// them -- two copies of the same geometry is how every ring tap went
     /// missing (Oscar, 2026-10-03).
     var rings: [(k: Int, r: Double, ax: Double, ay: Double)] = []
-    /// The opened ring's line, which is drawn after everything else: in the
-    /// middle of the scene the spiral painted straight over it.
-    var openCard: (line: String, k: Double, open: Double)?
     /// Her name drifting back now and then: when, where (as a share of the
     /// screen) and how big.
     var echo: (t0: Double, x: Double, y: Double, size: Double)?
@@ -221,7 +218,6 @@ struct RealmView: View {
                 let stage = stage(t)
                 clock.hits = []
                 clock.rings = []
-                clock.openCard = nil
                 // Only her arrival shakes the frame; her speech bends space and
                 // nothing else (Oscar, 2026-10-01).
                 let shake = stage.shake
@@ -797,12 +793,16 @@ private struct Scene {
                        style: StrokeStyle(lineWidth: 1 + 2 * open, dash: [2, 5],
                                           dashPhase: tw * 10 * dir))
             let full = line + "  ∴  "
-            textOnCircle(String(repeating: full, count: 6), r: rr + 9,
+            // Opened, the ring stops turning, doubles its letters and goes
+            // white: the morph he asked for happens on the ring rather than
+            // in a panel over it (Oscar, 2026-10-03).
+            let big = (k == 0 ? 12 : 13) + 13 * open
+            textOnCircle(open > 0.5 ? full : String(repeating: full, count: 6),
+                         r: rr + 9 + 6 * open,
                          start: dir * tw * (0.05 - Double(k) * 0.012) * (1 - open),
-                         ringInk, (k == 0 ? 12 : 13) + 3 * open,
-                         opacity: (0.75 - 0.45 * open) * pres, stretched: k != 0)
+                         open > 0.5 ? .white : ringInk, big,
+                         opacity: (0.75 + 0.25 * open) * pres, stretched: k != 0)
             clock.rings.append((k, rr, ax, ay))
-            if open > 0 { clock.openCard = (line, Double(k), open) }
         }
 
         // her name, faint, wherever it drifted back to
@@ -890,40 +890,31 @@ private struct Scene {
             }
         }
 
-        // ---- the action ring: what the chosen app can do, around the edge
-        // (Oscar, 2026-10-03). Each one is a lit segment he can hit with a
-        // thumb, labelled along the arc, with the app's own colour.
+        // ---- the actions of the chosen app, around the outside
+        // (Oscar, 2026-10-03: no shared band, no background -- drawn the way
+        // the applications are, each one its own lit point with its name
+        // under it.)
         if let g = groups.first(where: { $0.name == chosen }), !g.buttons.isEmpty {
             let aR = M * 0.44 * st.rf
             let count = g.buttons.count
-            let gap = 0.035
-            let span = tau / Double(count) - gap
             let turn = tw * 0.012
             for (k, b) in g.buttons.enumerated() {
-                let a0 = Double(k) / Double(count) * tau + turn - .pi / 2
-                let mid = a0 + span / 2
+                let a = Double(k) / Double(count) * tau + turn - .pi / 2
+                let p = at(aR, a)
                 let hot = outcome[b.id]
                 let col = hot.map { $0 ? Skin.good : Skin.recording } ?? Skin.cyan
-                // the segment: a thick dim bar with a bright inner edge
-                var seg = Path()
-                seg.addArc(center: center, radius: aR, startAngle: .radians(a0),
-                           endAngle: .radians(a0 + span), clockwise: false)
-                var glow = lit
-                glow.addFilter(.blur(radius: 7))
-                glow.stroke(seg, with: .color(col.opacity(0.35 * pres)), lineWidth: M * 0.055)
-                lit.stroke(seg, with: .color(col.opacity(0.14 * pres)), lineWidth: M * 0.05)
-                var edge = Path()
-                edge.addArc(center: center, radius: aR - M * 0.026, startAngle: .radians(a0),
-                            endAngle: .radians(a0 + span), clockwise: false)
-                lit.stroke(edge, with: .color(col.opacity(0.75 * pres)), lineWidth: 1.5)
-                // its name along the arc, upright on the far side
-                textOnCircle(b.label.uppercased(), r: aR, start: mid, .white, 13,
-                             opacity: 0.95 * pres, centred: true)
+                halo(p, M * 0.035, col, 0.22 * pres)
+                // a small mark rather than an icon: an action has no symbol
+                lit.stroke(circle(p, M * 0.012), with: .color(col.opacity(0.9 * pres)),
+                           lineWidth: 1.5)
+                lit.fill(circle(p, M * 0.004), with: .color(col.opacity(0.9 * pres)))
+                text(b.label.uppercased(), CGPoint(x: p.x, y: p.y + M * 0.032),
+                     .white, 11, glow: 6, opacity: 0.9 * pres)
                 if !b.action.summary.isEmpty {
-                    textOnCircle(b.action.summary.uppercased(), r: aR + M * 0.019, start: mid,
-                                 col, 8, opacity: 0.5 * pres, centred: true)
+                    text(b.action.summary.uppercased(), CGPoint(x: p.x, y: p.y + M * 0.05),
+                         col, 8, glow: 4, opacity: 0.45 * pres)
                 }
-                hit(at(aR, mid), M * 0.07, .button(b))
+                hit(p, M * 0.06, .button(b))
             }
         }
 
@@ -971,22 +962,6 @@ private struct Scene {
         softRing(center, Ri, micOn ? tint : Skin.cyan, M * 0.004 * (1 + deco), open)
         hit(center, Ri, .her)
 
-        // (drawn last, so nothing is over it)
-        // the opened information ring, flat and readable, over everything
-        if let card = clock.openCard {
-            let open = card.open
-            let y = cy + (card.k - 1) * M * 0.11
-            let w = M * 0.88, h = M * 0.075
-            let box = Path(roundedRect: CGRect(x: cx - w / 2, y: y - h / 2, width: w, height: h),
-                           cornerRadius: h * 0.3)
-            var glow = lit
-            glow.addFilter(.blur(radius: 12))
-            glow.stroke(box, with: .color(Skin.mag.opacity(0.6 * open)), lineWidth: 3)
-            ctx.fill(box, with: .color(.black.opacity(0.82 * open)))
-            ctx.stroke(box, with: .color(Skin.mag.opacity(0.9 * open)), lineWidth: 1.5)
-            text(card.line, CGPoint(x: cx, y: y), .white, 16, glow: 12, opacity: open,
-                 weight: .semibold)
-        }
 
         // the chant, struck into the screen in runes and left to cool
         // (Oscar, 2026-10-03: "bright thunder letter ... burn in the screen
