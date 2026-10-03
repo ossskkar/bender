@@ -86,6 +86,17 @@ private final class RealmClock {
     var summonAt: Double?
     var dismissAt: Double?
     var banged = false
+    /// The chant burning on the screen: when it struck, and what it says.
+    /// Runes, because Old Norse in Latin letters is a transliteration of a
+    /// transliteration (Oscar, 2026-10-03).
+    var chantAt: Double?
+    var chant = ""
+    /// The same line in Latin letters, small, under the runes.
+    var chantLatin = ""
+    /// A ring he tapped, and when: it swells and turns readable for a moment
+    /// rather than opening a panel (Oscar, 2026-10-03).
+    var openRing: Int?
+    var openAt = 0.0
     /// Her name drifting back now and then: when, where (as a share of the
     /// screen) and how big.
     var echo: (t0: Double, x: Double, y: Double, size: Double)?
@@ -129,9 +140,34 @@ private final class RealmClock {
         return path
     }
 
-    enum Tap { case app(String), button(DeckButton), her }
+    enum Tap { case app(String), button(DeckButton), her, ring(Int) }
 
     var now: Double { Date().timeIntervalSince(start) }
+}
+
+/// Old Norse in the letters it was carved in. Elder Futhark has no c, q, w, x
+/// or z, and one rune does both i and j; anything unmapped is dropped rather
+/// than drawn as a Latin letter in the middle of a line of runes
+/// (Oscar, 2026-10-03: "written using runas writing").
+enum Runes {
+    private static let map: [Character: String] = [
+        "a": "ᚨ", "á": "ᚨ", "b": "ᛒ", "c": "ᚲ", "d": "ᛞ", "e": "ᛖ", "é": "ᛖ",
+        "f": "ᚠ", "g": "ᚷ", "h": "ᚺ", "i": "ᛁ", "í": "ᛁ", "j": "ᛁ", "k": "ᚲ",
+        "l": "ᛚ", "m": "ᛗ", "n": "ᚾ", "o": "ᛟ", "ó": "ᛟ", "p": "ᛈ", "r": "ᚱ",
+        "s": "ᛋ", "t": "ᛏ", "u": "ᚢ", "ú": "ᚢ", "v": "ᚹ", "w": "ᚹ", "y": "ᚤ",
+        "ý": "ᚤ", "þ": "ᚦ", "ð": "ᚦ", "æ": "ᚨ", "ö": "ᛟ", "ø": "ᛟ", "x": "ᚲᛋ",
+        "z": "ᛉ", "q": "ᚲ",   // x is two runes; the rest are one
+    ]
+
+    static func carve(_ line: String) -> String {
+        var out = ""
+        for ch in line.lowercased() {
+            if let r = map[ch] { out += r }
+            else if ch == " " { out.append("᛬") }          // the word divider
+            else if ch == "," || ch == "." { continue }
+        }
+        return out
+    }
 }
 
 /// Singularity (Oscar, 2026-10-01): her eye is a black hole, every app of the
@@ -149,6 +185,12 @@ struct RealmView: View {
     let micOn: Bool
     let onHer: () -> Void
     let onSummon: () -> Void
+    /// A double tap starts or ends the conversation. Entering Singularity
+    /// plays her arrival either way: he wanted the room alive the moment he
+    /// walks in, and her listening only when he asks (Oscar, 2026-10-03).
+    var onTalk: () -> Void = {}
+    /// The line she will speak, so it can be carved while she says it.
+    var chant: String = ""
 
     @StateObject private var deck = Deck()
     @StateObject private var music = MacMusic()
@@ -191,6 +233,7 @@ struct RealmView: View {
         .gesture(
             LongPressGesture(minimumDuration: 0.5)
                 .onEnded { _ in onSummon() }
+                .exclusively(before: SpatialTapGesture(count: 2).onEnded { _ in onTalk() })
                 .exclusively(before: SpatialTapGesture().onEnded { tap($0.location) })
         )
         .ignoresSafeArea()
@@ -200,8 +243,29 @@ struct RealmView: View {
         .task { await agents.watch() }
         .task(id: idle) { if idle { await music.listen() } }
         .onChange(of: deck.front) { _, g in if !g.isEmpty { chosen = g } }
+        .onAppear {
+            // Walking in is an arrival: the gather, the dark, the flash and
+            // the shockwave play now, with no call behind them.
+            clock.summonAt = clock.now
+            clock.dismissAt = nil
+            clock.banged = false
+        }
+        .onChange(of: chant) { _, line in
+            guard !line.isEmpty else { return }
+            clock.chant = Runes.carve(line)
+            clock.chantLatin = line
+            // It strikes as she arrives, not while the screen is still being
+            // pulled into the dark (gather is 2 s).
+            clock.chantAt = clock.now + Self.gather + 0.5
+        }
         .onChange(of: running) { _, on in
-            if on { clock.summonAt = clock.now; clock.dismissAt = nil; clock.banged = false }
+            // Her arrival is not replayed if the room is still ringing from
+            // the one he just walked into.
+            let fresh = clock.summonAt.map { clock.now - $0 > 6 } ?? true
+            if on {
+                if fresh { clock.summonAt = clock.now; clock.banged = false }
+                clock.dismissAt = nil
+            }
             else { clock.dismissAt = clock.now; clock.summonAt = nil }
         }
     }
@@ -219,9 +283,11 @@ struct RealmView: View {
         clock.energy += ((speaking ? clock.amp : 0) - clock.energy) * 0.3
         clock.tw += dt * (running ? 1 : 0.5)
         // A syllable or a beat sends a ripple through space; hers are bigger.
-        if clock.amp - clock.lastAmp > (speaking ? 0.07 : 0.18) {
-            // Small ones for speech; the big one is kept for her arrival (Oscar, 2026-10-01).
-            clock.waves.append((t, speaking ? 0.25 + clock.amp * 0.5 : 0.6 + clock.amp))
+        if clock.amp - clock.lastAmp > (speaking ? 0.045 : 0.18) {
+            // Her voice throws real waves now: "more dramatic and strong"
+            // (Oscar, 2026-10-03). The arrival is still the biggest thing
+            // that happens here, at 5.
+            clock.waves.append((t, speaking ? 1.1 + clock.amp * 2.2 : 0.6 + clock.amp))
         }
         clock.lastAmp = clock.amp
         let m = idle ? music.level : 0
@@ -284,7 +350,19 @@ struct RealmView: View {
                 s.kana = sin(min(1, u / 4.0) * .pi) * 0.7
                 s.shake = 24 * exp(-u * 2.5)
             }
-        } else if let d = clock.dismissAt, t - d < 1.4 {
+        }
+        // The chant burns for a second and fades for six, over whatever else
+        // is happening (Oscar, 2026-10-03).
+        if let c = clock.chantAt {
+            let k = t - c
+            if k < 9 {
+                // Struck, held at full for a second and a half, then eight
+                // seconds of cooling.
+                s.chant = k < 1.5 ? 1 : max(0, 1 - (k - 1.5) / 7.5)
+                s.chantHeat = max(0, 1 - k / 0.8)
+            }
+        }
+        if let d = clock.dismissAt, t - d < 1.4 {
             let p = ease((t - d) / 1.4)
             s.rf = 1 - 0.25 * sin(p * .pi)
             s.dim = 0.72 * p
@@ -361,6 +439,15 @@ struct RealmView: View {
             Task { await deck.run(b) }
         case .her:
             onHer()
+        case .ring(let k):
+            // Tapping the open one closes it again.
+            if clock.openRing == k, t - clock.openAt < 6 {
+                clock.openRing = nil
+            } else {
+                clock.openRing = k
+                clock.openAt = t
+            }
+            clock.waves.append((t, 0.9))
         }
     }
 
@@ -425,6 +512,11 @@ private struct Stage {
     var dark = 0.0      // black over everything, while she gathers herself
     var flash = 0.0     // white, the moment she arrives
     var kana = 0.0      // her name, huge, behind her
+    /// The chant: 1 while it is burning in, falling slowly to 0 as it fades.
+    var chant = 0.0
+    /// How white-hot it is right now -- high for the first half second, so it
+    /// reads as struck rather than faded up.
+    var chantHeat = 0.0
     var shake = 0.0     // points of shake
     var presence = 1.0  // 0.5 asleep, 1 here
 }
@@ -535,10 +627,18 @@ private struct Scene {
     }
 
     func textOnCircle(_ s: String, r: Double, start: Double, _ col: Color, _ size: Double,
-                      opacity: Double = 1, inward: Bool = false, stretched: Bool = true) {
+                      opacity: Double = 1, inward: Bool = false, stretched: Bool = true,
+                      centred: Bool = false) {
         let ax = stretched ? self.ax : 1, ay = stretched ? self.ay : 1
         var c = ctx
         c.opacity = opacity
+        // `centred` means "put the middle of these words at `start`", which is
+        // what a label on an arc segment wants (Oscar, 2026-10-03).
+        var start = start
+        if centred {
+            let width = Double(s.count) * size * 0.62
+            start -= width / (2 * max(1, r))
+        }
         // The whole ring is one shape, its letters placed along the orbit, and
         // filled once. Drawing each letter as text was most of the screen's
         // cost: a whole core with nothing happening (19.0).
@@ -588,8 +688,10 @@ private struct Scene {
         func warp(_ r: Double, _ th: Double) -> CGPoint {
             var rr = r - (M * M * 0.012 * (1 + e + g * 2.2)) / (r + M * 0.04)
             for w in clock.waves {
-                let wr = (t - w.t0) * M * 0.55, fade = 1 - (t - w.t0) / 3
-                rr += exp(-pow((r - wr) / (M * 0.035), 2)) * M * 0.03 * w.s * fade
+                // Faster, wider and deeper than before: a syllable should
+                // visibly shove space, not ripple it (Oscar, 2026-10-03).
+                let wr = (t - w.t0) * M * 0.75, fade = 1 - (t - w.t0) / 3
+                rr += exp(-pow((r - wr) / (M * 0.05), 2)) * M * 0.055 * w.s * fade
             }
             let twist = (1.6 + e * 1.2 + g * 1.4) * exp(-r / (M * 0.16)) + tw * 0.03
             return at(max(Rh, rr * st.rf), th + twist)
@@ -648,14 +750,41 @@ private struct Scene {
         // dotted orbit, turning against its neighbours, warped by her like the
         // rest of space
         let ringInk = Color(red: 1, green: 0.42, blue: 0.70)
-        for (k, (r, line)) in zip([M * 0.2, M * 0.31, M * 0.395], info).enumerated() where !line.isEmpty {
+        for (k, (r, line)) in zip([M * 0.175, M * 0.255, M * 0.335], info).enumerated() where !line.isEmpty {
             let rr = r * st.rf
             let dir = k % 2 == 0 ? 1.0 : -1.0
-            lit.stroke(k == 0 ? circle(center, rr) : orbit(rr), with: .color(Skin.mag.opacity(0.18 * pres)),
-                       style: StrokeStyle(lineWidth: 1, dash: [2, 5], dashPhase: tw * 10 * dir))
+            // Tapped, a ring stops being decoration: it swells, slows to a
+            // stop and says its line straight across the screen, where it can
+            // actually be read (Oscar, 2026-10-03). It settles back after six
+            // seconds on its own.
+            let openK = clock.openRing == k ? max(0, 1 - (t - clock.openAt) / 6) : 0
+            let open = openK > 0 ? min(1, (t - clock.openAt) / 0.45) * (openK > 0.08 ? 1 : openK / 0.08) : 0
+            lit.stroke(k == 0 ? circle(center, rr) : orbit(rr),
+                       with: .color(Skin.mag.opacity((0.18 + 0.5 * open) * pres)),
+                       style: StrokeStyle(lineWidth: 1 + 2 * open, dash: [2, 5],
+                                          dashPhase: tw * 10 * dir))
             let full = line + "  ∴  "
-            textOnCircle(String(repeating: full, count: 6), r: rr + 9, start: dir * tw * (0.05 - Double(k) * 0.012),
-                         ringInk, k == 0 ? 12 : 13, opacity: 0.75 * pres, stretched: k != 0)
+            textOnCircle(String(repeating: full, count: 6), r: rr + 9,
+                         start: dir * tw * (0.05 - Double(k) * 0.012) * (1 - open),
+                         ringInk, (k == 0 ? 12 : 13) + 3 * open,
+                         opacity: (0.75 - 0.45 * open) * pres, stretched: k != 0)
+            if open > 0 {
+                // the same line, flat and large, on a panel of its own
+                let y = cy + (Double(k) - 1) * M * 0.11
+                let w = M * 0.92, h = M * 0.085
+                var card = Path(roundedRect: CGRect(x: cx - w / 2, y: y - h / 2, width: w, height: h),
+                                cornerRadius: h * 0.3)
+                var glow = lit
+                glow.addFilter(.blur(radius: 10))
+                glow.stroke(card, with: .color(Skin.mag.opacity(0.5 * open)), lineWidth: 2)
+                ctx.fill(card, with: .color(.black.opacity(0.72 * open)))
+                ctx.stroke(card, with: .color(Skin.mag.opacity(0.8 * open)), lineWidth: 1)
+                text(line, CGPoint(x: cx, y: y), .white, 15, glow: 10, opacity: open, weight: .semibold)
+            }
+            // the ring itself is a target, a band either side of its orbit
+            for a in stride(from: 0.0, to: tau, by: tau / 12) {
+                hit(at(rr, a), M * 0.045, .ring(k))
+            }
         }
 
         // her name, faint, wherever it drifted back to
@@ -670,8 +799,9 @@ private struct Scene {
             text("アリス", CGPoint(x: cx, y: cy), .white, M * 0.32, glow: 40, opacity: st.kana, weight: .black)
         }
 
+
         // the clockwork rim
-        let rim = M * 0.47 * st.rf
+        let rim = M * 0.52 * st.rf
         var ticks = Path(), big = Path()
         for k in 0..<180 {
             let a = -tw * 0.05 + Double(k) / 180 * tau, long = k % 15 == 0
@@ -689,8 +819,9 @@ private struct Scene {
         textOnCircle(rimText + rimText, r: rim + 26, start: tw * 0.03, Skin.mag, 10,
                      opacity: 0.5)
 
-        // spiral arms of words
-        let n = max(1, groups.count), Rmax = M * 0.44
+        // spiral arms of words. The apps sit on a smaller circle since
+        // 2026-10-03 -- the outer ring belongs to the chosen app's actions now.
+        let n = max(1, groups.count), Rmax = M * 0.295
         for (i, g) in groups.enumerated() {
             let on = g.name == chosen, col = on ? Skin.mag : Skin.cyan
             let base = Double(i) / Double(n) * tau + tw * 0.07
@@ -712,8 +843,11 @@ private struct Scene {
                  opacity: on ? 1 : 0.55)
             hit(tip, M * 0.09, .app(g.name))
 
+            // The chosen app's actions are drawn on the outer ring below;
+            // only the other apps still trail theirs down the arm, faintly, so
+            // the eye is not surrounded by words it cannot read.
             let count = max(1, g.buttons.count), speed = on ? 0.008 : 0.04
-            for (k, b) in g.buttons.enumerated() {
+            for (k, b) in g.buttons.enumerated() where !on {
                 let u = (Double(k) / Double(count) + tw * speed + Double(i) * 0.13).truncatingRemainder(dividingBy: 1)
                 let r = M * 0.06 * 1.3 + (Rmax * 0.93 - M * 0.06 * 1.3) * pow(1 - u, 1.4)
                 let p = pos(r), q = pos(r * 0.97)
@@ -735,6 +869,43 @@ private struct Scene {
                 gl.draw(txt, at: .zero)
                 c.draw(txt, at: .zero)
                 if on && alpha > 0.3 { hit(p, M * 0.075, .button(b)) }
+            }
+        }
+
+        // ---- the action ring: what the chosen app can do, around the edge
+        // (Oscar, 2026-10-03). Each one is a lit segment he can hit with a
+        // thumb, labelled along the arc, with the app's own colour.
+        if let g = groups.first(where: { $0.name == chosen }), !g.buttons.isEmpty {
+            let aR = M * 0.44 * st.rf
+            let count = g.buttons.count
+            let gap = 0.035
+            let span = tau / Double(count) - gap
+            let turn = tw * 0.012
+            for (k, b) in g.buttons.enumerated() {
+                let a0 = Double(k) / Double(count) * tau + turn - .pi / 2
+                let mid = a0 + span / 2
+                let hot = outcome[b.id]
+                let col = hot.map { $0 ? Skin.good : Skin.recording } ?? Skin.cyan
+                // the segment: a thick dim bar with a bright inner edge
+                var seg = Path()
+                seg.addArc(center: center, radius: aR, startAngle: .radians(a0),
+                           endAngle: .radians(a0 + span), clockwise: false)
+                var glow = lit
+                glow.addFilter(.blur(radius: 7))
+                glow.stroke(seg, with: .color(col.opacity(0.35 * pres)), lineWidth: M * 0.055)
+                lit.stroke(seg, with: .color(col.opacity(0.14 * pres)), lineWidth: M * 0.05)
+                var edge = Path()
+                edge.addArc(center: center, radius: aR - M * 0.026, startAngle: .radians(a0),
+                            endAngle: .radians(a0 + span), clockwise: false)
+                lit.stroke(edge, with: .color(col.opacity(0.75 * pres)), lineWidth: 1.5)
+                // its name along the arc, upright on the far side
+                textOnCircle(b.label.uppercased(), r: aR, start: mid, .white, 13,
+                             opacity: 0.95 * pres, centred: true)
+                if !b.action.summary.isEmpty {
+                    textOnCircle(b.action.summary.uppercased(), r: aR + M * 0.019, start: mid,
+                                 col, 8, opacity: 0.5 * pres, centred: true)
+                }
+                hit(at(aR, mid), M * 0.07, .button(b))
             }
         }
 
@@ -781,6 +952,44 @@ private struct Scene {
             center: center, startRadius: 0, endRadius: pr * 1.05))
         softRing(center, Ri, micOn ? tint : Skin.cyan, M * 0.004 * (1 + deco), open)
         hit(center, Ri, .her)
+
+        // (drawn last, so nothing is over it)
+        // the chant, struck into the screen in runes and left to cool
+        // (Oscar, 2026-10-03: "bright thunder letter ... burn in the screen
+        // and then slowly fade"). White-hot first, then the iron colour of a
+        // cooling brand, with the glow outliving the stroke.
+        if st.chant > 0, !clock.chant.isEmpty {
+            let heat = st.chantHeat
+            let runes = clock.chant
+            // Big, but never wider than the screen: Sigrdrífumál is 34 runes.
+            let fit = (size.width * 0.86) / (Double(runes.count) * 0.78)
+            let size0 = min(M * 0.115, fit) * (1 + 0.06 * heat)
+            let y = cy - M * 0.13
+            // A flicker while it is still being struck, like a filament.
+            let flick = heat > 0 ? (0.82 + 0.18 * sin(t * 47)) : 1
+            // Lightning first, then the orange of iron off the forge.
+            let hot = Color(red: 0.86, green: 0.95, blue: 1)
+            let iron = Color(red: 1, green: 0.58, blue: 0.20)
+            let ink = heat > 0.15 ? hot : iron
+            var burn = lit
+            burn.addFilter(.blur(radius: M * (0.02 + 0.05 * heat)))
+            let face = Text(runes)
+                .font(.system(size: size0, weight: .heavy, design: .serif))
+            // three passes: a wide furnace glow, a tight one, the stroke
+            burn.draw(face.foregroundColor(ink.opacity(st.chant * 0.85 * flick)),
+                      at: CGPoint(x: cx, y: y))
+            var mid = lit
+            mid.addFilter(.blur(radius: M * 0.012))
+            mid.draw(face.foregroundColor(ink.opacity(st.chant * 0.8 * flick)),
+                     at: CGPoint(x: cx, y: y))
+            ctx.draw(face.foregroundColor(ink.opacity(min(1, st.chant * (0.85 + heat)) * flick)),
+                     at: CGPoint(x: cx, y: y))
+            // the words themselves, small, under the runes, so he knows what
+            // was said
+            text(clock.chantLatin.uppercased(), CGPoint(x: cx, y: y + size0 * 0.95),
+                 iron, 11, glow: 8, opacity: st.chant * 0.6)
+        }
+
     }
 }
 

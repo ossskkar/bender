@@ -245,7 +245,11 @@ struct ContentView: View {
                           onSummon: {
                               // Held anywhere: she comes, listening; held again: she goes.
                               if pet.running { pet.toggleRunning() } else { summon() }
-                          })
+                          },
+                          // The room is alive the moment he walks in; two taps
+                          // are what start her listening (Oscar, 2026-10-03).
+                          onTalk: { if pet.running { pet.toggleRunning() } else { summon() } },
+                          chant: chantLine)
             }
             .transition(.opacity)
         }
@@ -861,8 +865,13 @@ struct ContentView: View {
         showChat = false
         live.muted = false
         let line = Self.victory.randomElement()!
+        // The realm carves it in runes while she says it (2026-10-03).
+        chantLine = line
         pet.begin(saying: [QueuedCommand(id: "awaken", text: line, show: nil)])
     }
+
+    /// The line she is speaking as she arrives, for the realm to burn in.
+    @State private var chantLine = ""
 
     /// Short, and real: the Edda and Ragnar's death-song.
     private static let victory = [
