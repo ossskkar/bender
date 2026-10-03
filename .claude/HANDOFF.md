@@ -1,4 +1,26 @@
-# Handoff — time machine, releases, autonomous builder (2026-10-02)
+# Handoff — Singularity, the coders, and her music (2026-10-03)
+
+## Singularity (shipped, iPad install pending)
+- **Walking in plays her arrival** -- gather, dark, flash, shockwave -- with no
+  call. **Two taps** anywhere start or end the conversation; a long press still
+  summons her. The three gestures are separate now: chaining them with
+  `exclusively` left the single tap waiting on the double tap forever and the
+  realm answered no touch at all.
+- **The chant is carved in Elder Futhark** (`Runes.carve`) and struck half a
+  second after the flash: lightning-white for a second, cooling iron over
+  eight, the Latin line small beneath. Drawn last, over everything.
+- **Her speech throws real waves**: a syllable is 1.1-3.3 (was 0.25-0.75),
+  travelling half again as fast and wide, nearly twice as deep.
+- **Layout**: apps on a smaller circle (0.295), the chosen app's actions on an
+  outer ring of lit segments at 0.44, the clockwork rim out at 0.52.
+- **Rings open on a tap**: they record their own geometry while drawing and a
+  tap that hits nothing opens the nearest one, which swells, stops turning and
+  prints its line flat across the middle for six seconds.
+- **Open**: the flat card has never been caught in a screenshot -- the ring
+  lights and swells, so the tap path works, but whether the card itself draws
+  is unverified. Start there.
+- **The iPad install is blocked**: iOS will not mount the developer image while
+  the device is locked. The build is ready; unlock and install.
 
 ## State
 - **Releases** are annotated tags `arisu-N.N`: 0.1 First form (`b089d8e`, the
