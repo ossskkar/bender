@@ -16,8 +16,19 @@ import Foundation
 /// Mastered music is loud all the time, so plain RMS barely moves. The level
 /// is a quiet base from loudness plus a kick from how far this 33 ms rose above
 /// the last second -- which is the beat.
-/// ponytail: fixed gains, an auto-gain if quiet and loud tracks differ too much.
-let base: Float = 2.0, kick: Float = 25
+///
+/// Both are measured against a decaying peak rather than against 1.0, because
+/// the fixed gains only worked for one playback volume: his Spotify was coming
+/// through the tap at an RMS of about 0.005 and she never moved (Oscar,
+/// 2026-10-03). Normalised, a quiet track moves her as much as a loud one.
+let base: Float = 0.55, kick: Float = 2.6
+/// Below this the tap is carrying silence, not quiet music, and she holds
+/// still rather than dancing to the noise floor.
+let floorRMS: Float = 0.0004
+/// How fast the peak forgets: about seven seconds at 30 Hz, so one loud
+/// moment does not flatten the rest of the track and a pause is noticed
+/// quickly.
+let peakDecay: Float = 0.995
 let port: UInt16 = 8885
 
 func get<T>(_ obj: AudioObjectID, _ sel: AudioObjectPropertySelector, _ value: inout T) -> OSStatus {
@@ -67,6 +78,8 @@ final class Tap {
     var proc: AudioDeviceIOProcID?
     var sum: Float = 0, count = 0
     var slow: Float = 0
+    /// The loudest 33 ms lately, which is what everything is measured against.
+    var peak: Float = 0
     var last = Date()
 
     init?(_ processes: [AudioObjectID]) {
@@ -111,7 +124,18 @@ final class Tap {
         guard Date().timeIntervalSince(last) >= 1.0 / 30, count > 0 else { return }
         let fast = (sum / Float(count)).squareRoot()
         slow += (fast - slow) * 0.06          // about a second at 30 Hz
-        send(min(1, fast * base + max(0, fast - slow) * kick))
+        peak = max(fast, peak * peakDecay)
+        // Silence is silence at any gain: the second-long average decides
+        // whether anything is playing, and the peak only decides the scale.
+        // Without this, a pause left her dancing to the noise floor, which is
+        // exactly what normalising does to nothing (Oscar, 2026-10-03).
+        if slow < floorRMS * 3 || peak < floorRMS {
+            send(0)
+        } else {
+            let loud = fast / peak                       // 0…1 whatever the volume
+            let beat = max(0, fast - slow) / peak        // the rise, same scale
+            send(min(1, loud * base + beat * kick))
+        }
         sum = 0; count = 0; last = Date()
     }
 
