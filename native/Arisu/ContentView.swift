@@ -76,6 +76,7 @@ struct ContentView: View {
     /// command suggestions and the bar; another tap hides them (Oscar,
     /// 2026-10-01). Replaces the subtitles button and its saved setting.
     @State private var chrome = false
+    @State private var shownSourceLinks = Set<URL>()
     /// The typed thread. Held here rather than inside the pane so that it
     /// survives switching to her voice and back -- the conversation is one
     /// thing, and re-fetching it every time he speaks would make it blink.
@@ -280,7 +281,15 @@ struct ContentView: View {
         .onChange(of: pet.line) { _, t in
             lastSpoke = Date(); say(t, mine: false); notice(t); record(t, "answer")
         }
+        .onChange(of: live.sourceAnswer) { _, answer in
+            // Display-only source links: never record these as spoken answers.
+            for url in pageLinks(answer) where shownSourceLinks.count < 64 && !shownSourceLinks.contains(url) {
+                shownSourceLinks.insert(url)
+                say(url.absoluteString, mine: false)
+            }
+        }
         .onChange(of: pet.running) { _, on in
+            if on { shownSourceLinks.removeAll() }
             record(on ? "call started" : "call ended", "call")
             // A call she starts herself -- a queued brief on arrival -- is
             // voice, so the screen goes to her rather than staying on the
