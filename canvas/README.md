@@ -40,6 +40,16 @@ device in the call, worth doing only if the stand-in reads wrong.
 One window per name. The name is the address — nothing registers it, the first
 push creates it.
 
+**Several things at once.** A comma-separated `url` lays them out as a grid, up
+to six — one fills the window, two sit side by side, three or four make a
+square. Verbs act on the first panel unless the arg starts with a panel number;
+`read` returns every panel, labelled; `find` and `click` search all of them and
+report which one matched.
+
+**Filling a screen.** ⌘⏎ toggles it, or she does it with `fill` — and `fill`
+takes a monitor number, which is the point of a window you can send to the
+vertical screen.
+
 ## Arisu driving it
 
 Two tools on her Hermes brain, so it works from every client at once — the web
@@ -102,4 +112,5 @@ its own page instead — no Screen Recording permission needed:
 - Click-through (`ignoresMouseEvents`). It needs a global hotkey to undo, and
   that needs Accessibility permission — not worth it until he asks.
 - Typing into a page. `find` and `click` exist; `type` does not.
+- Per-panel layout control: the grid is chosen from the count, not arranged.
 - Cross-origin iframes are out of reach, and PDFs render but cannot be driven.

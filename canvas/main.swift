@@ -52,6 +52,14 @@ struct ScreenState: Decodable {
     let url: String
     let title: String
     let rev: Int
+    /// A big screen holds more than one thing. One panel is the ordinary case
+    /// and is what a plain `url` push produces; several are laid out as a grid.
+    let panels: [Panel]?
+}
+
+struct Panel: Decodable {
+    let url: String
+    let title: String
 }
 
 struct ScreenReply: Decodable {
@@ -250,15 +258,26 @@ final class Frameless: NSWindow {
         }
     }
 
-    func fill() {
-        if let was = restore {
+    /// Fill a screen, or go back to the size it was. `display` picks a
+    /// monitor by index (0 is the main one) -- the vertical monitor is the
+    /// whole point of a window she can send somewhere.
+    @discardableResult
+    func fill(display: Int = -1) -> String {
+        if display < 0, let was = restore {
             restore = nil
             setFrame(was, display: true, animate: true)
-            return
+            return "back to its own size"
         }
-        guard let vis = screen?.visibleFrame ?? NSScreen.main?.visibleFrame else { return }
-        restore = frame
+        let screens = NSScreen.screens
+        let target = display >= 0 && display < screens.count
+            ? screens[display]
+            : (screen ?? NSScreen.main)
+        guard let vis = target?.visibleFrame else { return "no screen to fill" }
+        if restore == nil { restore = frame }
         setFrame(vis, display: true, animate: true)
+        return screens.count > 1
+            ? "filling screen \(screens.firstIndex(of: target!) ?? 0) of \(screens.count)"
+            : "filling the screen"
     }
 }
 
@@ -267,10 +286,13 @@ final class Frameless: NSWindow {
 final class Pane: NSObject, WKNavigationDelegate {
     let name: String
     let window: Frameless
-    private let web: WKWebView
+    /// One web view per panel. A screen usually holds one; a big screen holds
+    /// several, which is the whole reason this is a list.
+    private var webs: [WKWebView] = []
+    private let conf: WKWebViewConfiguration
+    private let grid = NSStackView()
     private var rev = -1
     private let her = Her()
-    private var card = NSView()
     private var timer: Timer?
 
     init(name: String) {
@@ -293,12 +315,7 @@ final class Pane: NSObject, WKNavigationDelegate {
             })();
             """,
             injectionTime: .atDocumentEnd, forMainFrameOnly: true))
-        web = WKWebView(frame: .zero, configuration: conf)
-        // Transparent so a page with no background of its own lets the desk
-        // through. Private API by name only; it has been this key since 2014
-        // and the failure mode if it ever goes is an opaque white window.
-        web.setValue(false, forKey: "drawsBackground")
-        if #available(macOS 12.0, *) { web.underPageBackgroundColor = .clear }
+        self.conf = conf
 
         window = Frameless(contentRect: Pane.savedFrame(name),
                            styleMask: [.borderless, .resizable],
@@ -327,61 +344,35 @@ final class Pane: NSObject, WKNavigationDelegate {
         // when the screen is empty, so an idle canvas is just her face.
         let backdrop = NSHostingView(rootView: Backdrop(her: her, style: FACE))
 
-        // The card the page sits on. Fading the *web view* was wrong: alpha on
-        // a view fades its text along with its background, so the page went
-        // unreadable (Oscar). The page's own background is made transparent
-        // instead (see `clear` below), its text stays fully opaque, and this
-        // translucent card behind it gives that text something to read
-        // against while her ribbon still shows through. ARISU_PANEL is how
-        // solid it is; 1 hides her behind the page completely.
-        let card = NSView()
-        card.wantsLayer = true
-        card.layer?.cornerRadius = 14
-        card.layer?.backgroundColor = NSColor(red: 0.02, green: 0.02,
-                                              blue: 0.05, alpha: PANEL).cgColor
-        card.shadow = NSShadow()
-        card.layer?.shadowOpacity = 0.6
-        card.layer?.shadowRadius = 20
-        card.layer?.shadowOffset = .zero
-        card.isHidden = true
-        self.card = card
-
         let grab = Grab()
-        for v in [root, backdrop, card, web, grab] {
+        grid.orientation = .vertical
+        grid.distribution = .fillEqually
+        grid.spacing = 10
+
+        for v in [root, backdrop, grid, grab] {
             v.translatesAutoresizingMaskIntoConstraints = false
         }
-        web.wantsLayer = true
-        web.layer?.cornerRadius = 14
-        web.layer?.masksToBounds = true
-        web.isHidden = true
-
 
         root.addSubview(backdrop)
-        root.addSubview(card)
-        root.addSubview(web)
+        root.addSubview(grid)
         root.addSubview(grab)                  // over both, invisible
         window.contentView = root
 
-        // The page floats *on* her rather than replacing her (Oscar): she
-        // fills the window, the page is a smaller card centred on it, and the
-        // card is slightly see-through so her ribbon moves behind the text as
-        // well as around it. 86% of each side leaves a real margin at any
-        // window size, which a fixed inset does not.
+        // The pages float *on* her rather than replacing her (Oscar): she fills
+        // the window, they sit in a grid centred on it, and each is slightly
+        // see-through so her ribbon moves behind them as well as around them.
+        // 86% of each side leaves a real margin at any window size, which a
+        // fixed inset does not.
         NSLayoutConstraint.activate([
             backdrop.topAnchor.constraint(equalTo: root.topAnchor),
             backdrop.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             backdrop.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             backdrop.bottomAnchor.constraint(equalTo: root.bottomAnchor),
 
-            card.centerXAnchor.constraint(equalTo: root.centerXAnchor),
-            card.centerYAnchor.constraint(equalTo: root.centerYAnchor),
-            card.widthAnchor.constraint(equalTo: root.widthAnchor, multiplier: 0.86),
-            card.heightAnchor.constraint(equalTo: root.heightAnchor, multiplier: 0.86),
-
-            web.centerXAnchor.constraint(equalTo: root.centerXAnchor),
-            web.centerYAnchor.constraint(equalTo: root.centerYAnchor),
-            web.widthAnchor.constraint(equalTo: root.widthAnchor, multiplier: 0.86),
-            web.heightAnchor.constraint(equalTo: root.heightAnchor, multiplier: 0.86),
+            grid.centerXAnchor.constraint(equalTo: root.centerXAnchor),
+            grid.centerYAnchor.constraint(equalTo: root.centerYAnchor),
+            grid.widthAnchor.constraint(equalTo: root.widthAnchor, multiplier: 0.86),
+            grid.heightAnchor.constraint(equalTo: root.heightAnchor, multiplier: 0.86),
 
             grab.topAnchor.constraint(equalTo: root.topAnchor),
             grab.leadingAnchor.constraint(equalTo: root.leadingAnchor),
@@ -404,9 +395,57 @@ final class Pane: NSObject, WKNavigationDelegate {
     // label saying so as well is one more thing on the desk to read.
     private func idle() {
         her.contentUp = false
-        card.isHidden = true
-        web.isHidden = true
-        web.load(URLRequest(url: URL(string: "about:blank")!))
+        webs = []
+        grid.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        grid.isHidden = true
+    }
+
+    /// Build the grid for `panels`. Rows and columns are chosen so the cells
+    /// stay as square as the window allows: one fills it, two sit side by side,
+    /// three or four make a square, five or six a 3x2.
+    private func build(_ panels: [Panel]) {
+        grid.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        webs = []
+        let cols = panels.count <= 1 ? 1 : (panels.count <= 4 ? 2 : 3)
+        var row: NSStackView?
+        for (i, _) in panels.enumerated() {
+            if i % cols == 0 {
+                let r = NSStackView()
+                r.orientation = .horizontal
+                r.distribution = .fillEqually
+                r.spacing = 10
+                grid.addArrangedSubview(r)
+                row = r
+            }
+            // Each panel is a card of its own: rounded, translucent, with the
+            // page drawn edge to edge inside it. The page's own background was
+            // stripped on load, so what shows through the text is her.
+            let card = NSView()
+            card.wantsLayer = true
+            card.layer?.cornerRadius = 14
+            card.layer?.masksToBounds = true
+            card.layer?.backgroundColor = NSColor(red: 0.02, green: 0.02,
+                                                  blue: 0.05, alpha: PANEL).cgColor
+            let w = WKWebView(frame: .zero, configuration: conf)
+            // Transparent so a page with no background of its own lets her
+            // through. Private API by name only; it has been this key since
+            // 2014 and the failure mode if it ever goes is an opaque panel.
+            w.setValue(false, forKey: "drawsBackground")
+            if #available(macOS 12.0, *) { w.underPageBackgroundColor = .clear }
+            w.navigationDelegate = self
+            w.translatesAutoresizingMaskIntoConstraints = false
+            card.addSubview(w)
+            NSLayoutConstraint.activate([
+                w.topAnchor.constraint(equalTo: card.topAnchor),
+                w.leadingAnchor.constraint(equalTo: card.leadingAnchor),
+                w.trailingAnchor.constraint(equalTo: card.trailingAnchor),
+                w.bottomAnchor.constraint(equalTo: card.bottomAnchor),
+            ])
+            webs.append(w)
+            row?.addArrangedSubview(card)
+        }
+        grid.isHidden = false
+        her.contentUp = true
     }
 
     private func fetch() {
@@ -428,8 +467,8 @@ final class Pane: NSObject, WKNavigationDelegate {
 
     private func apply(_ state: ScreenState?) {
         guard let state else {
-            // Cleared. Back to the idle card rather than the last page, so a
-            // blanked screen does not keep claiming yesterday is current.
+            // Cleared. Back to her face rather than the last page, so a blanked
+            // screen does not keep claiming yesterday is current.
             if rev != -1 {
                 rev = -1
                 idle()
@@ -438,77 +477,32 @@ final class Pane: NSObject, WKNavigationDelegate {
         }
         guard state.rev != rev else { return }
         rev = state.rev
+        let panels = state.panels ?? [Panel(url: state.url, title: state.title)]
         window.title = state.title.isEmpty ? state.url : state.title
-        // Three kinds of thing she can put up, in the order they are tried: a
-        // file on this Mac (a PDF, an image, anything WebKit renders -- which
-        // needs loadFileURL and a read grant, not a plain request), an absolute
-        // URL, and otherwise a path resolved against lain.
-        let target: URL?
-        if state.url.hasPrefix("/"), FileManager.default.fileExists(atPath: state.url) {
-            let f = URL(fileURLWithPath: state.url)
-            target = f
-            web.loadFileURL(f, allowingReadAccessTo: f.deletingLastPathComponent())
-        } else if let u = URL(string: state.url), u.scheme == "file" {
-            target = u
-            web.loadFileURL(u, allowingReadAccessTo: u.deletingLastPathComponent())
-        } else {
-            target = URL(string: state.url, relativeTo: URL(string: BASE))
-            if let target { web.load(URLRequest(url: target)) }
+        build(panels)
+        for (i, panel) in panels.enumerated() where i < webs.count {
+            load(panel.url, into: webs[i])
         }
-        web.isHidden = false
-        card.isHidden = false
-        her.contentUp = true
-        // One line per push. "Did it actually arrive?" is otherwise only
-        // answerable by being in front of the monitor.
         FileHandle.standardError.write(
-            "canvas \(name): rev \(state.rev) -> \(target?.absoluteString ?? state.url)\n"
+            "canvas \(name): rev \(state.rev) -> \(panels.map { $0.url }.joined(separator: " | "))\n"
                 .data(using: .utf8)!)
         // A push is her asking for his eyes: an argument against it would be an
         // argument against the whole channel.
         window.orderFrontRegardless()
     }
 
-    // What the web view is actually showing, as a PNG. The only way to check
-    // this app without Screen Recording permission: `screencapture` is refused
-    // to an unprivileged process, and a window that cannot be inspected can
-    // only be verified by Oscar standing in front of it.
-    func snapshot(to path: String, then done: @escaping () -> Void) {
-        // Two captures composed, because neither tool sees the whole window:
-        // cacheDisplay draws the AppKit and SwiftUI layers but not the web
-        // view, which renders in its own process, and takeSnapshot draws only
-        // the page. Her face comes from the first, the page from the second.
-        web.takeSnapshot(with: nil) { page, err in
-            defer { done() }
-            if page == nil {
-                FileHandle.standardError.write(
-                    "canvas \(self.name): no page snapshot: \(err.map(String.init(describing:)) ?? "nil")\n"
-                        .data(using: .utf8)!)
-            }
-            guard let root = self.window.contentView,
-                  let rep = root.bitmapImageRepForCachingDisplay(in: root.bounds)
-            else {
-                FileHandle.standardError.write(
-                    "canvas \(self.name): no bitmap rep, bounds \(self.window.contentView?.bounds ?? .zero) frame \(self.window.frame)\n"
-                        .data(using: .utf8)!)
-                return
-            }
-            root.cacheDisplay(in: root.bounds, to: rep)
-            let shot = NSImage(size: root.bounds.size)
-            shot.lockFocus()
-            rep.draw(in: root.bounds)
-            if let page, !self.web.isHidden { page.draw(in: self.web.frame) }
-            shot.unlockFocus()
-            guard let tiff = shot.tiffRepresentation,
-                  let out = NSBitmapImageRep(data: tiff),
-                  let png = out.representation(using: .png, properties: [:])
-            else {
-                FileHandle.standardError.write(
-                    "canvas \(self.name): could not encode\n".data(using: .utf8)!)
-                return
-            }
-            do { try png.write(to: URL(fileURLWithPath: path)) }
-            catch { FileHandle.standardError.write(
-                "canvas \(self.name): write failed: \(error)\n".data(using: .utf8)!) }
+    /// Three kinds of thing she can put up, in the order they are tried: a file
+    /// on this Mac (a PDF, an image, anything WebKit renders -- which needs
+    /// loadFileURL and a read grant, not a plain request), an absolute URL, and
+    /// otherwise a path resolved against lain.
+    private func load(_ url: String, into web: WKWebView) {
+        if url.hasPrefix("/"), FileManager.default.fileExists(atPath: url) {
+            let f = URL(fileURLWithPath: url)
+            web.loadFileURL(f, allowingReadAccessTo: f.deletingLastPathComponent())
+        } else if let u = URL(string: url), u.scheme == "file" {
+            web.loadFileURL(u, allowingReadAccessTo: u.deletingLastPathComponent())
+        } else if let target = URL(string: url, relativeTo: URL(string: BASE)) {
+            web.load(URLRequest(url: target))
         }
     }
 
@@ -521,31 +515,45 @@ final class Pane: NSObject, WKNavigationDelegate {
         // report, so a scroll that worked perfectly came back to her as "the
         // window did not answer" -- she would have told him it had failed.
         let page = 0.85                 // a "page" of scrolling is most of one
+        let web = panel(a.arg)
         switch a.verb {
-        case "back":    web.goBack();    note("went back")
-        case "forward": web.goForward(); note("went forward")
-        case "reload":  web.reload();    note("reloaded the page")
-        case "top":     scrolling("0")
-        case "bottom":  scrolling("max")
-        case "up":      scrolling("scrollY - innerHeight * \(page)")
-        case "down":    scrolling("scrollY + innerHeight * \(page)")
-        case "find":  hunt(a.arg, click: false)
-        case "click": hunt(a.arg, click: true)
-        case "read":  readBack()
-        default: note("I do not know how to \(a.verb)")
+        case "back":    web?.goBack();    note("went back")
+        case "forward": web?.goForward(); note("went forward")
+        case "reload":  web?.reload();    note("reloaded the page")
+        case "top":     scrolling("0", on: web)
+        case "bottom":  scrolling("max", on: web)
+        case "up":      scrolling("scrollY - innerHeight * \(page)", on: web)
+        case "down":    scrolling("scrollY + innerHeight * \(page)", on: web)
+        case "fill":    note(window.fill(display: Int(a.arg) ?? -1))
+        case "restore": note(window.fill())
+        case "find":    hunt(a.arg, click: false)
+        case "click":   hunt(a.arg, click: true)
+        case "read":    readBack()
+        default:        note("I do not know how to \(a.verb)")
         }
+    }
+
+    /// Which panel a verb acts on. A leading number picks one, counting from
+    /// 1 the way he would say it ("scroll the second one down"); anything else
+    /// means the first, which is the only one when there is only one.
+    private func panel(_ arg: String) -> WKWebView? {
+        if let n = Int(arg.prefix(while: \.isNumber)), n >= 1, n <= webs.count {
+            return webs[n - 1]
+        }
+        return webs.first
     }
 
     /// Scroll to `target` and say where on the page that is -- "nothing
     /// happened" and "already at the bottom" are different answers, and she
     /// needs the second one to stop asking for more.
     ///
-    /// The position is worked out *before* the scroll, not after: the scroll
-    /// is smooth, so reading `scrollY` afterwards reads it mid-flight, and
+    /// The position is worked out *before* the scroll, not after: the scroll is
+    /// smooth, so reading `scrollY` afterwards reads it mid-flight, and
     /// `evaluateJavaScript` hands back nil for a Promise rather than waiting
     /// for one -- which is how the first version came back saying only
     /// "scrolled" every time.
-    private func scrolling(_ target: String) {
+    private func scrolling(_ target: String, on web: WKWebView?) {
+        guard let web else { return note("nothing is up on that screen") }
         js("""
         (function () {
           var max = Math.max(0, document.body.scrollHeight - innerHeight);
@@ -557,28 +565,33 @@ final class Pane: NSObject, WKNavigationDelegate {
           if (pct >= 100) return 'at the bottom of the page';
           return pct + '% down the page';
         })();
-        """) { self.note(($0 as? String) ?? "scrolled") }
+        """, on: web) { self.note(($0 as? String) ?? "scrolled") }
     }
 
     private func note(_ line: String) {
         send(["name": name, "text": line])
     }
 
-    private func js(_ source: String,
+    private func js(_ source: String, on web: WKWebView?,
                     then: ((Any?) -> Void)? = nil) {
+        guard let web else { then?(nil); return }
         web.evaluateJavaScript(source) { got, _ in then?(got) }
     }
 
-    /// Find the thing on the page he named and either scroll to it or click
-    /// it. Matching is on visible text, because that is the only handle he
-    /// has -- he says "click sign in", not "click the third button".
+    /// Find the thing on the page he named and either scroll to it or click it.
+    /// Matching is on visible text, because that is the only handle he has --
+    /// he says "click sign in", not "click the third button".
+    ///
+    /// Every panel is searched, not just the first: on a big screen he is
+    /// looking at the grid, not at one of them, and asking him which panel the
+    /// link is in would be asking him to do the looking.
     private func hunt(_ what: String, click: Bool) {
-        guard let needle = String(data: try! JSONEncoder().encode(what),
-                                  encoding: .utf8) else { return }
-        js("""
+        guard let needle = try? String(data: JSONEncoder().encode(what),
+                                       encoding: .utf8) ?? "\"\"" else { return }
+        let source = """
         (function (want, click) {
           want = want.toLowerCase().trim();
-          if (!want) return 'nothing to look for';
+          if (!want) return '';
           var sel = click
             ? 'a,button,[role=button],input[type=submit],input[type=button],summary'
             : '*';
@@ -592,31 +605,99 @@ final class Pane: NSObject, WKNavigationDelegate {
             // Skipping every element with children was too strict: a heading
             // wrapping a link has children, and that is exactly the heading he
             // asked to scroll to. Shortest match below picks the inner one.
-            // The shortest match is the most specific one: "sign in" should
-            // click the button, not the section that contains it.
             if (!best || t.length < best.t.length) best = { el: el, t: t };
           }
-          if (!best) return 'no match for: ' + want;
+          if (!best) return '';
           best.el.scrollIntoView({ block: 'center', behavior: 'smooth' });
           if (click) best.el.click();
           return (click ? 'clicked: ' : 'found: ') + best.t.slice(0, 80);
         })(\(needle), \(click));
-        """) { got in
-            // The outcome goes back to her, because a click she cannot see the
-            // result of is a click she has to ask him about.
-            self.send(["name": self.name, "text": (got as? String) ?? "no answer"])
+        """
+        search(source, from: 0, what: what)
+    }
+
+    /// Try each panel in turn and report the first that matched. Sequential
+    /// rather than all at once because a click is not a thing to do twice.
+    private func search(_ source: String, from i: Int, what: String) {
+        guard i < webs.count else {
+            note("no match for: \(what)")
+            return
+        }
+        js(source, on: webs[i]) { got in
+            let answer = (got as? String) ?? ""
+            if answer.isEmpty {
+                self.search(source, from: i + 1, what: what)
+            } else {
+                self.note(self.webs.count > 1
+                          ? "\(answer) (panel \(i + 1))" : answer)
+            }
         }
     }
 
-    /// What the page says, in her direction. Text and not HTML: she is reading
+    /// What the pages say, in her direction. Text and not HTML: she is reading
     /// it, and the markup is thousands of tokens of nothing.
+    ///
+    /// The article rather than the document when a page offers one. Every read
+    /// of a Wikipedia page used to open with "Jump to content / Main menu /
+    /// Search / Appearance / Personal tools" -- navigation furniture that is a
+    /// fifth of a short page, says nothing, and is re-sent on every turn she
+    /// takes afterwards.
     private func readBack() {
-        js("document.body ? document.body.innerText : ''") { got in
-            self.send(["name": self.name, "text": (got as? String) ?? ""])
+        let source = """
+        (function () {
+          var el = document.querySelector('article, main, [role=main]')
+                || document.body;
+          var t = (el.innerText || '');
+          return t.replace(/[ \\t]+\\n/g, '\\n').replace(/\\n{3,}/g, '\\n\\n').trim();
+        })();
+        """
+        gather(source, from: 0, into: [])
+    }
+
+    private func gather(_ source: String, from i: Int, into parts: [String]) {
+        guard i < webs.count else {
+            send(["name": name, "text": parts.joined(separator: "\n\n")])
+            return
+        }
+        js(source, on: webs[i]) { got in
+            let text = (got as? String) ?? ""
+            let head = self.webs.count > 1 ? "--- panel \(i + 1) ---\n" : ""
+            self.gather(source, from: i + 1, into: parts + [head + text])
         }
     }
 
-    private func send(_ body: [String: String]) {
+    /// Note where this screen landed: the address, the title, and a sentence of
+    /// what the page is about. Sent on its own, not as part of a read, because
+    /// this is the part that is *kept* -- the page's text goes when the page
+    /// does, and this is what she still has afterwards (Oscar, 2026-10-05).
+    private func noteVisit(_ web: WKWebView) {
+        js("""
+        (function () {
+          var meta = document.querySelector('meta[name="description"]')
+                  || document.querySelector('meta[property="og:description"]');
+          var gist = meta ? (meta.content || '') : '';
+          if (!gist) {
+            var el = document.querySelector('article, main, [role=main]')
+                  || document.body;
+            gist = (el.innerText || '').replace(/\\s+/g, ' ').trim();
+          }
+          return JSON.stringify({
+            url: location.href,
+            title: (document.title || '').slice(0, 120),
+            gist: gist.slice(0, 240)
+          });
+        })();
+        """, on: web) { got in
+            guard let raw = got as? String,
+                  let data = raw.data(using: .utf8),
+                  let v = try? JSONSerialization.jsonObject(with: data)
+                    as? [String: String]
+            else { return }
+            self.sendAny(["name": self.name, "visit": v])
+        }
+    }
+
+    private func sendAny(_ body: [String: Any]) {
         guard let url = URL(string: "\(BASE)/screens"),
               let data = try? JSONSerialization.data(withJSONObject: body)
         else { return }
@@ -628,6 +709,52 @@ final class Pane: NSObject, WKNavigationDelegate {
         URLSession.shared.dataTask(with: req).resume()
     }
 
+    private func send(_ body: [String: String]) {
+        sendAny(body)
+    }
+
+    /// The window as it looks, as a PNG. The only way to check this app without
+    /// Screen Recording permission: `screencapture` is refused to an
+    /// unprivileged process, and a window that cannot be inspected can only be
+    /// verified by Oscar standing in front of it.
+    ///
+    /// Two captures composed, because neither tool sees the whole window:
+    /// cacheDisplay draws the AppKit and SwiftUI layers but not the web views,
+    /// which render in their own process, and takeSnapshot draws only a page.
+    func snapshot(to path: String, then done: @escaping () -> Void) {
+        shoot(from: 0, into: [:]) { pages in
+            defer { done() }
+            guard let root = self.window.contentView,
+                  let rep = root.bitmapImageRepForCachingDisplay(in: root.bounds)
+            else { return }
+            root.cacheDisplay(in: root.bounds, to: rep)
+            let shot = NSImage(size: root.bounds.size)
+            shot.lockFocus()
+            rep.draw(in: root.bounds)
+            for (i, page) in pages where i < self.webs.count {
+                let w = self.webs[i]
+                page.draw(in: w.convert(w.bounds, to: root))
+            }
+            shot.unlockFocus()
+            guard let tiff = shot.tiffRepresentation,
+                  let out = NSBitmapImageRep(data: tiff),
+                  let png = out.representation(using: .png, properties: [:])
+            else { return }
+            try? png.write(to: URL(fileURLWithPath: path))
+        }
+    }
+
+    private func shoot(from i: Int, into got: [Int: NSImage],
+                       then: @escaping ([Int: NSImage]) -> Void) {
+        guard i < webs.count else { return then(got) }
+        webs[i].takeSnapshot(with: nil) { image, _ in
+            var next = got
+            if let image { next[i] = image }
+            self.shoot(from: i + 1, into: next, then: then)
+        }
+    }
+
+    // MARK: where it sits
     // MARK: where it sits
 
     // Per-screen position and size, remembered. He places a widget once.
@@ -656,6 +783,17 @@ final class Pane: NSObject, WKNavigationDelegate {
     private static func usable(_ r: NSRect) -> Bool {
         guard r.width > 160, r.height > 120 else { return false }
         return NSScreen.screens.contains { $0.frame.intersects(r) }
+    }
+}
+
+extension Pane {
+    /// Every page that finishes loading, not only the ones she pushed: a page
+    /// he reached by asking her to click a link is exactly the one he will ask
+    /// about later.
+    func webView(_ web: WKWebView, didFinish _: WKNavigation!) {
+        // The idle page is not somewhere he has been.
+        guard web.url?.absoluteString != "about:blank" else { return }
+        noteVisit(web)
     }
 }
 
