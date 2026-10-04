@@ -22,3 +22,7 @@ flatface/sprites-neon/
 flatface/sprites-ayame/
 flatface/sprites-wired/
 flatface/sprites-ghost/
+
+# Built app bundle and the bare binary; build.sh makes them.
+canvas/Arisu Canvas.app/
+canvas/canvas

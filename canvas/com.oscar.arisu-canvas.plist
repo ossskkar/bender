@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.oscar.arisu-canvas</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/oscar/Applications/Arisu Canvas.app/Contents/MacOS/ArisuCanvas</string>
+    <string>desk</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/Users/oscar/Library/Logs/arisu-canvas.log</string>
+  <key>StandardErrorPath</key><string>/Users/oscar/Library/Logs/arisu-canvas.log</string>
+</dict>
+</plist>
