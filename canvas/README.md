@@ -13,13 +13,12 @@ its own, and the point of these is to sit on top of whatever he is doing.
 **She is always on it.** The same voice visual the iPad draws — compiled from
 the iPad's own `VoiceVisual.swift` and `Skin.swift`, not copied, so the two
 cannot drift — tinted by what she is doing: indigo waiting, green hearing him,
-magenta working, cyan talking. With nothing up she fills the window; with a
-page up she keeps a band across the top and the page takes the rest.
+magenta working, cyan talking.
 
-That band is a decision, not a default. An opaque page and an animation behind
-it cannot both have the middle: a lain page carries its own near-black ground,
-so under it she is not dim, she is gone. The alternatives are a corner orb, or
-a translucent page — both change what he reads, so they are his call.
+She fills the window. A page she puts up is a **card centred on her**, 86% of
+each side and slightly see-through, so she shows around it and faintly through
+the text (Oscar, 2026-10-04). `ARISU_PANEL` is the dial: 1 hides her behind the
+page completely, and the default is 0.84.
 
 Her level is **not** published by lain (`Live.swift`: read 20x a second by
 whichever device holds the call, and sent nowhere). So the desk reads her

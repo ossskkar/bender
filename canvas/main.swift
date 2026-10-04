@@ -41,6 +41,9 @@ let POLL = 2.0
 let FACE = FaceStyle(rawValue: ProcessInfo.processInfo.environment["ARISU_FACE"] ?? "")
     ?? .ribbon
 
+// How solid the page card is over her. 1 hides her completely behind it.
+let PANEL = Double(ProcessInfo.processInfo.environment["ARISU_PANEL"] ?? "") ?? 0.84
+
 // What lain says a screen is showing. `rev` is the whole point: it moves on
 // every push, including a push of the same URL, so "put it up again" works and
 // a page he is reading is never reloaded underneath him by a poll that found
@@ -145,29 +148,23 @@ final class Her: ObservableObject {
     }
 }
 
-// The window's floor.
-//
-// Alone, she fills it. With a page up she keeps a band across the top and the
-// page takes the rest -- because "always in the background" and an opaque page
-// cannot both have the middle. Two tries at leaving her under the page proved
-// it: a lain page carries its own near-black ground, so behind it she is not
-// dim, she is gone. A band is the only honest reading where she is still
-// moving while he reads something.
+// The window's floor: her, at full size, always. The page is a card centred on
+// her, smaller than the window and slightly see-through, so she is visible
+// around it and faintly through it (Oscar, 2026-10-04 -- this replaced an
+// earlier band across the top, which kept her visible by giving her a strip of
+// her own rather than by actually being behind anything).
 struct Backdrop: View {
     @ObservedObject var her: Her
     let style: FaceStyle
 
-    /// How tall her band is with a page up.
-    static let band: CGFloat = 118
-
     var body: some View {
-        ZStack(alignment: .top) {
+        ZStack {
             Skin.void
             VoiceVisual(style: style, state: her.state,
                         amplitude: her.amplitude, tint: her.tint,
-                        scale: her.contentUp ? 1.25 : 0.8, bloom: 1, speed: 1)
-                .frame(height: her.contentUp ? Self.band : nil)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        // Larger with a page up, so her ribbon runs past the
+                        // card's edges instead of hiding entirely under it.
+                        scale: her.contentUp ? 1.45 : 0.8, bloom: 1, speed: 1)
         }
         .ignoresSafeArea()
     }
@@ -263,7 +260,6 @@ final class Pane: NSObject, WKNavigationDelegate {
     private let web: WKWebView
     private var rev = -1
     private let her = Her()
-    private var webTop = NSLayoutConstraint()
     private var timer: Timer?
 
     init(name: String) {
@@ -309,8 +305,16 @@ final class Pane: NSObject, WKNavigationDelegate {
             v.translatesAutoresizingMaskIntoConstraints = false
         }
         web.wantsLayer = true
-        web.layer?.cornerRadius = 8
+        web.layer?.cornerRadius = 14
         web.layer?.masksToBounds = true
+        // See-through enough that she reads behind the text, opaque enough to
+        // read the text. ARISU_PANEL is the dial, because where that line sits
+        // depends on the page and on how far away he is sitting.
+        web.alphaValue = PANEL
+        web.shadow = NSShadow()
+        web.layer?.shadowOpacity = 0.55
+        web.layer?.shadowRadius = 18
+        web.layer?.shadowOffset = .zero
         web.isHidden = true
 
         root.addSubview(backdrop)
@@ -318,27 +322,21 @@ final class Pane: NSObject, WKNavigationDelegate {
         root.addSubview(grab)                  // over both, invisible
         window.contentView = root
 
-        // Wide enough that she is still *there* with a page up: the panel
-        // occludes her middle and her ribbon runs past it on every side, which
-        // is what "always in the background" has to mean once something opaque
-        // is on top of her. It costs the page about 70pt of width.
-        let inset: CGFloat = 12
-        // Set on every push: her band, then the page under it.
-        webTop = web.topAnchor.constraint(equalTo: root.topAnchor,
-                                          constant: Backdrop.band + inset)
+        // The page floats *on* her rather than replacing her (Oscar): she
+        // fills the window, the page is a smaller card centred on it, and the
+        // card is slightly see-through so her ribbon moves behind the text as
+        // well as around it. 86% of each side leaves a real margin at any
+        // window size, which a fixed inset does not.
         NSLayoutConstraint.activate([
             backdrop.topAnchor.constraint(equalTo: root.topAnchor),
             backdrop.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             backdrop.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             backdrop.bottomAnchor.constraint(equalTo: root.bottomAnchor),
 
-            webTop,
-            web.leadingAnchor.constraint(equalTo: root.leadingAnchor,
-                                         constant: inset),
-            web.trailingAnchor.constraint(equalTo: root.trailingAnchor,
-                                          constant: -inset),
-            web.bottomAnchor.constraint(equalTo: root.bottomAnchor,
-                                        constant: -inset),
+            web.centerXAnchor.constraint(equalTo: root.centerXAnchor),
+            web.centerYAnchor.constraint(equalTo: root.centerYAnchor),
+            web.widthAnchor.constraint(equalTo: root.widthAnchor, multiplier: 0.86),
+            web.heightAnchor.constraint(equalTo: root.heightAnchor, multiplier: 0.86),
 
             grab.topAnchor.constraint(equalTo: root.topAnchor),
             grab.leadingAnchor.constraint(equalTo: root.leadingAnchor),
@@ -437,7 +435,12 @@ final class Pane: NSObject, WKNavigationDelegate {
             let shot = NSImage(size: root.bounds.size)
             shot.lockFocus()
             rep.draw(in: root.bounds)
-            if let page, !self.web.isHidden { page.draw(in: self.web.frame) }
+            // At the card's own opacity, or the check would show a solid
+            // page over her and prove the opposite of what is on screen.
+            if let page, !self.web.isHidden {
+                page.draw(in: self.web.frame, from: .zero,
+                          operation: .sourceOver, fraction: CGFloat(PANEL))
+            }
             shot.unlockFocus()
             guard let tiff = shot.tiffRepresentation,
                   let out = NSBitmapImageRep(data: tiff),
