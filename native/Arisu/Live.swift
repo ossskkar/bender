@@ -710,11 +710,10 @@ final class Live: ObservableObject {
             if let t = ev["transcript"] as? String {
                 guard let itemID = ev["item_id"] as? String,
                       voiceInputs.transcribe(itemID, text: t) else { break }
-                if role.group || voiceInputs.latest == ev["item_id"] as? String {
-                    applyVoiceControls(t)
-                }
-                onHeard?(t)
-                brain.debug(["ev": "heard", "text": String(t.prefix(200))])
+                if role.group {
+                    applyVoiceControls(t); onHeard?(t)
+                    brain.debug(["ev": "heard", "text": String(t.prefix(200))])
+                } else { deliverHeard(itemID) }
             }
 
         case "conversation.item.input_audio_transcription.failed":
@@ -744,7 +743,7 @@ final class Live: ObservableObject {
         case "input_audio_buffer.committed":
             if !role.group && !silenced,
                let itemID = ev["item_id"] as? String, voiceInputs.commit(itemID) {
-                if let text = voiceInputs.text(itemID) { applyVoiceControls(text) }
+                deliverHeard(itemID)
                 startPlan(inputID: itemID)
             }
 
@@ -811,6 +810,12 @@ final class Live: ObservableObject {
         default:
             break
         }
+    }
+
+    private func deliverHeard(_ itemID: String) {
+        guard let text = voiceInputs.takeHeard(itemID) else { return }
+        applyVoiceControls(text); onHeard?(text)
+        brain.debug(["ev": "heard", "text": String(text.prefix(200))])
     }
 
     private func applyVoiceControls(_ text: String) {
@@ -1423,6 +1428,7 @@ struct VoiceInputs {
     private struct Entry {
         var committed = false
         var finished = false
+        var delivered = false
         var text: String?
     }
     private var entries = [String: Entry]()
@@ -1451,6 +1457,11 @@ struct VoiceInputs {
             entries[id]?.text = text
         }
         return true
+    }
+    mutating func takeHeard(_ id: String) -> String? {
+        guard let text = text(id), entries[id]?.delivered == false else { return nil }
+        entries[id]?.delivered = true
+        return text
     }
     func finished(_ id: String) -> Bool {
         id != latest || entries[id]?.finished == true

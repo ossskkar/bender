@@ -10,7 +10,8 @@ acknowledgement. think/ask_hermes sends the exact completed caption, with a
 bounded two-second wait and no inferred fallback. Failed/empty/unbound/stale/
 cancelled input cannot dispatch. Old connection callbacks/completions cannot
 mutate a replacement connection; dispatched tool work still finishes remotely.
-Whole explicit silence commands replace quiet-substring matching. Returned
+Current captions reach the UI once, after commit; stale captions cannot trigger
+local UI commands. Whole explicit silence commands replace quiet-substring matching. Returned
 source links go directly to the transcript without a fake spoken log; final
 speech is grounded in confirmed answers, with URLs replaced by a transcript
 reference. Group room input keeps its existing tool contract. Caption, response,
