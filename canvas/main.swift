@@ -517,21 +517,51 @@ final class Pane: NSObject, WKNavigationDelegate {
     private func perform(_ a: Action) {
         FileHandle.standardError.write(
             "canvas \(name): \(a.verb) \(a.arg)\n".data(using: .utf8)!)
-        let page = CGFloat(0.85)   // a "page" of scrolling is most of a screen
+        // Every verb answers. The first version let only `read` and `click`
+        // report, so a scroll that worked perfectly came back to her as "the
+        // window did not answer" -- she would have told him it had failed.
+        let page = 0.85                 // a "page" of scrolling is most of one
         switch a.verb {
-        case "back":    web.goBack()
-        case "forward": web.goForward()
-        case "reload":  web.reload()
-        case "top":     js("window.scrollTo({top:0,behavior:'smooth'})")
-        case "bottom":
-            js("window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'})")
-        case "up":   js("window.scrollBy({top:-innerHeight*\(page),behavior:'smooth'})")
-        case "down": js("window.scrollBy({top: innerHeight*\(page),behavior:'smooth'})")
+        case "back":    web.goBack();    note("went back")
+        case "forward": web.goForward(); note("went forward")
+        case "reload":  web.reload();    note("reloaded the page")
+        case "top":     scrolling("0")
+        case "bottom":  scrolling("max")
+        case "up":      scrolling("scrollY - innerHeight * \(page)")
+        case "down":    scrolling("scrollY + innerHeight * \(page)")
         case "find":  hunt(a.arg, click: false)
         case "click": hunt(a.arg, click: true)
         case "read":  readBack()
-        default: break
+        default: note("I do not know how to \(a.verb)")
         }
+    }
+
+    /// Scroll to `target` and say where on the page that is -- "nothing
+    /// happened" and "already at the bottom" are different answers, and she
+    /// needs the second one to stop asking for more.
+    ///
+    /// The position is worked out *before* the scroll, not after: the scroll
+    /// is smooth, so reading `scrollY` afterwards reads it mid-flight, and
+    /// `evaluateJavaScript` hands back nil for a Promise rather than waiting
+    /// for one -- which is how the first version came back saying only
+    /// "scrolled" every time.
+    private func scrolling(_ target: String) {
+        js("""
+        (function () {
+          var max = Math.max(0, document.body.scrollHeight - innerHeight);
+          if (max <= 0) return 'the whole page already fits';
+          var to = Math.min(max, Math.max(0, \(target)));
+          window.scrollTo({ top: to, behavior: 'smooth' });
+          var pct = Math.round(100 * to / max);
+          if (pct <= 0) return 'at the top of the page';
+          if (pct >= 100) return 'at the bottom of the page';
+          return pct + '% down the page';
+        })();
+        """) { self.note(($0 as? String) ?? "scrolled") }
+    }
+
+    private func note(_ line: String) {
+        send(["name": name, "text": line])
     }
 
     private func js(_ source: String,
@@ -556,10 +586,12 @@ final class Pane: NSObject, WKNavigationDelegate {
           var all = document.querySelectorAll(sel);
           for (var i = 0; i < all.length; i++) {
             var el = all[i];
-            if (click === false && el.children.length) continue;
             var t = (el.innerText || el.value || el.getAttribute('aria-label') || '');
             t = t.toLowerCase().trim();
             if (!t || t.indexOf(want) < 0) continue;
+            // Skipping every element with children was too strict: a heading
+            // wrapping a link has children, and that is exactly the heading he
+            // asked to scroll to. Shortest match below picks the inner one.
             // The shortest match is the most specific one: "sign in" should
             // click the button, not the section that contains it.
             if (!best || t.length < best.t.length) best = { el: el, t: t };
