@@ -12,7 +12,11 @@ APP="Arisu Canvas.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
 
-swiftc -O main.swift -o "$APP/Contents/MacOS/ArisuCanvas"
+# Her face is compiled from the iPad app's own sources, not a copy of them:
+# two apps drawing her must never be two different drawings.
+swiftc -O main.swift \
+  ../native/Arisu/VoiceVisual.swift ../native/Arisu/Skin.swift \
+  -o "$APP/Contents/MacOS/ArisuCanvas"
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>

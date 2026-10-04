@@ -2,9 +2,29 @@
 
 Frameless, always-on-top windows on the Mac that Arisu pushes pages into.
 
-No title bar, no chrome: the page fills the window edge to edge. Hold **⌘ and
-drag** to move one, **⌥ and drag** to resize, **Escape** to put it away until
-the next push. Position and size are remembered per screen name.
+No title bar, no chrome. Hold **⌘ and drag** to move one, **⌥ and drag** to
+resize, **Escape** to put it away until the next push. Position and size are
+remembered per screen name.
+
+**She is always on it.** The same voice visual the iPad draws — compiled from
+the iPad's own `VoiceVisual.swift` and `Skin.swift`, not copied, so the two
+cannot drift — tinted by what she is doing: indigo waiting, green hearing him,
+magenta working, cyan talking. With nothing up she fills the window; with a
+page up she keeps a band across the top and the page takes the rest.
+
+That band is a decision, not a default. An opaque page and an animation behind
+it cannot both have the middle: a lain page carries its own near-black ground,
+so under it she is not dim, she is gone. The alternatives are a corner orb, or
+a translucent page — both change what he reads, so they are his call.
+
+Her level is **not** published by lain (`Live.swift`: read 20x a second by
+whichever device holds the call, and sent nowhere). So the desk reads her
+*phase* from `/arisu/state` — a long poll, so a line reaches it at once — and
+shapes the level itself. The movement is hers; the waveform is a stand-in.
+Publishing the real level is a small endpoint plus a 20 Hz stream from the
+device in the call, worth doing only if the stand-in reads wrong.
+
+`ARISU_FACE` picks one of the ten faces; the default is ribbon, as on the iPad.
 
     ./build.sh install           # builds, ad-hoc signs, copies to ~/Applications
     "$HOME/Applications/Arisu Canvas.app/Contents/MacOS/ArisuCanvas" desk vertical
@@ -18,7 +38,9 @@ push creates it.
       -H 'Content-Type: application/json' \
       -d '{"name":"desk","url":"/systems/systems.html","title":"Project 100K"}'
 
-A path is resolved against lain; an absolute URL is loaded as it comes. Blank a
+A path is resolved against lain; an absolute URL is loaded as it comes; a path
+that exists on this Mac, or a `file:` URL, is loaded as a local document — PDFs
+and images render in WebKit without help. Blank a
 screen with `{"name":"desk","clear":true}`, and read one back with
 `GET /screens?name=desk` (or `GET /screens` for all of them).
 

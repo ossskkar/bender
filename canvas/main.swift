@@ -18,15 +18,28 @@
 // pushed because a poll of a 100-byte JSON every two seconds costs nothing and
 // a socket that has to reconnect through a sleeping laptop costs attention.
 //
-//   swiftc main.swift -o canvas            # or ./build.sh for the .app
+// Behind everything, always, is *her* -- the same voice visual the iPad draws,
+// compiled from the iPad's own VoiceVisual.swift and Skin.swift rather than
+// copied, so the two can never drift into two different faces. A page she puts
+// up is an inset panel floating on her, not a replacement for her: when a
+// screen is empty the animation is the whole window.
+//
+//   ./build.sh            # pulls in ../native/Arisu/{VoiceVisual,Skin}.swift
 //   ./canvas desk vertical
 
 import Cocoa
+import SwiftUI
 import WebKit
 
 let BASE = ProcessInfo.processInfo.environment["LAIN_URL"]
     ?? "https://architect-server.tailaa64e9.ts.net:8443"
 let POLL = 2.0
+
+// Which of the ten faces. The iPad keeps his pick in its own settings; the desk
+// takes the same default (ribbon) and an override, rather than inventing a
+// second place for him to choose.
+let FACE = FaceStyle(rawValue: ProcessInfo.processInfo.environment["ARISU_FACE"] ?? "")
+    ?? .ribbon
 
 // What lain says a screen is showing. `rev` is the whole point: it moves on
 // every push, including a push of the same URL, so "put it up again" works and
@@ -40,6 +53,124 @@ struct ScreenState: Decodable {
 
 struct ScreenReply: Decodable {
     let screen: ScreenState?
+}
+
+// MARK: - her
+
+// What she is doing, for the animation behind the page.
+//
+// The honest limit, written down because it is invisible from the outside: her
+// real level is never published. `Live.swift` says so in as many words -- it is
+// read twenty times a second by whichever device is holding the call and goes
+// nowhere else. So the desk reads her *phase* from lain, which is a fact the
+// server has, and shapes the level itself. The movement is right; the waveform
+// is a stand-in. Publishing the level is a small endpoint and a 20 Hz stream
+// from the device in the call, worth doing only if the stand-in reads wrong.
+final class Her: ObservableObject {
+    @Published var state: VoiceState = .idle
+    @Published var amplitude: Double = 0
+    /// Whether a page is covering her middle. With one up she is drawn far
+    /// larger than the window, so what shows around the panel is her ribbon
+    /// moving rather than a dead margin; alone, she is a sphere in the centre.
+    @Published var contentUp = false
+
+    private var seq = -1
+    private var speakingUntil = Date.distantPast
+    private var phase = 0.0
+
+    init() {
+        // 20 Hz, the rate the iPad reads her own meter at.
+        Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) {
+            [weak self] _ in self?.breathe()
+        }
+        poll()
+    }
+
+    // Her state is a long poll: the server holds the request open until she
+    // says something, so this is one idle connection rather than a request
+    // every two seconds, and a line reaches the desk the moment it exists.
+    private func poll() {
+        guard let url = URL(string: "\(BASE)/arisu/state?wait=1&since=\(seq)")
+        else { return }
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 40
+        URLSession.shared.dataTask(with: req) { [weak self] data, _, _ in
+            guard let self else { return }
+            defer {
+                // Always poll again, and never in a tight loop when the server
+                // is down -- a canvas on a sleeping laptop would otherwise spin.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.poll() }
+            }
+            guard let data,
+                  let got = try? JSONSerialization.jsonObject(with: data)
+                    as? [String: Any]
+            else { return }
+            DispatchQueue.main.async { self.heard(got) }
+        }.resume()
+    }
+
+    private func heard(_ got: [String: Any]) {
+        let n = (got["seq"] as? Int) ?? -1
+        defer { seq = max(seq, n) }
+        guard n > seq, let line = got["line"] as? String, !line.isEmpty else { return }
+        // How long she will be talking. Nothing reports the end of a line, so
+        // it is estimated from its length -- roughly 14 characters a second,
+        // which is ordinary speech -- and a floor so a two-word answer still
+        // registers as her having spoken.
+        speakingUntil = Date().addingTimeInterval(
+            max(1.6, Double(line.count) / 14))
+        state = .speaking
+    }
+
+    private func breathe() {
+        if state == .speaking && Date() >= speakingUntil { state = .idle }
+        phase += 0.05
+        // A stand-in for her voice: two detuned waves, so it swells and dips
+        // like speech instead of pulsing like a metronome.
+        let v = 0.5 + 0.28 * sin(phase * 5.3) + 0.18 * sin(phase * 11.7)
+        let target = state == .speaking ? max(0.08, min(1, v)) : 0.0
+        amplitude += (target - amplitude) * 0.25
+    }
+
+    var tint: Color {
+        // The same four hues the iPad wears, so one glance means the same
+        // thing on either screen: indigo waiting, green hearing him, magenta
+        // working, cyan talking.
+        switch state {
+        case .idle:      return Color(red: 0.50, green: 0.55, blue: 1.0)
+        case .listening: return Color(red: 0.30, green: 1.0, blue: 0.50)
+        case .thinking:  return Color(red: 1.0, green: 0.22, blue: 0.78)
+        case .speaking:  return Color(red: 0.27, green: 0.90, blue: 0.97)
+        }
+    }
+}
+
+// The window's floor.
+//
+// Alone, she fills it. With a page up she keeps a band across the top and the
+// page takes the rest -- because "always in the background" and an opaque page
+// cannot both have the middle. Two tries at leaving her under the page proved
+// it: a lain page carries its own near-black ground, so behind it she is not
+// dim, she is gone. A band is the only honest reading where she is still
+// moving while he reads something.
+struct Backdrop: View {
+    @ObservedObject var her: Her
+    let style: FaceStyle
+
+    /// How tall her band is with a page up.
+    static let band: CGFloat = 118
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            Skin.void
+            VoiceVisual(style: style, state: her.state,
+                        amplitude: her.amplitude, tint: her.tint,
+                        scale: her.contentUp ? 1.25 : 0.8, bloom: 1, speed: 1)
+                .frame(height: her.contentUp ? Self.band : nil)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+        .ignoresSafeArea()
+    }
 }
 
 // MARK: - the chrome
@@ -103,11 +234,13 @@ final class Frameless: NSWindow {
 
 // MARK: - a canvas
 
-final class Canvas: NSObject, WKNavigationDelegate {
+final class Pane: NSObject, WKNavigationDelegate {
     let name: String
     let window: Frameless
     private let web: WKWebView
     private var rev = -1
+    private let her = Her()
+    private var webTop = NSLayoutConstraint()
     private var timer: Timer?
 
     init(name: String) {
@@ -121,7 +254,7 @@ final class Canvas: NSObject, WKNavigationDelegate {
         web.setValue(false, forKey: "drawsBackground")
         if #available(macOS 12.0, *) { web.underPageBackgroundColor = .clear }
 
-        window = Frameless(contentRect: Canvas.savedFrame(name),
+        window = Frameless(contentRect: Pane.savedFrame(name),
                            styleMask: [.borderless, .resizable],
                            backing: .buffered, defer: false)
         super.init()
@@ -140,23 +273,49 @@ final class Canvas: NSObject, WKNavigationDelegate {
 
         let root = NSView()
         root.wantsLayer = true
-        root.layer?.cornerRadius = 10
+        root.layer?.cornerRadius = 12
         root.layer?.masksToBounds = true
-        root.layer?.backgroundColor = NSColor(white: 0.04, alpha: 0.82).cgColor
+
+        // Her, behind everything and always running. The page is a panel that
+        // floats on her: inset so she shows around it, and taken away entirely
+        // when the screen is empty, so an idle canvas is just her face.
+        let backdrop = NSHostingView(rootView: Backdrop(her: her, style: FACE))
 
         let grab = Grab()
-        for v in [root, web, grab] {
+        for v in [root, backdrop, web, grab] {
             v.translatesAutoresizingMaskIntoConstraints = false
         }
+        web.wantsLayer = true
+        web.layer?.cornerRadius = 8
+        web.layer?.masksToBounds = true
+        web.isHidden = true
+
+        root.addSubview(backdrop)
         root.addSubview(web)
-        root.addSubview(grab)                  // over the page, invisible
+        root.addSubview(grab)                  // over both, invisible
         window.contentView = root
 
+        // Wide enough that she is still *there* with a page up: the panel
+        // occludes her middle and her ribbon runs past it on every side, which
+        // is what "always in the background" has to mean once something opaque
+        // is on top of her. It costs the page about 70pt of width.
+        let inset: CGFloat = 12
+        // Set on every push: her band, then the page under it.
+        webTop = web.topAnchor.constraint(equalTo: root.topAnchor,
+                                          constant: Backdrop.band + inset)
         NSLayoutConstraint.activate([
-            web.topAnchor.constraint(equalTo: root.topAnchor),
-            web.leadingAnchor.constraint(equalTo: root.leadingAnchor),
-            web.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-            web.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+            backdrop.topAnchor.constraint(equalTo: root.topAnchor),
+            backdrop.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            backdrop.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            backdrop.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+
+            webTop,
+            web.leadingAnchor.constraint(equalTo: root.leadingAnchor,
+                                         constant: inset),
+            web.trailingAnchor.constraint(equalTo: root.trailingAnchor,
+                                          constant: -inset),
+            web.bottomAnchor.constraint(equalTo: root.bottomAnchor,
+                                        constant: -inset),
 
             grab.topAnchor.constraint(equalTo: root.topAnchor),
             grab.leadingAnchor.constraint(equalTo: root.leadingAnchor),
@@ -174,14 +333,13 @@ final class Canvas: NSObject, WKNavigationDelegate {
 
     // MARK: content
 
+    // An empty screen is her face filling the window. There is no "waiting"
+    // card any more: the animation already says the canvas is alive, and a
+    // label saying so as well is one more thing on the desk to read.
     private func idle() {
-        web.loadHTMLString("""
-        <body style="margin:0;font:12px -apple-system;color:#5a5a5a;
-                     display:flex;align-items:center;justify-content:center;
-                     height:100vh;background:transparent">
-          waiting for \(name)
-        </body>
-        """, baseURL: nil)
+        her.contentUp = false
+        web.isHidden = true
+        web.load(URLRequest(url: URL(string: "about:blank")!))
     }
 
     private func fetch() {
@@ -210,11 +368,24 @@ final class Canvas: NSObject, WKNavigationDelegate {
         guard state.rev != rev else { return }
         rev = state.rev
         window.title = state.title.isEmpty ? state.url : state.title
-        // A path means a lain page; an absolute URL is taken as it comes.
-        let target = URL(string: state.url, relativeTo: URL(string: BASE))
-        if let target {
-            web.load(URLRequest(url: target))
+        // Three kinds of thing she can put up, in the order they are tried: a
+        // file on this Mac (a PDF, an image, anything WebKit renders -- which
+        // needs loadFileURL and a read grant, not a plain request), an absolute
+        // URL, and otherwise a path resolved against lain.
+        let target: URL?
+        if state.url.hasPrefix("/"), FileManager.default.fileExists(atPath: state.url) {
+            let f = URL(fileURLWithPath: state.url)
+            target = f
+            web.loadFileURL(f, allowingReadAccessTo: f.deletingLastPathComponent())
+        } else if let u = URL(string: state.url), u.scheme == "file" {
+            target = u
+            web.loadFileURL(u, allowingReadAccessTo: u.deletingLastPathComponent())
+        } else {
+            target = URL(string: state.url, relativeTo: URL(string: BASE))
+            if let target { web.load(URLRequest(url: target)) }
         }
+        web.isHidden = false
+        her.contentUp = true
         // One line per push. "Did it actually arrive?" is otherwise only
         // answerable by being in front of the monitor.
         FileHandle.standardError.write(
@@ -230,11 +401,24 @@ final class Canvas: NSObject, WKNavigationDelegate {
     // to an unprivileged process, and a window that cannot be inspected can
     // only be verified by Oscar standing in front of it.
     func snapshot(to path: String, then done: @escaping () -> Void) {
-        web.takeSnapshot(with: nil) { image, _ in
+        // Two captures composed, because neither tool sees the whole window:
+        // cacheDisplay draws the AppKit and SwiftUI layers but not the web
+        // view, which renders in its own process, and takeSnapshot draws only
+        // the page. Her face comes from the first, the page from the second.
+        web.takeSnapshot(with: nil) { page, _ in
             defer { done() }
-            guard let tiff = image?.tiffRepresentation,
-                  let rep = NSBitmapImageRep(data: tiff),
-                  let png = rep.representation(using: .png, properties: [:])
+            guard let root = self.window.contentView,
+                  let rep = root.bitmapImageRepForCachingDisplay(in: root.bounds)
+            else { return }
+            root.cacheDisplay(in: root.bounds, to: rep)
+            let shot = NSImage(size: root.bounds.size)
+            shot.lockFocus()
+            rep.draw(in: root.bounds)
+            if let page, !self.web.isHidden { page.draw(in: self.web.frame) }
+            shot.unlockFocus()
+            guard let tiff = shot.tiffRepresentation,
+                  let out = NSBitmapImageRep(data: tiff),
+                  let png = out.representation(using: .png, properties: [:])
             else { return }
             try? png.write(to: URL(fileURLWithPath: path))
         }
@@ -260,7 +444,7 @@ final class Canvas: NSObject, WKNavigationDelegate {
     }
 }
 
-extension Canvas: NSWindowDelegate {
+extension Pane: NSWindowDelegate {
     func windowDidMove(_: Notification) { remember() }
     func windowDidResize(_: Notification) { remember() }
 }
@@ -286,7 +470,7 @@ if let i = args.firstIndex(of: "--shot"), i + 1 < args.count {
 let names = args.filter {
     !$0.isEmpty && $0.allSatisfy { c in c.isLowercase || c.isNumber || c == "-" }
 }
-let canvases = (names.isEmpty ? ["desk"] : names).map(Canvas.init)
+let canvases = (names.isEmpty ? ["desk"] : names).map(Pane.init)
 
 if let dir = shotDir {
     DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
