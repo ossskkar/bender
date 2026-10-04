@@ -224,11 +224,34 @@ final class Frameless: NSWindow {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
 
+    /// Where it was before it filled the screen.
+    private var restore: NSRect?
+
     // Escape puts it away. With no title bar there is no close button, and a
     // widget he cannot dismiss is one he ends up quitting the whole app to be
     // rid of. It comes back by itself the next time she pushes to this name.
+    //
+    // ⌘⏎ fills the screen it is on and ⌘⏎ again puts it back. Not the green
+    // button (there is no title bar) and not real macOS full screen, which
+    // would give it a Space of its own -- the point of these windows is that
+    // they are on top of whatever he is doing, which a Space would end.
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 { orderOut(nil) } else { super.keyDown(with: event) }
+        switch (event.keyCode, event.modifierFlags.contains(.command)) {
+        case (53, _):      orderOut(nil)
+        case (36, true):   fill()
+        default:           super.keyDown(with: event)
+        }
+    }
+
+    func fill() {
+        if let was = restore {
+            restore = nil
+            setFrame(was, display: true, animate: true)
+            return
+        }
+        guard let vis = screen?.visibleFrame ?? NSScreen.main?.visibleFrame else { return }
+        restore = frame
+        setFrame(vis, display: true, animate: true)
     }
 }
 

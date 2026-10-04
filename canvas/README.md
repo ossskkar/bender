@@ -3,8 +3,12 @@
 Frameless, always-on-top windows on the Mac that Arisu pushes pages into.
 
 No title bar, no chrome. Hold **⌘ and drag** to move one, **⌥ and drag** to
-resize, **Escape** to put it away until the next push. Position and size are
-remembered per screen name.
+resize, **⌘⏎** to fill the screen it is on and ⌘⏎ again to put it back,
+**Escape** to put it away until the next push. Position and size are remembered
+per screen name.
+
+⌘⏎ is not macOS full screen on purpose: that would give the window a Space of
+its own, and the point of these is to sit on top of whatever he is doing.
 
 **She is always on it.** The same voice visual the iPad draws — compiled from
 the iPad's own `VoiceVisual.swift` and `Skin.swift`, not copied, so the two
