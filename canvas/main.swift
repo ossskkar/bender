@@ -56,6 +56,16 @@ struct ScreenState: Decodable {
 
 struct ScreenReply: Decodable {
     let screen: ScreenState?
+    let actions: [Action]?
+}
+
+/// One thing to do to the page. A fixed verb and a string, never JavaScript
+/// from the wire: this window carries his signed-in sessions, and the page she
+/// is reading is exactly where an instruction could be planted.
+struct Action: Decodable {
+    let id: String
+    let verb: String
+    let arg: String
 }
 
 // MARK: - her
@@ -400,7 +410,8 @@ final class Pane: NSObject, WKNavigationDelegate {
     }
 
     private func fetch() {
-        guard let url = URL(string: "\(BASE)/screens?name=\(name)") else { return }
+        guard let url = URL(string: "\(BASE)/screens?name=\(name)&take=1")
+        else { return }
         var req = URLRequest(url: url)
         req.timeoutInterval = 8
         URLSession.shared.dataTask(with: req) { [weak self] data, _, _ in
@@ -408,7 +419,10 @@ final class Pane: NSObject, WKNavigationDelegate {
                   let reply = try? JSONDecoder().decode(ScreenReply.self,
                                                         from: data)
             else { return }
-            DispatchQueue.main.async { self.apply(reply.screen) }
+            DispatchQueue.main.async {
+                self.apply(reply.screen)
+                for a in reply.actions ?? [] { self.perform(a) }
+            }
         }.resume()
     }
 
@@ -496,6 +510,90 @@ final class Pane: NSObject, WKNavigationDelegate {
             catch { FileHandle.standardError.write(
                 "canvas \(self.name): write failed: \(error)\n".data(using: .utf8)!) }
         }
+    }
+
+    // MARK: being driven
+
+    private func perform(_ a: Action) {
+        FileHandle.standardError.write(
+            "canvas \(name): \(a.verb) \(a.arg)\n".data(using: .utf8)!)
+        let page = CGFloat(0.85)   // a "page" of scrolling is most of a screen
+        switch a.verb {
+        case "back":    web.goBack()
+        case "forward": web.goForward()
+        case "reload":  web.reload()
+        case "top":     js("window.scrollTo({top:0,behavior:'smooth'})")
+        case "bottom":
+            js("window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'})")
+        case "up":   js("window.scrollBy({top:-innerHeight*\(page),behavior:'smooth'})")
+        case "down": js("window.scrollBy({top: innerHeight*\(page),behavior:'smooth'})")
+        case "find":  hunt(a.arg, click: false)
+        case "click": hunt(a.arg, click: true)
+        case "read":  readBack()
+        default: break
+        }
+    }
+
+    private func js(_ source: String,
+                    then: ((Any?) -> Void)? = nil) {
+        web.evaluateJavaScript(source) { got, _ in then?(got) }
+    }
+
+    /// Find the thing on the page he named and either scroll to it or click
+    /// it. Matching is on visible text, because that is the only handle he
+    /// has -- he says "click sign in", not "click the third button".
+    private func hunt(_ what: String, click: Bool) {
+        guard let needle = String(data: try! JSONEncoder().encode(what),
+                                  encoding: .utf8) else { return }
+        js("""
+        (function (want, click) {
+          want = want.toLowerCase().trim();
+          if (!want) return 'nothing to look for';
+          var sel = click
+            ? 'a,button,[role=button],input[type=submit],input[type=button],summary'
+            : '*';
+          var best = null;
+          var all = document.querySelectorAll(sel);
+          for (var i = 0; i < all.length; i++) {
+            var el = all[i];
+            if (click === false && el.children.length) continue;
+            var t = (el.innerText || el.value || el.getAttribute('aria-label') || '');
+            t = t.toLowerCase().trim();
+            if (!t || t.indexOf(want) < 0) continue;
+            // The shortest match is the most specific one: "sign in" should
+            // click the button, not the section that contains it.
+            if (!best || t.length < best.t.length) best = { el: el, t: t };
+          }
+          if (!best) return 'no match for: ' + want;
+          best.el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          if (click) best.el.click();
+          return (click ? 'clicked: ' : 'found: ') + best.t.slice(0, 80);
+        })(\(needle), \(click));
+        """) { got in
+            // The outcome goes back to her, because a click she cannot see the
+            // result of is a click she has to ask him about.
+            self.send(["name": self.name, "text": (got as? String) ?? "no answer"])
+        }
+    }
+
+    /// What the page says, in her direction. Text and not HTML: she is reading
+    /// it, and the markup is thousands of tokens of nothing.
+    private func readBack() {
+        js("document.body ? document.body.innerText : ''") { got in
+            self.send(["name": self.name, "text": (got as? String) ?? ""])
+        }
+    }
+
+    private func send(_ body: [String: String]) {
+        guard let url = URL(string: "\(BASE)/screens"),
+              let data = try? JSONSerialization.data(withJSONObject: body)
+        else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = data
+        req.timeoutInterval = 10
+        URLSession.shared.dataTask(with: req).resume()
     }
 
     // MARK: where it sits

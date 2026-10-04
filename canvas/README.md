@@ -40,6 +40,24 @@ device in the call, worth doing only if the stand-in reads wrong.
 One window per name. The name is the address — nothing registers it, the first
 push creates it.
 
+## Arisu driving it
+
+Two tools on her Hermes brain, so it works from every client at once — the web
+face and the iPad app share that brain and neither needed a change.
+
+- `screen_show(url, screen="desk", title="")`
+- `screen_do(action, screen="desk", arg="")` — `back forward reload top bottom
+  up down find click read`
+
+`read` answers with the page's text, which is how she sees what she put up;
+`click` answers with what it pressed, or that it matched nothing. Verbs and
+never JavaScript from the wire: this window holds his signed-in sessions, and a
+page she has been asked to read is where an instruction would be planted.
+
+Registered in `~/.hermes-arisu/config.yaml` under
+`mcp_servers.lain.tools.include` on architect; Hermes must stay under 64 tools
+in total.
+
 ## Putting something on a screen
 
     curl -sk -X POST https://architect-server.tailaa64e9.ts.net:8443/screens \
@@ -83,5 +101,5 @@ its own page instead — no Screen Recording permission needed:
 
 - Click-through (`ignoresMouseEvents`). It needs a global hotkey to undo, and
   that needs Accessibility permission — not worth it until he asks.
-- Arisu pushing by voice: she needs a `screen_show` MCP tool and that tool
-  listed in her Hermes profile on architect. Anything else can push today.
+- Typing into a page. `find` and `click` exist; `type` does not.
+- Cross-origin iframes are out of reach, and PDFs render but cannot be driven.
