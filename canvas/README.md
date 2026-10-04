@@ -16,9 +16,14 @@ cannot drift — tinted by what she is doing: indigo waiting, green hearing him,
 magenta working, cyan talking.
 
 She fills the window. A page she puts up is a **card centred on her**, 86% of
-each side and slightly see-through, so she shows around it and faintly through
-the text (Oscar, 2026-10-04). `ARISU_PANEL` is the dial: 1 hides her behind the
-page completely, and the default is 0.84.
+each side, so she shows all around it. The page's *own* background is stripped
+(a user script sets `html,body` transparent) and the card behind it is what
+provides the ground — translucent, so she moves through the page as well as
+around it, while the text stays fully opaque and readable. `ARISU_PANEL` is how
+solid the card is; 1 hides her behind the page completely, default 0.84.
+
+Fading the web view itself was the first attempt and was wrong: view alpha
+fades text along with background, and the page became unreadable.
 
 Her level is **not** published by lain (`Live.swift`: read 20x a second by
 whichever device holds the call, and sent nowhere). So the desk reads her

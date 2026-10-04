@@ -260,12 +260,29 @@ final class Pane: NSObject, WKNavigationDelegate {
     private let web: WKWebView
     private var rev = -1
     private let her = Her()
+    private var card = NSView()
     private var timer: Timer?
 
     init(name: String) {
         self.name = name
 
         let conf = WKWebViewConfiguration()
+        // Every page paints its own ground -- lain's is near-black, Google's is
+        // white -- and that ground is what hides her. Taking it away leaves the
+        // page's text and its own cards drawing over the translucent card
+        // below, which is the only way to have her visible AND the page
+        // readable at the same time.
+        conf.userContentController.addUserScript(WKUserScript(
+            source: """
+            (function () {
+              var s = document.createElement('style');
+              s.textContent = 'html,body{background:transparent !important;' +
+                'background-color:transparent !important;' +
+                'background-image:none !important}';
+              (document.head || document.documentElement).appendChild(s);
+            })();
+            """,
+            injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         web = WKWebView(frame: .zero, configuration: conf)
         // Transparent so a page with no background of its own lets the desk
         // through. Private API by name only; it has been this key since 2014
@@ -300,24 +317,37 @@ final class Pane: NSObject, WKNavigationDelegate {
         // when the screen is empty, so an idle canvas is just her face.
         let backdrop = NSHostingView(rootView: Backdrop(her: her, style: FACE))
 
+        // The card the page sits on. Fading the *web view* was wrong: alpha on
+        // a view fades its text along with its background, so the page went
+        // unreadable (Oscar). The page's own background is made transparent
+        // instead (see `clear` below), its text stays fully opaque, and this
+        // translucent card behind it gives that text something to read
+        // against while her ribbon still shows through. ARISU_PANEL is how
+        // solid it is; 1 hides her behind the page completely.
+        let card = NSView()
+        card.wantsLayer = true
+        card.layer?.cornerRadius = 14
+        card.layer?.backgroundColor = NSColor(red: 0.02, green: 0.02,
+                                              blue: 0.05, alpha: PANEL).cgColor
+        card.shadow = NSShadow()
+        card.layer?.shadowOpacity = 0.6
+        card.layer?.shadowRadius = 20
+        card.layer?.shadowOffset = .zero
+        card.isHidden = true
+        self.card = card
+
         let grab = Grab()
-        for v in [root, backdrop, web, grab] {
+        for v in [root, backdrop, card, web, grab] {
             v.translatesAutoresizingMaskIntoConstraints = false
         }
         web.wantsLayer = true
         web.layer?.cornerRadius = 14
         web.layer?.masksToBounds = true
-        // See-through enough that she reads behind the text, opaque enough to
-        // read the text. ARISU_PANEL is the dial, because where that line sits
-        // depends on the page and on how far away he is sitting.
-        web.alphaValue = PANEL
-        web.shadow = NSShadow()
-        web.layer?.shadowOpacity = 0.55
-        web.layer?.shadowRadius = 18
-        web.layer?.shadowOffset = .zero
         web.isHidden = true
 
+
         root.addSubview(backdrop)
+        root.addSubview(card)
         root.addSubview(web)
         root.addSubview(grab)                  // over both, invisible
         window.contentView = root
@@ -332,6 +362,11 @@ final class Pane: NSObject, WKNavigationDelegate {
             backdrop.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             backdrop.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             backdrop.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+
+            card.centerXAnchor.constraint(equalTo: root.centerXAnchor),
+            card.centerYAnchor.constraint(equalTo: root.centerYAnchor),
+            card.widthAnchor.constraint(equalTo: root.widthAnchor, multiplier: 0.86),
+            card.heightAnchor.constraint(equalTo: root.heightAnchor, multiplier: 0.86),
 
             web.centerXAnchor.constraint(equalTo: root.centerXAnchor),
             web.centerYAnchor.constraint(equalTo: root.centerYAnchor),
@@ -359,6 +394,7 @@ final class Pane: NSObject, WKNavigationDelegate {
     // label saying so as well is one more thing on the desk to read.
     private func idle() {
         her.contentUp = false
+        card.isHidden = true
         web.isHidden = true
         web.load(URLRequest(url: URL(string: "about:blank")!))
     }
@@ -406,6 +442,7 @@ final class Pane: NSObject, WKNavigationDelegate {
             if let target { web.load(URLRequest(url: target)) }
         }
         web.isHidden = false
+        card.isHidden = false
         her.contentUp = true
         // One line per push. "Did it actually arrive?" is otherwise only
         // answerable by being in front of the monitor.
@@ -426,27 +463,38 @@ final class Pane: NSObject, WKNavigationDelegate {
         // cacheDisplay draws the AppKit and SwiftUI layers but not the web
         // view, which renders in its own process, and takeSnapshot draws only
         // the page. Her face comes from the first, the page from the second.
-        web.takeSnapshot(with: nil) { page, _ in
+        web.takeSnapshot(with: nil) { page, err in
             defer { done() }
+            if page == nil {
+                FileHandle.standardError.write(
+                    "canvas \(self.name): no page snapshot: \(err.map(String.init(describing:)) ?? "nil")\n"
+                        .data(using: .utf8)!)
+            }
             guard let root = self.window.contentView,
                   let rep = root.bitmapImageRepForCachingDisplay(in: root.bounds)
-            else { return }
+            else {
+                FileHandle.standardError.write(
+                    "canvas \(self.name): no bitmap rep, bounds \(self.window.contentView?.bounds ?? .zero) frame \(self.window.frame)\n"
+                        .data(using: .utf8)!)
+                return
+            }
             root.cacheDisplay(in: root.bounds, to: rep)
             let shot = NSImage(size: root.bounds.size)
             shot.lockFocus()
             rep.draw(in: root.bounds)
-            // At the card's own opacity, or the check would show a solid
-            // page over her and prove the opposite of what is on screen.
-            if let page, !self.web.isHidden {
-                page.draw(in: self.web.frame, from: .zero,
-                          operation: .sourceOver, fraction: CGFloat(PANEL))
-            }
+            if let page, !self.web.isHidden { page.draw(in: self.web.frame) }
             shot.unlockFocus()
             guard let tiff = shot.tiffRepresentation,
                   let out = NSBitmapImageRep(data: tiff),
                   let png = out.representation(using: .png, properties: [:])
-            else { return }
-            try? png.write(to: URL(fileURLWithPath: path))
+            else {
+                FileHandle.standardError.write(
+                    "canvas \(self.name): could not encode\n".data(using: .utf8)!)
+                return
+            }
+            do { try png.write(to: URL(fileURLWithPath: path)) }
+            catch { FileHandle.standardError.write(
+                "canvas \(self.name): write failed: \(error)\n".data(using: .utf8)!) }
         }
     }
 
@@ -454,9 +502,9 @@ final class Pane: NSObject, WKNavigationDelegate {
 
     // Per-screen position and size, remembered. He places a widget once.
     private static func savedFrame(_ name: String) -> NSRect {
-        if let s = UserDefaults.standard.string(forKey: "frame.\(name)") {
-            let r = NSRectFromString(s)
-            if r.width > 120 && r.height > 80 { return r }
+        if let s = UserDefaults.standard.string(forKey: "frame.\(name)"),
+           Self.usable(NSRectFromString(s)) {
+            return NSRectFromString(s)
         }
         let vis = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0,
                                                         width: 1440, height: 900)
@@ -465,8 +513,19 @@ final class Pane: NSObject, WKNavigationDelegate {
     }
 
     private func remember() {
+        // Only a frame worth coming back to. AppKit resizes a window to zero
+        // while it is being torn down, and that arrived here as a saved
+        // 0x0 at the old origin -- the next launch then opened a window with
+        // no size at all, on a monitor that may not be plugged in.
+        guard Pane.usable(window.frame) else { return }
         UserDefaults.standard.set(NSStringFromRect(window.frame),
                                   forKey: "frame.\(name)")
+    }
+
+    /// Big enough to see and somewhere a screen actually is.
+    private static func usable(_ r: NSRect) -> Bool {
+        guard r.width > 160, r.height > 120 else { return false }
+        return NSScreen.screens.contains { $0.frame.intersects(r) }
     }
 }
 
