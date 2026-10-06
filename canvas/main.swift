@@ -171,6 +171,12 @@ final class Her: ObservableObject {
 // around it and faintly through it (Oscar, 2026-10-04 -- this replaced an
 // earlier band across the top, which kept her visible by giving her a strip of
 // her own rather than by actually being behind anything).
+// ponytail: TimelineView(.animation) redraws every display frame for as long as
+// the window exists, idle or not, occluded or not -- and each panel is a web
+// view with its own process on top of that. Oscar reported the Mac going slow
+// with the window open (2026-10-06) and that is the first place to look:
+// drop to a slow periodic schedule when `her.state == .idle`, and stop
+// entirely on NSWindow.occlusionState losing .visible. Not done, not measured.
 struct Backdrop: View {
     @ObservedObject var her: Her
     let style: FaceStyle
@@ -526,6 +532,8 @@ final class Pane: NSObject, WKNavigationDelegate {
         case "down":    scrolling("scrollY + innerHeight * \(page)", on: web)
         case "fill":    note(window.fill(display: Int(a.arg) ?? -1))
         case "restore": note(window.fill())
+        case "type":    typing(a.arg, on: web)
+        case "enter":   pressing(on: web)
         case "find":    hunt(a.arg, click: false)
         case "click":   hunt(a.arg, click: true)
         case "read":    readBack()
@@ -566,6 +574,72 @@ final class Pane: NSObject, WKNavigationDelegate {
           return pct + '% down the page';
         })();
         """, on: web) { self.note(($0 as? String) ?? "scrolled") }
+    }
+
+    /// Put text in the page's own input. "Search for X" is two thirds of what
+    /// he means by navigating, and without this the only way into a search box
+    /// was for him to reach past her and type it himself.
+    ///
+    /// The value is set through the native setter and followed by input and
+    /// change events, because a field in a React or Vue page ignores a plain
+    /// assignment -- the framework holds the value, not the element.
+    private func typing(_ text: String, on web: WKWebView?) {
+        guard let web else { return note("nothing is up on that screen") }
+        guard let payload = try? String(data: JSONEncoder().encode(text),
+                                        encoding: .utf8) ?? "\"\"" else { return }
+        js("""
+        (function (text) {
+          function visible(el) {
+            var r = el.getBoundingClientRect();
+            return r.width > 20 && r.height > 8;
+          }
+          var el = document.activeElement;
+          var ok = el && /^(INPUT|TEXTAREA)$/.test(el.tagName) && visible(el);
+          if (!ok) {
+            var want = ['input[type=search]', 'input[name=q]', '[role=searchbox]',
+                        'input[type=text]', 'input:not([type])', 'textarea'];
+            el = null;
+            for (var i = 0; i < want.length && !el; i++) {
+              var all = document.querySelectorAll(want[i]);
+              for (var j = 0; j < all.length; j++) {
+                if (visible(all[j])) { el = all[j]; break; }
+              }
+            }
+          }
+          if (!el) return 'there is nothing here to type into';
+          el.focus();
+          var proto = el.tagName === 'TEXTAREA'
+            ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+          var set = Object.getOwnPropertyDescriptor(proto, 'value');
+          if (set && set.set) { set.set.call(el, text); } else { el.value = text; }
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+          var where = el.getAttribute('aria-label') || el.placeholder
+                   || el.name || el.type || 'the field';
+          return 'typed into ' + where + ': ' + text.slice(0, 60);
+        })(\(payload));
+        """, on: web) { self.note(($0 as? String) ?? "typed") }
+    }
+
+    /// Submit what was just typed. Separate from `type` on purpose: a blind
+    /// Enter after every keystroke would submit forms she was only filling in.
+    private func pressing(on web: WKWebView?) {
+        guard let web else { return note("nothing is up on that screen") }
+        js("""
+        (function () {
+          var el = document.activeElement;
+          if (!el || el === document.body) return 'nothing is focused to submit';
+          var ev = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13,
+                     bubbles: true, cancelable: true };
+          var kept = el.dispatchEvent(new KeyboardEvent('keydown', ev));
+          el.dispatchEvent(new KeyboardEvent('keyup', ev));
+          // A page that did not handle Enter itself still has a form to send.
+          if (kept && el.form && typeof el.form.requestSubmit === 'function') {
+            el.form.requestSubmit();
+          }
+          return 'pressed enter';
+        })();
+        """, on: web) { self.note(($0 as? String) ?? "pressed enter") }
     }
 
     private func note(_ line: String) {
