@@ -304,12 +304,34 @@ struct ContentView: View {
             Color.clear
                 .contentShape(Rectangle())
                 .onTapGesture(count: 2) { pet.toggleRunning() }
+                .onTapGesture { withAnimation(.easeOut(duration: 0.2)) { chrome.toggle() } }
+                .overlay(alignment: .topTrailing) {
+                    if chrome {
+                        commandButtons
+                            .padding(.top, 24)
+                            .padding(.trailing, 24)
+                            .transition(.opacity)
+                    }
+                }
+                .overlay(alignment: .bottomLeading) {
+                    if chrome {
+                        transcript
+                            .padding(.leading, 34)
+                            .padding(.trailing, 24)
+                            .padding(.bottom, 76)
+                            .transition(.opacity)
+                    }
+                }
                 .overlay(alignment: .bottomTrailing) {
                     // Keep the way back and microphone reachable over the faded screen.
                     HStack(spacing: 10) {
+                        squareButton("text.bubble", "Commands and transcript",
+                                     tint: chrome ? Skin.cyan : off) {
+                            withAnimation(.easeOut(duration: 0.2)) { chrome.toggle() }
+                        }
                         squareButton(live.muted || !pet.running ? "mic.slash" : "mic.fill",
                                      "Microphone", tint: pet.running && !live.muted ? listener : off) {
-                            if pet.running { live.muted.toggle() }
+                            pet.toggleMicrophone()
                         }
                         squareButton("keyboard", "Back to the chat", tint: Self.mag) { toChat() }
                     }
@@ -325,7 +347,7 @@ struct ContentView: View {
                           speaking: voiceState == .speaking, running: pet.running,
                           tint: phaseColor, status: (pet.running ? stateWord : idleWord).uppercased(),
                           micOn: pet.running && !live.muted,
-                          onHer: { if pet.running { live.muted.toggle() } },
+                          onHer: { pet.toggleMicrophone() },
                           onSummon: {
                               // Held anywhere: she comes, listening; held again: she goes.
                               if pet.running { pet.toggleRunning() } else { summon() }
@@ -599,7 +621,7 @@ struct ContentView: View {
             squareButton(live.muted || !pet.running ? "mic.slash" : "mic.fill",
                          "Microphone",
                          tint: pet.running && !live.muted ? listener : off) {
-                if pet.running { live.muted.toggle() }
+                pet.toggleMicrophone()
             }
             squareButton("keyboard", "Back to the chat", tint: Self.mag) { toChat() }
         }

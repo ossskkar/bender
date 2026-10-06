@@ -211,6 +211,16 @@ final class Pet: ObservableObject {
         running ? halt() : begin()
     }
 
+    /// Returning from another app ends the call; the microphone can start it again.
+    func toggleMicrophone() {
+        if running {
+            live.muted.toggle()
+        } else {
+            live.muted = false
+            begin()
+        }
+    }
+
     /// Screen locked or app left: the conversation ends, so it is off when
     /// he comes back.
     func stop() { if running { halt() } }
