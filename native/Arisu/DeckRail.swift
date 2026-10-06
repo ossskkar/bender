@@ -84,9 +84,9 @@ struct DeckRail: View {
                 // The colour on the button says done or failed; only a
                 // failure with words left to say still prints them.
                 if let said = deck.said, !said.ok, !said.detail.isEmpty { answer(said) }
+                fixedRow.padding(.bottom, 10)
                 groups
-                keys.padding(.bottom, 10)
-                fixedRow.padding(.bottom, 14)
+                keys.padding(.bottom, 18)
             }
         }
         // A swipe across the keys is the next application's deck. Six chips
