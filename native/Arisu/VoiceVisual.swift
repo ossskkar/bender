@@ -136,6 +136,13 @@ struct VoiceVisual: View {
     var speed: Double = 1
     /// Free form's smoke: white cloud around her, Gear 5 (Oscar, 2026-10-01).
     var smoke = false
+    /// The most frames a second she is drawn at; nil is the display's own
+    /// rate, which is what the iPad keeps. The desk canvas fills a monitor on
+    /// an Intel Mac, and at the display rate it held one GPU at 92-95%
+    /// (measured 2026-10-07) -- that was the Mac going slow.
+    var fps: Double? = nil
+    /// Draw nothing new at all -- for a window nobody can see.
+    var paused = false
 
     /// Time and the three phases, integrated frame by frame. They used to be
     /// `seconds-since-2001 x rate`, so any change of state -- a new spin or
@@ -147,7 +154,7 @@ struct VoiceVisual: View {
     private var pf: Double { clock.pf }
 
     var body: some View {
-        TimelineView(.animation) { timeline in
+        TimelineView(.animation(minimumInterval: fps.map { 1 / $0 }, paused: paused)) { timeline in
             Canvas { ctx, size in
                 clock.tick(now: timeline.date.timeIntervalSinceReferenceDate,
                            speed: speed, target: Motion.of(state), amplitude: amplitude)

@@ -89,6 +89,8 @@ struct Action: Decodable {
 // from the device in the call, worth doing only if the stand-in reads wrong.
 final class Her: ObservableObject {
     @Published var state: VoiceState = .idle
+    /// False while the window is hidden or fully covered; she stops drawing.
+    @Published var visible = true
     @Published var amplitude: Double = 0
     /// Whether a page is covering her middle. With one up she is drawn far
     /// larger than the window, so what shows around the panel is her ribbon
@@ -150,7 +152,15 @@ final class Her: ObservableObject {
         // like speech instead of pulsing like a metronome.
         let v = 0.5 + 0.28 * sin(phase * 5.3) + 0.18 * sin(phase * 11.7)
         let target = state == .speaking ? max(0.08, min(1, v)) : 0.0
-        amplitude += (target - amplitude) * 0.25
+        // Only publish a real change: every assignment redraws the whole
+        // window, and idle used to re-assign a near-zero level 20 times a
+        // second forever, which overrode the frame cap (2026-10-07).
+        let next = amplitude + (target - amplitude) * 0.25
+        if abs(next - target) < 0.002 {
+            if amplitude != target { amplitude = target }
+        } else {
+            amplitude = next
+        }
     }
 
     var tint: Color {
@@ -171,24 +181,32 @@ final class Her: ObservableObject {
 // around it and faintly through it (Oscar, 2026-10-04 -- this replaced an
 // earlier band across the top, which kept her visible by giving her a strip of
 // her own rather than by actually being behind anything).
-// ponytail: TimelineView(.animation) redraws every display frame for as long as
-// the window exists, idle or not, occluded or not -- and each panel is a web
-// view with its own process on top of that. Oscar reported the Mac going slow
-// with the window open (2026-10-06) and that is the first place to look:
-// drop to a slow periodic schedule when `her.state == .idle`, and stop
-// entirely on NSWindow.occlusionState losing .visible. Not done, not measured.
+// Drawn at most 30 frames a second, 15 while she is idle, and not at all while
+// the window is hidden or covered. At the display's own rate this window held
+// one GPU at 92-95% and the Mac went slow (Oscar 2026-10-06, measured
+// 2026-10-07: 0% with the window closed).
 struct Backdrop: View {
     @ObservedObject var her: Her
     let style: FaceStyle
 
     var body: some View {
+        GeometryReader { geo in let size = geo.size
         ZStack {
             Skin.void
             VoiceVisual(style: style, state: her.state,
                         amplitude: her.amplitude, tint: her.tint,
                         // Larger with a page up, so her ribbon runs past the
                         // card's edges instead of hiding entirely under it.
-                        scale: her.contentUp ? 1.45 : 0.8, bloom: 1, speed: 1)
+                        scale: her.contentUp ? 1.45 : 0.8, bloom: 1, speed: 1,
+                        fps: her.state == .idle ? 15 : 30, paused: !her.visible)
+                // Drawn at half size and scaled up: her blur and shadow filters
+                // cost per pixel, and a glow loses nothing at a quarter of them
+                // (1080x1913 on the vertical monitor, 2026-10-07).
+                .frame(width: size.width / 2, height: size.height / 2)
+                .drawingGroup()
+                .scaleEffect(2)
+                .frame(width: size.width, height: size.height)
+        }
         }
         .ignoresSafeArea()
     }
@@ -874,6 +892,9 @@ extension Pane {
 extension Pane: NSWindowDelegate {
     func windowDidMove(_: Notification) { remember() }
     func windowDidResize(_: Notification) { remember() }
+    func windowDidChangeOcclusionState(_: Notification) {
+        her.visible = window.occlusionState.contains(.visible)
+    }
 }
 
 // MARK: - run
