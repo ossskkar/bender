@@ -302,6 +302,39 @@ struct DeckButton: Codable, Equatable, Identifiable {
         return got.ok == true
     }
 
+    /// God's Eye, the desk strip, as lain's /lights on architect has it.
+    /// nil until read, or when the desk did not answer.
+    @Published var lightOn: Bool?
+    private static let lights = URL(string: "https://architect-server.tailaa64e9.ts.net:8443/lights")!
+    private struct LightState: Decodable {
+        struct Strip: Decodable { let on: Bool? }
+        let lights: [Strip]?
+    }
+
+    func readLight() async {
+        guard let (data, _) = try? await session.data(from: Self.lights),
+              let got = try? JSONDecoder().decode(LightState.self, from: data) else { return }
+        lightOn = got.lights?.first?.on
+    }
+
+    /// Switch the strip the other way from how it was last read.
+    func toggleLight() async {
+        let want = !(lightOn ?? false)
+        running = "light"
+        defer { running = nil }
+        var r = URLRequest(url: Self.lights)
+        r.httpMethod = "POST"
+        r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        r.httpBody = try? JSONSerialization.data(withJSONObject: ["on": want])
+        guard let (data, response) = try? await session.data(for: r),
+              (response as? HTTPURLResponse)?.statusCode == 200 else {
+            mark("light", false)
+            return
+        }
+        lightOn = (try? JSONDecoder().decode(LightState.self, from: data))?.lights?.first?.on ?? want
+        mark("light", true)
+    }
+
     var sleep: DeckButton? { buttons.first { $0.id == DeckButton.sleepID } }
 
     /// The whole set, every time: the Mac's `POST /deck` replaces it, so an

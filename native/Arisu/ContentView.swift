@@ -54,10 +54,8 @@ struct ContentView: View {
     /// The guided tour running now, and which stop it is on.
     @State private var tour: [TourStep]?
     @State private var tourIndex = 0
-    /// The mode before a tour, and the non-eye mode to return to when Light is
-    /// pressed again.
+    /// The mode before a tour, to put him back after.
     @State private var modeBeforeTour: Presentation = .base
-    @State private var modeBeforeEye: Presentation = .base
     /// The last version whose tour started by itself: a new version opens on
     /// its tour once, then never again unless he asks (Oscar, 2026-10-02).
     @AppStorage("arisu.touredVersion") private var touredVersion = ""
@@ -106,9 +104,6 @@ struct ContentView: View {
     @State private var messages: [Bubble] = []
     /// The Pencil touched the screen: the scribble canvas is up.
     @State private var scribbling = false
-    /// Sleep dims the iPad and leaves a tap here to wake it.
-    @State private var displaySleeping = false
-    @State private var brightnessBeforeSleep: CGFloat = 0.5
 
     private var presentation: Presentation {
         if look == .singularity { return .singularity }
@@ -116,12 +111,9 @@ struct ContentView: View {
     }
 
     private func setPresentation(_ next: Presentation) {
-        let previous = presentation
-        if next == .singularity, previous != .singularity { modeBeforeEye = previous }
         if next != .singularity {
             look = .classic
             freeForm = next == .free
-            modeBeforeEye = next
         } else {
             freeForm = false
             look = .singularity
@@ -132,26 +124,6 @@ struct ContentView: View {
         let all = Presentation.allCases
         let index = all.firstIndex(of: presentation) ?? 0
         setPresentation(all[(index + by + all.count) % all.count])
-    }
-
-    private func toggleEye() {
-        setPresentation(presentation == .singularity ? modeBeforeEye : .singularity)
-    }
-
-    private func sleepScreen() {
-        pet.stop()
-        setPresentation(.base)
-        brightnessBeforeSleep = UIScreen.main.brightness
-        UIScreen.main.brightness = 0
-        UIApplication.shared.isIdleTimerDisabled = false
-        displaySleeping = true
-    }
-
-    private func wakeScreen() {
-        guard displaySleeping else { return }
-        UIScreen.main.brightness = brightnessBeforeSleep
-        UIApplication.shared.isIdleTimerDisabled = true
-        displaySleeping = false
     }
 
     private struct Bubble: Identifiable, Equatable {
@@ -375,24 +347,12 @@ struct ContentView: View {
         }
         .onChange(of: tourIndex) { _, i in if let tour, i < tour.count { stage(tour[i].scene) } }
         .fontDesign(.monospaced)
-        // Bottom stays inside the safe area so the permanent deck sits below
-        // the composer instead of over it.
-        .ignoresSafeArea(.container, edges: [.top, .horizontal])
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            PermanentDeck(eyeOn: presentation == .singularity,
-                          toggleEye: toggleEye, sleep: sleepScreen)
-        }
-        .overlay {
-            if displaySleeping {
-                Color.black.ignoresSafeArea().contentShape(Rectangle()).onTapGesture { wakeScreen() }
-            }
-        }
+        .ignoresSafeArea()
         // A page she was asked to show. The desk already decided how it can be
         // shown, so this only draws it.
         .sheet(item: $live.page) { PageSheet(page: $0) { live.page = nil } }
         .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet, live: live) }
         .sheet(isPresented: $showNew) { ReleasesSheet { startTour() } }
-        .onChange(of: scene) { _, now in if now == .active { wakeScreen() } }
         .onChange(of: pet.heard) { _, t in
             lastSpoke = Date(); say(t, mine: true); obey(t); notice(t); record(t, "heard")
         }
