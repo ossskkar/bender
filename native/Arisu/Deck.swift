@@ -258,24 +258,48 @@ struct DeckButton: Codable, Equatable, Identifiable {
     }
 
     func run(_ b: DeckButton) async {
+        await run(id: b.id)
+    }
+
+    /// Press a deck action by its stable id. Permanent actions use the same
+    /// fixed-id executor as the app-specific rail.
+    func run(id: String) async {
         struct Answer: Decodable { let ok: Bool?; let detail: String?; let error: String? }
-        Usage.bump(b.id)
-        running = b.id
+        Usage.bump(id)
+        running = id
         defer { running = nil }
         var r = URLRequest(url: DeckAPI.base.appendingPathComponent("deck/run"))
         r.httpMethod = "POST"
         r.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        r.httpBody = try? JSONSerialization.data(withJSONObject: ["id": b.id])
+        r.httpBody = try? JSONSerialization.data(withJSONObject: ["id": id])
         do {
             let (data, _) = try await session.data(for: r)
             let got = try JSONDecoder().decode(Answer.self, from: data)
             let ok = got.ok ?? false
-            said = (b.id, ok, got.detail ?? got.error ?? "")
-            mark(b.id, ok)
+            said = (id, ok, got.detail ?? got.error ?? "")
+            mark(id, ok)
         } catch {
-            said = (b.id, false, "the Mac did not answer")
-            mark(b.id, false)
+            said = (id, false, "the Mac did not answer")
+            mark(id, false)
         }
+    }
+
+    /// Pause Mac media and then put the Mac to sleep. The endpoint replies
+    /// before sleep starts, so the iPad receives the result first.
+    func sleepMac() async -> Bool {
+        struct Answer: Decodable { let ok: Bool?; let detail: String? }
+        running = "sleep"
+        defer { running = nil }
+        var r = URLRequest(url: DeckAPI.base.appendingPathComponent("deck/sleep"))
+        r.httpMethod = "POST"
+        r.timeoutInterval = 8
+        guard let (data, _) = try? await session.data(for: r),
+              let got = try? JSONDecoder().decode(Answer.self, from: data) else {
+            mark("sleep", false)
+            return false
+        }
+        mark("sleep", got.ok == true)
+        return got.ok == true
     }
 
     var sleep: DeckButton? { buttons.first { $0.id == DeckButton.sleepID } }

@@ -200,9 +200,6 @@ struct RealmView: View {
     @StateObject private var deck = Deck()
     @StateObject private var music = MacMusic()
     @StateObject private var info = LainInfo()
-    /// The builder agents, as the deck rail shows them in Classic (18.0):
-    /// the ones at work ride the clockwork rim (19.0).
-    @StateObject private var agents = Agents()
     @State private var clock = RealmClock()
     @State private var chosen = ""
     @State private var pressed: (label: String, id: String, t: Double)?
@@ -246,7 +243,6 @@ struct RealmView: View {
         .task { await deck.load() }
         .task { await deck.watchFront() }
         .task { await info.watch() }
-        .task { await agents.watch() }
         .task(id: idle) { if idle { await music.listen() } }
         .onChange(of: deck.front) { _, g in if !g.isEmpty { chosen = g } }
         .onAppear {
@@ -385,10 +381,7 @@ struct RealmView: View {
         let s = Scene(ctx: ctx, size: size, t: t, tw: clock.tw, amp: max(0.08, clock.amp),
                       energy: clock.energy, stage: stage, clock: clock, groups: groups,
                       chosen: current, tint: tint, status: status, running: running, micOn: micOn,
-                      outcome: deck.outcome, info: [info.next, info.due, info.body],
-                      work: agents.runs.filter(\.busy)
-                          .map { "\($0.id.uppercased()) AT WORK: \($0.doing.uppercased())" }
-                          .joined(separator: " ∴ "))
+                      outcome: deck.outcome, info: [info.next, info.due, info.body])
         s.singularity()
         if let p = pressed {
             let k = t - p.t
@@ -576,8 +569,6 @@ private struct Scene {
     let outcome: [String: Bool]
     /// What the magenta rings say: next on the plan, what is due, the body.
     let info: [String]
-    /// The agents at work, one line each; empty when none is.
-    let work: String
 
     var cx: Double { size.width / 2 }
     var cy: Double { size.height / 2 }
@@ -833,7 +824,6 @@ private struct Scene {
         let now = Date().formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute().second())
         let call = running ? status : "HOLD TO SUMMON"
         let rimText = "ARISU ∴ EVENT HORIZON ∴ \(now) ∴ \(chosen.uppercased()) ∴ \(call) ∴ "
-            + (work.isEmpty ? "" : work + " ∴ ")
         textOnCircle(rimText + rimText, r: rim + 26, start: tw * 0.03, Skin.mag, 10,
                      opacity: 0.5)
 

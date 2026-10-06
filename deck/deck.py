@@ -300,6 +300,7 @@ def execute(action: dict, dry_run: bool = False, timeout: int = 20):
 FRONT_GROUPS = {
     "iterm2": "Terminal",
     "ghostty": "Terminal",
+    "citrix viewer": "Citrix Workspace",
     "system settings": "Finder",
 }
 
@@ -338,6 +339,64 @@ def mute(on: bool) -> dict:
     ok, detail = _run([osa, "-e", "set volume output muted false"], timeout=5)
     _muted_by_us = not ok
     return {"ok": ok, "muted": not ok, "detail": detail}
+
+
+def pause_media() -> tuple[int, list[str]]:
+    """Best-effort pause for the media apps that can be controlled on macOS.
+
+    The sleep action also suspends the machine, but pausing first prevents
+    players from resuming when it wakes. Browser tabs are handled through
+    their normal Apple Events JavaScript hooks when the browser allows them.
+    """
+    scripts = [
+        ("Spotify", 'if application id "com.spotify.client" is running then tell application id "com.spotify.client" to pause'),
+        ("Music", 'if application id "com.apple.Music" is running then tell application id "com.apple.Music" to pause'),
+        ("QuickTime Player", 'if application id "com.apple.QuickTimePlayerX" is running then tell application id "com.apple.QuickTimePlayerX" to pause'),
+        ("IINA", 'if application id "com.colliderli.iina" is running then tell application id "com.colliderli.iina" to pause'),
+        ("VLC", 'if application id "org.videolan.vlc" is running then tell application id "org.videolan.vlc" to pause'),
+        ("Google Chrome", '''if application id "com.google.Chrome" is running then tell application id "com.google.Chrome"
+repeat with w in windows
+  repeat with t in tabs of w
+    try
+      execute t javascript "document.querySelectorAll('video,audio').forEach(m => m.pause())"
+    end try
+  end repeat
+end repeat
+end tell'''),
+        ("Safari", '''if application id "com.apple.Safari" is running then tell application id "com.apple.Safari"
+repeat with w in windows
+  repeat with t in tabs of w
+    try
+      do JavaScript "document.querySelectorAll('video,audio').forEach(m => m.pause())" in t
+    end try
+  end repeat
+end repeat
+end tell'''),
+    ]
+    paused, errors = 0, []
+    for name, script in scripts:
+        ok, detail = _run(["/usr/bin/osascript", "-e", script], timeout=5)
+        if ok:
+            paused += 1
+        elif detail:
+            errors.append(name)
+    return paused, errors
+
+
+def sleep_mac() -> dict:
+    """Pause known media players, then sleep after the HTTP reply can land."""
+    paused, errors = pause_media()
+
+    def sleep_now():
+        _run(["/usr/bin/pmset", "sleepnow"], timeout=10)
+
+    timer = threading.Timer(0.8, sleep_now)
+    timer.daemon = True
+    timer.start()
+    detail = f"sleep scheduled; sent pause to {paused} media apps"
+    if errors:
+        detail += f"; unavailable: {', '.join(errors)}"
+    return {"ok": True, "detail": detail}
 
 
 def front_app() -> str:
@@ -835,6 +894,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200 if ok else 500,
                               {"ok": ok, "id": bid, "detail": detail})
 
+        if path == "/deck/sleep":
+            return self.reply(200, sleep_mac())
+
         # Bring one of his applications to the front. The name must be one of
         # the ones `buttons.json` lists -- this is a socket on the tailnet, and
         # `open -a` with a name off the wire is a way to start anything on the
@@ -979,13 +1041,15 @@ def selftest() -> int:
     # Which deck the Mac's frontmost app asks for. The empty answer is the one
     # that matters: it means leave the rail where he put it, and an app he has
     # never mapped must never drag him back to a default.
-    groups = ["Claude", "Finder", "lain", "Terminal", "Spotify", "Google Chrome", "Safari"]
+    groups = ["Claude", "Citrix Workspace", "Finder", "lain", "Terminal",
+              "Spotify", "Google Chrome", "Safari"]
     seen = {}
     try:
         real = front_app
         for app, want in (("Claude", "Claude"), ("Terminal", "Terminal"), ("iTerm2", "Terminal"),
                           ("Google Chrome", "Google Chrome"), ("Spotify", "Spotify"),
                           ("Safari", "Safari"), ("System Settings", "Finder"),
+                          ("Citrix Viewer", "Citrix Workspace"),
                           ("Mail", ""), ("", "")):
             globals()["front_app"] = lambda a=app: a
             got = front_group(groups)

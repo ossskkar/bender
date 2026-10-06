@@ -116,15 +116,6 @@ struct SettingsSheet: View {
             positionSection
 
             Section {
-                Toggle("Free form", isOn: $freeForm)
-                    .font(.system(size: 17, weight: .medium))
-                    .tint(accent)
-            } footer: {
-                footer("No boxes, edges or grid on any control, and smoke "
-                       + "around her voice.")
-            }
-
-            Section {
                 // One preference for both was the wrong shape: subtitles are
                 // read from across the room and the thread at arm's length
                 // (Oscar, 2026-09-29).

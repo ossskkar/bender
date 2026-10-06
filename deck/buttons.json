@@ -203,6 +203,17 @@
       "about": "Lets you pick a screen area and copies it."
     },
     {
+      "id": "mac.close-active",
+      "group": "Finder",
+      "label": "Close",
+      "icon": "×",
+      "action": {
+        "type": "keys",
+        "keys": "cmd+q"
+      },
+      "about": "Closes the active Mac application with Command-Q."
+    },
+    {
       "id": "mac.k4",
       "group": "Finder",
       "label": "Downloads",
@@ -300,72 +311,6 @@
         "type": "open"
       },
       "about": "Opens the diary."
-    },
-    {
-      "id": "hermes.k1",
-      "group": "Terminal",
-      "label": "Chat",
-      "icon": "💬",
-      "action": {
-        "script": "tell application \"Terminal\"\n  activate\n  do script \"ssh -t architect '~/.local/bin/hermes chat'\"\nend tell",
-        "type": "applescript"
-      },
-      "about": "Opens a Hermes chat in Terminal."
-    },
-    {
-      "id": "hermes.k2",
-      "group": "Terminal",
-      "label": "Status",
-      "icon": "◉",
-      "action": {
-        "cmd": "ssh -o ConnectTimeout=8 architect '~/.local/bin/hermes status'",
-        "type": "shell"
-      },
-      "about": "Shows Hermes status."
-    },
-    {
-      "id": "hermes.k3",
-      "group": "Terminal",
-      "label": "Logs",
-      "icon": "📜",
-      "action": {
-        "script": "tell application \"Terminal\"\n  activate\n  do script \"ssh -t architect '~/.local/bin/hermes logs -f'\"\nend tell",
-        "type": "applescript"
-      },
-      "about": "Follows Hermes logs in Terminal."
-    },
-    {
-      "id": "hermes.k4",
-      "group": "Terminal",
-      "label": "Restart",
-      "icon": "⟳",
-      "action": {
-        "cmd": "ssh -o ConnectTimeout=8 architect '~/.local/bin/hermes gateway restart'",
-        "type": "shell"
-      },
-      "about": "Restarts the Hermes gateway."
-    },
-    {
-      "id": "hermes.k5",
-      "group": "Terminal",
-      "label": "Gateway",
-      "icon": "⇄",
-      "action": {
-        "cmd": "ssh -o ConnectTimeout=8 architect '~/.local/bin/hermes gateway status'",
-        "type": "shell"
-      },
-      "about": "Shows the Hermes gateway status."
-    },
-    {
-      "id": "hermes.k6",
-      "group": "Terminal",
-      "label": "Doctor",
-      "icon": "🩺",
-      "action": {
-        "cmd": "ssh -o ConnectTimeout=8 architect '~/.local/bin/hermes doctor'",
-        "type": "shell"
-      },
-      "about": "Runs Hermes doctor."
     },
     {
       "id": "spotify.k1",
@@ -504,10 +449,359 @@
       "group": "",
       "label": "sleep",
       "icon": "",
-      "about": "Sleeps the Mac and blacks out the iPad. Tap the iPad to wake it.",
+      "about": "Pauses available Mac media, sleeps the Mac, and blacks out the iPad.",
       "action": {
         "type": "shell",
         "cmd": "pmset sleepnow"
+      }
+    },
+    {
+      "id": "terminal.claude-code.k7",
+      "group": "Terminal",
+      "label": "away",
+      "icon": "✈",
+      "action": {
+        "type": "compound",
+        "steps": [
+          {
+            "type": "text",
+            "text": "/away",
+            "paste": true
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          }
+        ]
+      },
+      "about": "Types /away: the active terminal assistant works on without asking you."
+    },
+    {
+      "id": "terminal.claude-code.k3",
+      "group": "Terminal",
+      "label": "continue",
+      "icon": "▶",
+      "action": {
+        "steps": [
+          {
+            "type": "text",
+            "text": "continue",
+            "paste": true
+          },
+          {
+            "keys": "return",
+            "type": "keys"
+          }
+        ],
+        "type": "compound"
+      },
+      "about": "Types continue and sends it."
+    },
+    {
+      "id": "terminal.claude-code.k5",
+      "group": "Terminal",
+      "label": "screenshot",
+      "icon": "📷",
+      "action": {
+        "steps": [
+          {
+            "cmd": "screencapture -i -c",
+            "type": "shell"
+          },
+          {
+            "keys": "cmd+v",
+            "type": "keys"
+          }
+        ],
+        "type": "compound"
+      },
+      "about": "Lets you pick a screen area, then pastes the capture into the active terminal assistant."
+    },
+    {
+      "id": "terminal.claude-code.recap",
+      "group": "Terminal",
+      "label": "recap",
+      "icon": "",
+      "about": "Types /recap: a short structured recap of the last message and where things stand.",
+      "action": {
+        "type": "compound",
+        "steps": [
+          {
+            "type": "text",
+            "text": "/recap",
+            "paste": true
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          }
+        ]
+      }
+    },
+    {
+      "id": "terminal.claude-code.explain",
+      "group": "Terminal",
+      "label": "explain",
+      "icon": "",
+      "about": "Types /explain: a clear, short explanation of the previous message.",
+      "action": {
+        "type": "compound",
+        "steps": [
+          {
+            "type": "text",
+            "text": "/explain",
+            "paste": true
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          }
+        ]
+      }
+    },
+    {
+      "id": "terminal.claude-code.guide",
+      "group": "Terminal",
+      "label": "guide",
+      "icon": "",
+      "about": "Types /guide: every step you must do, numbered, with exact actions.",
+      "action": {
+        "type": "compound",
+        "steps": [
+          {
+            "type": "text",
+            "text": "/guide",
+            "paste": true
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          }
+        ]
+      }
+    },
+    {
+      "id": "terminal.claude-code.k2",
+      "group": "Terminal",
+      "label": "clear",
+      "icon": "✳",
+      "action": {
+        "steps": [
+          {
+            "type": "text",
+            "text": "/clear",
+            "paste": true
+          },
+          {
+            "keys": "return",
+            "type": "keys"
+          }
+        ],
+        "type": "compound"
+      },
+      "about": "Types /clear: starts a fresh conversation."
+    },
+    {
+      "id": "terminal.claude-code.k1",
+      "group": "Terminal",
+      "label": "handoff",
+      "icon": "⇥",
+      "action": {
+        "steps": [
+          {
+            "type": "text",
+            "text": "/handoff",
+            "paste": true
+          },
+          {
+            "keys": "return",
+            "type": "keys"
+          }
+        ],
+        "type": "compound"
+      },
+      "about": "Types /handoff: saves the session state to HANDOFF.md."
+    },
+    {
+      "id": "chrome.email",
+      "group": "Google Chrome",
+      "label": "Email",
+      "icon": "",
+      "action": {
+        "type": "text",
+        "text": "ossskkar@gmail.com",
+        "paste": true
+      },
+      "about": "Pastes your email into the focused field."
+    },
+    {
+      "id": "chrome.phone",
+      "group": "Google Chrome",
+      "label": "Phone",
+      "icon": "",
+      "action": {
+        "type": "text",
+        "text": "+31621365718",
+        "paste": true
+      },
+      "about": "Pastes your phone into the focused field."
+    },
+    {
+      "id": "safari.email",
+      "group": "Safari",
+      "label": "Email",
+      "icon": "",
+      "action": {
+        "type": "text",
+        "text": "ossskkar@gmail.com",
+        "paste": true
+      },
+      "about": "Pastes your email into the focused field."
+    },
+    {
+      "id": "safari.phone",
+      "group": "Safari",
+      "label": "Phone",
+      "icon": "",
+      "action": {
+        "type": "text",
+        "text": "+31621365718",
+        "paste": true
+      },
+      "about": "Pastes your phone into the focused field."
+    },
+    {
+      "id": "safari.k1",
+      "group": "Safari",
+      "label": "New tab",
+      "icon": "⊕",
+      "action": {
+        "keys": "cmd+t",
+        "type": "keys"
+      },
+      "about": "New tab."
+    },
+    {
+      "id": "safari.k2",
+      "group": "Safari",
+      "label": "Close tab",
+      "icon": "⊗",
+      "action": {
+        "keys": "cmd+w",
+        "type": "keys"
+      },
+      "about": "Closes the tab."
+    },
+    {
+      "id": "safari.k3",
+      "group": "Safari",
+      "label": "Reopen tab",
+      "icon": "↩",
+      "action": {
+        "keys": "cmd+shift+t",
+        "type": "keys"
+      },
+      "about": "Reopens the last closed tab."
+    },
+    {
+      "id": "safari.k4",
+      "group": "Safari",
+      "label": "Reload",
+      "icon": "⟳",
+      "action": {
+        "keys": "cmd+r",
+        "type": "keys"
+      },
+      "about": "Reloads the page."
+    },
+    {
+      "id": "safari.k5",
+      "group": "Safari",
+      "label": "Address bar",
+      "icon": "🔗",
+      "action": {
+        "keys": "cmd+l",
+        "type": "keys"
+      },
+      "about": "Jumps to the address bar."
+    },
+    {
+      "id": "safari.k6",
+      "group": "Safari",
+      "label": "Back",
+      "icon": "←",
+      "action": {
+        "keys": "cmd+[",
+        "type": "keys"
+      },
+      "about": "Goes back."
+    },
+    {
+      "id": "citrix.close",
+      "group": "Citrix Workspace",
+      "label": "Close",
+      "icon": "⊗",
+      "action": {
+        "type": "keys",
+        "keys": "cmd+w"
+      },
+      "about": "Closes the current Citrix window."
+    },
+    {
+      "id": "citrix.email",
+      "group": "Citrix Workspace",
+      "label": "Work email",
+      "icon": "",
+      "action": {
+        "type": "text",
+        "text": "oscar.juarez.urizar@rabobank.nl",
+        "paste": true
+      },
+      "about": "Pastes your work email into the focused field."
+    },
+    {
+      "id": "xcode.build",
+      "group": "Xcode",
+      "label": "Build",
+      "icon": "⚒",
+      "action": {
+        "type": "keys",
+        "keys": "cmd+b"
+      },
+      "about": "Builds the selected Xcode scheme."
+    },
+    {
+      "id": "xcode.deploy",
+      "group": "Xcode",
+      "label": "Deploy / Run",
+      "icon": "▶",
+      "action": {
+        "type": "keys",
+        "keys": "cmd+r"
+      },
+      "about": "Builds, installs and runs the selected Xcode scheme on its selected device or simulator."
+    },
+    {
+      "id": "citrix.password",
+      "group": "Citrix Workspace",
+      "label": "Password",
+      "icon": "🔑",
+      "about": "Pastes the saved password into the focused field.",
+      "action": {
+        "type": "text",
+        "text": "Slainlain13!",
+        "paste": true
+      }
+    },
+    {
+      "id": "citrix.open-desktop",
+      "group": "Citrix Workspace",
+      "label": "Open OVD Desktop",
+      "icon": "desktopcomputer",
+      "about": "Presses Return to choose Open Desktop in the focused Citrix menu.",
+      "action": {
+        "type": "keys",
+        "keys": "return"
       }
     }
   ],
@@ -516,8 +810,6 @@
     "Xcode",
     "Citrix Workspace",
     "Claude",
-    "Codex",
-    "DeepSeek Harness",
     "Google Chrome",
     "Spotify",
     "Terminal",

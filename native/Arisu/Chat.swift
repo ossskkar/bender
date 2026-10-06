@@ -1,4 +1,5 @@
 import SwiftUI
+import GameController
 
 /// The typed conversation, drawn by the app.
 ///
@@ -227,12 +228,10 @@ import SwiftUI
 /// the hologram, and there is no mode toggle in the corner to find first.
 struct ChatPane: View, Equatable {
     @ObservedObject var chat: Chat
-    /// Her state, so the composer can carry the same colour the room does.
-    let phase: Color
     /// Set from the room's History button: show the sheet as soon as the
     /// chat appears, so one press crosses both.
     @Binding var openHistory: Bool
-    /// Press Voice: the caller draws her instead of this.
+    /// Press Voice: the caller brings her forward over the thread in free mode.
     let toVoice: () -> Void
     /// A page from one of her lines, for the app's page sheet.
     var show: (ShowPage) -> Void = { _ in }
@@ -248,11 +247,14 @@ struct ChatPane: View, Equatable {
     /// already (17.0).
     var character = ""
     var calling = false
+    /// Free mode keeps the thread mounted beneath the voice animation.
+    var active = true
     @Environment(\.scenePhase) private var scene
 
     /// Bubbles or terminal lines, the chat's own answer.
     @AppStorage("arisu.bubbles.chat") private var bubbles = true
     @State private var typing = ""
+    @State private var keyboardConnected = false
     @State private var showHistory = false
     /// The page being fetched for the sheet, so its chip can say so.
     @State private var opening: URL?
@@ -303,29 +305,50 @@ struct ChatPane: View, Equatable {
         .padding(10)
         // A two-finger double tap is a new conversation (Oscar, 2026-10-02).
         .background(MultiTap(touches: 2, taps: 2) { Task { await chat.new() } })
+        .onChange(of: active) { _, on in
+            if on { writing = keyboardConnected }
+            else { writing = false; showHistory = false }
+        }
+        .onChange(of: keyboardConnected) { _, connected in
+            writing = active && connected
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .GCKeyboardDidConnect)) { _ in
+            keyboardConnected = GCKeyboard.coalesced != nil
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .GCKeyboardDidDisconnect)) { _ in
+            keyboardConnected = GCKeyboard.coalesced != nil
+        }
+        .onChange(of: openHistory) { _, open in
+            if open && active { showHistory = true; openHistory = false }
+        }
         .task { await chat.load() }
         // Every minute while the chat is on screen: the desk turns the
-        // commands over every few minutes even when nobody types. The task
-        // ends when the chat leaves the screen.
-        .task {
+        // commands over every few minutes even when nobody types. A faded
+        // thread remains mounted in free mode, so activity ends the task.
+        .task(id: active) {
+            guard active else { return }
             while !Task.isCancelled {
                 await chat.suggest()
-                try? await Task.sleep(for: .seconds(60))
+                do { try await Task.sleep(for: .seconds(60)) } catch { return }
             }
         }
         // Her queued lines and pages, every 8 s while the chat is up, the app
         // is in front and no call is taking them (17.0). It waits first: on
         // arrival Pet.arrive takes the queue and a brief is a call, which is
         // voice (Oscar, 2026-09-30), so the chat must not get there first.
-        .task(id: !calling && scene == .active) {
-            guard !calling && scene == .active else { return }
+        .task(id: active && !calling && scene == .active) {
+            guard active && !calling && scene == .active else { return }
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(8))
                 guard !Task.isCancelled else { return }
                 if let page = await chat.collect(character: character) { show(page) }
             }
         }
-        .onAppear { if openHistory { showHistory = true; openHistory = false } }
+        .onAppear {
+            keyboardConnected = GCKeyboard.coalesced != nil
+            writing = active && keyboardConnected
+            if openHistory { showHistory = true; openHistory = false }
+        }
         .sheet(isPresented: $showHistory) { ChatHistory(chat: chat) }
     }
 
@@ -335,9 +358,10 @@ struct ChatPane: View, Equatable {
     /// differ and always do the same thing. Its own state and the chat it
     /// watches still redraw it as before.
     static func == (a: ChatPane, b: ChatPane) -> Bool {
-        a.chat === b.chat && a.phase == b.phase && a.openHistory == b.openHistory
+        a.chat === b.chat && a.openHistory == b.openHistory
             && a.topInset == b.topInset && a.glance == b.glance && a.focus == b.focus
             && a.shown == b.shown && a.character == b.character && a.calling == b.calling
+            && a.active == b.active
     }
 
     private func panel(width: CGFloat) -> some View {
@@ -543,9 +567,9 @@ struct ChatPane: View, Equatable {
             .tourSpot("chatGlanceButton")
             IconButton(symbol: "arrow.up", label: "Send",
                        tint: typing.isEmpty ? Skin.off : mag, lit: !typing.isEmpty, action: send)
-            // The way into her voice. Her state colours it, so the button he
-            // pressed to start talking is also the light that says she heard.
-            IconButton(symbol: "waveform", label: "Voice", tint: phase, action: toVoice)
+            // The way into voice mode wears the app's theme accent; her state
+            // is shown by the room, not by a button whose colour keeps shifting.
+            IconButton(symbol: "waveform", label: "Voice", tint: Skin.cyan, action: toVoice)
                 .tourSpot("voiceButton")
         }
         .padding(.horizontal, 18)

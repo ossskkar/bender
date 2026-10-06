@@ -19,17 +19,13 @@ struct DeckRail: View {
     @State private var group: String?
     /// How far a finger has the group wheel turned, in points.
     @State private var wheelDrag: CGFloat = 0
-    /// The keys' wheel: which page of eight is up, how far a finger has it
-    /// turned, and the order usage put the group in when it was last opened.
+    /// The keys' horizontal pages and the order usage put the group in when it
+    /// was last opened.
     @State private var page = 0
     @State private var keysDrag: CGFloat = 0
     @State private var ranking: [String: [String]] = [:]
     @State private var sheet: DeckButton?
     @State private var saveError: String?
-    /// Blacked out by the sleep key, with the brightness to go back to.
-    @State private var asleep = false
-    @State private var wasBright: CGFloat = 0.5
-    @Environment(\.scenePhase) private var phase
 
     /// Three across, always: he lays the deck out in rows of three and the
     /// sleep key has to land bottom right (Oscar, 2026-09-30).
@@ -52,17 +48,15 @@ struct DeckRail: View {
         return name.split(separator: " ").first.map(String.init) ?? name
     }
 
-    /// One deck along, wrapping at both ends -- a swipe that does nothing at
-    /// the last group reads as a dropped gesture, not as an edge.
+    /// The group on show: his choice, or the first the Mac sent.
+    private var shown: String { group ?? deck.groups.first ?? "" }
+
+    /// Moving beyond this group's last page continues to the next app group.
     private func step(_ by: Int) {
         let all = deck.groups
         guard all.count > 1, let at = all.firstIndex(of: shown) else { return }
-        let next = (at + by + all.count) % all.count
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { group = all[next] }
+        group = all[(at + by + all.count) % all.count]
     }
-
-    /// The group on show: his choice, or the first the Mac sent.
-    private var shown: String { group ?? deck.groups.first ?? "" }
 
     var body: some View {
         // Everything he presses sits at the bottom of the rail, where his hand
@@ -70,13 +64,6 @@ struct DeckRail: View {
         // The title stays up top because he reads it and never touches it.
         VStack(alignment: .leading, spacing: 0) {
             head
-            // The room above the keys, which was empty (Oscar keeps the keys at
-            // the bottom, three rows, a quarter of the screen): what his
-            // builder agents are doing, so he can follow them from the iPad
-            // without opening lain's Agents page (18.0).
-            AgentBoard()
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .tourSpot("agents")
             if let failed = deck.failed { note(failed) }
             else if deck.buttons.isEmpty && deck.loading {
                 ProgressView().tint(cyan).padding(.bottom, 30).frame(maxWidth: .infinity)
@@ -88,17 +75,6 @@ struct DeckRail: View {
                 keys.padding(.bottom, 18)
             }
         }
-        // A swipe across the keys is the next application's deck. Six chips
-        // are a fine target with a stylus and a poor one with a thumb, and
-        // switching deck is the thing he does most often after pressing one.
-        .contentShape(Rectangle())
-        .gesture(
-            DragGesture(minimumDistance: 30)
-                .onEnded { move in
-                    guard abs(move.translation.width) > abs(move.translation.height) else { return }
-                    step(move.translation.width < 0 ? 1 : -1)
-                }
-        )
         .frame(maxWidth: .infinity, alignment: .leading)
         // The Record panel's look, so the two halves of the left side read as
         // one console (Oscar, 2026-09-30).
@@ -113,10 +89,6 @@ struct DeckRail: View {
             guard !now.isEmpty, deck.groups.contains(now) else { return }
             withAnimation(.easeOut(duration: 0.18)) { group = now }
         }
-        .fullScreenCover(isPresented: $asleep) {
-            Color.black.ignoresSafeArea().onTapGesture { wake() }
-        }
-        .onChange(of: phase) { _, now in if now == .active { wake() } }
         .sheet(item: $sheet) { button in
             DeckEditor(button: button, isNew: !deck.buttons.contains { $0.id == button.id },
                        groups: deck.groups) { edited in
@@ -231,52 +203,68 @@ struct DeckRail: View {
         }
     }
 
-    /// Eight actions and sleep, always three rows (Oscar, 2026-10-01). A group
-    /// with more than eight is a wheel of pages: drag up or down to turn it.
-    /// The order is his usage, taken when the group comes up and then held, so
-    /// a key never moves out from under a finger that is about to press it.
+    /// Eight actions per full-width page, always three rows. Larger groups scroll through
+    /// full-width pages horizontally. The order is his usage, taken when the
+    /// group comes up and then held, so keys stay put while he works.
     private static let perPage = 8
     /// Where the n-th most used key sits: bottom row first, where his hand is,
-    /// then up. Cell 8 -- bottom right -- is sleep's.
+    /// then up.
     private static let seats = [6, 7, 3, 4, 5, 0, 1, 2]
+    private static let permanentIDs: Set<String> = ["sleep", "mac.k3", "mac.close-active"]
 
     private var ordered: [DeckButton] {
-        let mine = deck.buttons.filter { $0.group == shown && $0.id != DeckButton.sleepID }
+        let mine = deck.buttons.filter { $0.group == shown && !Self.permanentIDs.contains($0.id) }
         guard !editing, let ids = ranking[shown] else { return mine }
         let byID = Dictionary(mine.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         return ids.compactMap { byID[$0] } + mine.filter { !ids.contains($0.id) }
     }
 
     private func rank() {
-        let mine = deck.buttons.filter { $0.group == shown && $0.id != DeckButton.sleepID }
-        ranking[shown] = Usage.ranked(mine).map(\.id)
+        let mine = deck.buttons.filter { $0.group == shown && !Self.permanentIDs.contains($0.id) }
+        let saved = (UserDefaults.standard.dictionary(forKey: "arisu.deck.order") as? [String: [String]])?[shown]
+        if let saved {
+            let present = Set(mine.map(\.id))
+            ranking[shown] = saved.filter { present.contains($0) }
+                + mine.map(\.id).filter { !saved.contains($0) }
+        } else {
+            ranking[shown] = Usage.ranked(mine).map(\.id)
+        }
         page = 0
+    }
+
+    private func actionPage(_ index: Int, width: CGFloat, buttons: [DeckButton]) -> some View {
+        let slice = Array(buttons.dropFirst(index * Self.perPage).prefix(Self.perPage))
+        var cells = [DeckButton?](repeating: nil, count: 9)
+        for (position, button) in slice.enumerated() {
+            cells[Self.seats[position]] = button
+        }
+        return LazyVGrid(columns: three, spacing: 10) {
+            ForEach(0..<9, id: \.self) { cell in
+                if let button = cells[cell] { key(button) }
+                else { Color.clear.frame(minHeight: 50) }
+            }
+        }
+        .frame(width: width)
+        .id(index)
     }
 
     private var keys: some View {
         let all = ordered
         let pages = max(1, (all.count + Self.perPage - 1) / Self.perPage)
         let at = min(page, pages - 1)
-        let slice = Array(all.dropFirst(at * Self.perPage).prefix(Self.perPage))
-        var cells = [DeckButton?](repeating: nil, count: 9)
-        for (j, b) in slice.enumerated() { cells[Self.seats[j]] = b }
-        cells[8] = deck.sleep
-        let turn = Double(keysDrag) / 160
-        return HStack(spacing: 6) {
-            LazyVGrid(columns: three, spacing: 10) {
-                ForEach(0..<9, id: \.self) { i in
-                    if let b = cells[i] { key(b) } else { Color.clear.frame(minHeight: 50) }
+        return VStack(spacing: 7) {
+            GeometryReader { geometry in
+                HStack(spacing: 0) {
+                    ForEach(0..<pages, id: \.self) { index in
+                        actionPage(index, width: geometry.size.width, buttons: all)
+                    }
                 }
+                .offset(x: -CGFloat(at) * geometry.size.width + keysDrag)
+                .frame(height: geometry.size.height, alignment: .top)
+                .clipped()
             }
-            .id(at)
-            .transition(.asymmetric(
-                insertion: .move(edge: keysDrag <= 0 ? .bottom : .top).combined(with: .opacity),
-                removal: .opacity))
-            .rotation3DEffect(.degrees(-turn * 40), axis: (x: 1, y: 0, z: 0), perspective: 0.6)
-            .offset(y: keysDrag * 0.25)
-            .opacity(1 - min(0.5, abs(turn) * 0.5))
             if pages > 1 {
-                VStack(spacing: 6) {
+                HStack(spacing: 6) {
                     ForEach(0..<pages, id: \.self) { i in
                         Circle().fill(i == at ? cyan : cyan.opacity(0.25))
                             .frame(width: 6, height: 6)
@@ -285,30 +273,30 @@ struct DeckRail: View {
                 }
             }
         }
-        .padding(.horizontal, 12)
+        .frame(height: 183)
         .contentShape(Rectangle())
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 14)
-                .onChanged { v in
-                    guard pages > 1, abs(v.translation.height) > abs(v.translation.width) else { return }
-                    keysDrag = v.translation.height
-                }
-                .onEnded { v in
-                    guard pages > 1, abs(v.translation.height) > abs(v.translation.width) else {
-                        keysDrag = 0; return
-                    }
-                    let by = v.predictedEndTranslation.height < -50 ? 1
-                           : v.predictedEndTranslation.height > 50 ? -1 : 0
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        page = ((at + by) % pages + pages) % pages
-                        keysDrag = 0
-                    }
-                }
-        )
-        .onAppear(perform: rank)
-        .onChange(of: shown) { _, _ in rank() }
-        .onChange(of: deck.buttons.count) { _, _ in rank() }
+        .modifier(DeckPagingGesture(enabled: !editing, pages: pages,
+                                    groups: deck.groups.count, at: at,
+                                    drag: $keysDrag, page: $page, group: step))
     }
+
+    /// A dragged key lands where the key it was dropped on was, in this
+    /// group's own order on this iPad.
+    private func moveKey(_ id: String, onto target: String) -> Bool {
+        guard id != target,
+              let from = ordered.firstIndex(where: { $0.id == id }),
+              let to = ordered.firstIndex(where: { $0.id == target }) else { return false }
+        var ids = ordered.map(\.id)
+        let moved = ids.remove(at: from)
+        ids.insert(moved, at: to)
+        ranking[shown] = ids
+        var orders = UserDefaults.standard.dictionary(forKey: "arisu.deck.order") as? [String: [String]] ?? [:]
+        orders[shown] = ids
+        UserDefaults.standard.set(orders, forKey: "arisu.deck.order")
+        withAnimation { page = min(page, max(0, (ids.count - 1) / Self.perPage)) }
+        return true
+    }
+
 
     /// Cyan while nothing has happened, cyan-bright while it runs, green when
     /// it worked, red when it did not. The receipt that used to print under
@@ -326,12 +314,11 @@ struct DeckRail: View {
 
     private func key(_ b: DeckButton) -> some View {
         let busy = deck.running == b.id
-        let symbol = b.id == DeckButton.sleepID ? "moon.zzz" : b.action.symbol
+        let symbol = b.action.symbol
         let ink = outcomeInk(b.id, busy: busy, editing: editing)
         return Button {
             if editing { sheet = b } else {
                 Task { await deck.run(b) }
-                if b.id == DeckButton.sleepID { goSleep() }
             }
         } label: {
             HStack(spacing: 6) {
@@ -347,19 +334,11 @@ struct DeckRail: View {
             .padding(.vertical, 10)
             // A thumb, not a stylus: 72pt is what he presses without looking.
             .frame(maxWidth: .infinity, minHeight: 50)
-            // The result mark sits in the corner so the label stays centred.
             .overlay(alignment: .trailing) {
-                Group {
-                    if busy { ProgressView().tint(cyan).scaleEffect(0.55) }
-                    else if editing {
-                        Image(systemName: "pencil").font(.system(size: 10)).foregroundStyle(mag)
-                    } else if let ok = deck.outcome[b.id] {
-                        Image(systemName: ok ? "checkmark" : "exclamationmark.triangle.fill")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(ok ? Skin.good : Skin.recording)
-                    }
+                if editing {
+                    Image(systemName: "pencil").font(.system(size: 10)).foregroundStyle(mag)
+                        .padding(.trailing, 10)
                 }
-                .padding(.trailing, 10)
             }
             .neon(ink.0, stroke: ink.1, fill: tintFill(deck.outcome[b.id]))
             .animation(.easeOut(duration: 0.2), value: deck.outcome[b.id])
@@ -367,34 +346,7 @@ struct DeckRail: View {
         .buttonStyle(.plain)
         // The sleep key stays where it is: bottom right, on every deck.
         .modifier(Held(about: b.about ?? b.action.summary,
-                       id: b.id == DeckButton.sleepID ? nil : b.id, move: moveKey))
-    }
-
-    /// A dragged key lands where the key it was dropped on was.
-    private func moveKey(_ id: String, onto target: String) -> Bool {
-        guard id != target,
-              let from = deck.buttons.firstIndex(where: { $0.id == id }),
-              let to = deck.buttons.firstIndex(where: { $0.id == target }) else { return false }
-        withAnimation { deck.buttons.move(fromOffsets: [from], toOffset: to > from ? to + 1 : to) }
-        Task { saveError = await deck.save() }
-        return true
-    }
-
-    /// iPadOS will not let an app lock the iPad, so this is the nearest: the
-    /// screen goes to zero and black, and the wake lock is let go so the
-    /// iPad's own Auto-Lock takes it from there. A tap brings it back.
-    private func goSleep() {
-        wasBright = UIScreen.main.brightness
-        UIScreen.main.brightness = 0
-        UIApplication.shared.isIdleTimerDisabled = false
-        asleep = true
-    }
-
-    private func wake() {
-        guard asleep else { return }
-        UIScreen.main.brightness = wasBright
-        UIApplication.shared.isIdleTimerDisabled = true
-        asleep = false
+                       id: b.id, movable: editing, move: moveKey))
     }
 
     /// A wash of the result colour inside the button, so it reads from across
@@ -412,12 +364,9 @@ struct DeckRail: View {
     /// the failures are the ones he needs the text of.
     private func answer(_ said: (id: String, ok: Bool, detail: String)) -> some View {
         HStack(alignment: .top, spacing: 6) {
-            Image(systemName: said.ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                .font(.system(size: 11))
-                .foregroundStyle(said.ok ? cyan : mag)
             Text(said.detail.isEmpty ? (said.ok ? "done" : "failed") : said.detail)
                 .font(Skin.mono(11))
-                .foregroundStyle(.white.opacity(0.8))
+                .foregroundStyle(said.ok ? Skin.good : Skin.recording)
                 .lineLimit(5)
             Spacer(minLength: 0)
             Button { deck.said = nil } label: {
@@ -472,17 +421,104 @@ struct DeckRail: View {
     }
 }
 
+/// The four controls that never leave the screen, independent of which app's
+/// actions are in the rail or which presentation mode is showing.
+struct PermanentDeck: View {
+    @StateObject private var deck = Deck()
+    let eyeOn: Bool
+    let toggleEye: () -> Void
+    let sleep: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            action("mac.close-active", "Close", "xmark")
+            action("mac.k3", "Screenshot", "camera")
+            action("light", eyeOn ? "Light off" : "Light", eyeOn ? "eye.slash" : "eye",
+                   invoke: toggleEye)
+            action("sleep", "Sleep", "moon.zzz", invoke: {
+                sleep()
+                Task { _ = await deck.sleepMac() }
+            })
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 8)
+        .background(Color.black.opacity(0.92))
+        .overlay(alignment: .top) { Rectangle().fill(Skin.cyan.opacity(0.45)).frame(height: 1) }
+        .task { await deck.load() }
+    }
+
+    private func action(_ id: String, _ label: String, _ symbol: String,
+                        invoke: (() -> Void)? = nil) -> some View {
+        let busy = deck.running == id || (id == "sleep" && deck.running == "sleep")
+        let ink: Color = busy ? Skin.cyan
+            : deck.outcome[id].map { $0 ? Skin.good : Skin.recording } ?? Skin.cyan
+        return Button {
+            if let invoke { invoke() }
+            else { Task { await deck.run(id: id) } }
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: symbol).font(.system(size: 15, weight: .semibold))
+                Text(label).font(Skin.mono(13, .semibold)).lineLimit(1).minimumScaleFactor(0.75)
+            }
+            .foregroundStyle(ink)
+            .frame(maxWidth: .infinity, minHeight: 42)
+            .background(Color.black.opacity(0.4))
+            .overlay(Rectangle().stroke(ink.opacity(busy ? 0.95 : 0.55), lineWidth: 1))
+            .shadow(color: ink.opacity(busy ? 0.65 : 0.18), radius: busy ? 6 : 2)
+            .animation(.easeOut(duration: 0.2), value: deck.outcome[id])
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+}
+
 /// Long press says what the button does; press and drag moves it onto
 /// another's place (Oscar, 2026-09-30). The context menu and the drag are the
 /// system's own pair: hold to read it, keep moving to carry it. A nil id is a
 /// button that explains itself but stays put.
+/// A sideways swipe across the keys turns their page; past the last page (or
+/// before the first) it moves on to the next application's deck.
+struct DeckPagingGesture: ViewModifier {
+    let enabled: Bool
+    let pages: Int
+    let groups: Int
+    let at: Int
+    @Binding var drag: CGFloat
+    @Binding var page: Int
+    let group: (Int) -> Void
+
+    private func sideways(_ v: DragGesture.Value) -> Bool {
+        enabled && (pages > 1 || groups > 1)
+            && abs(v.translation.width) > abs(v.translation.height)
+    }
+
+    func body(content: Content) -> some View {
+        content.simultaneousGesture(
+            DragGesture(minimumDistance: 14)
+                .onChanged { v in if sideways(v) { drag = v.translation.width } }
+                .onEnded { v in
+                    guard sideways(v) else { drag = 0; return }
+                    let by = v.predictedEndTranslation.width < -50 ? 1
+                           : v.predictedEndTranslation.width > 50 ? -1 : 0
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        if by > 0, at + 1 < pages { page = at + 1 }
+                        else if by < 0, at > 0 { page = at - 1 }
+                        else if by != 0 { group(by) }
+                        drag = 0
+                    }
+                }
+        )
+    }
+}
+
 struct Held: ViewModifier {
     let about: String
     let id: String?
+    var movable = false
     let move: (String, String) -> Bool
 
     func body(content: Content) -> some View {
-        if let id {
+        if let id, movable {
             content
                 .contextMenu { Text(about) }
                 .draggable(id)
@@ -504,129 +540,3 @@ extension View {
             .shadow(color: stroke > 0.9 || stroke == 0 ? tint.opacity(0.7) : .clear, radius: 5)
     }
 }
-
-// MARK: - Agents
-
-/// One builder agent as lain's Agents page has it (`GET /agents`, written by
-/// `~/.claude/agent-loops/report.py`). The iPad only reads.
-struct AgentRun: Identifiable, Equatable {
-    let id: String
-    let state: String
-    let doing: String
-    let updated: Date
-    /// When the run in progress began; nil once it is over.
-    let since: Date?
-}
-
-@MainActor final class Agents: ObservableObject {
-    @Published private(set) var runs: [AgentRun] = []
-    static let url = URL(string: "https://architect-server.tailaa64e9.ts.net:8443/agents")!
-
-    /// Every 30 s while the rail is up: a milestone comes every few minutes,
-    /// so faster only repeats the same answer. A failed fetch keeps what was
-    /// showing; a published list only when it changed.
-    func watch() async {
-        while !Task.isCancelled {
-            if let (data, _) = try? await URLSession.shared.data(from: Self.url),
-               let got = Self.parse(data), got != runs {
-                runs = got
-            }
-            try? await Task.sleep(for: .seconds(30))
-        }
-    }
-
-    /// Working first, then the most recent.
-    static func parse(_ data: Data) -> [AgentRun]? {
-        guard let top = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let all = top["agents"] as? [String: [String: Any]] else { return nil }
-        func date(_ v: Any?) -> Date? { (v as? Double).map { Date(timeIntervalSince1970: $0) } }
-        return all.map { name, a in
-            AgentRun(id: name, state: a["state"] as? String ?? "", doing: a["doing"] as? String ?? "",
-                     updated: date(a["updated"]) ?? .distantPast,
-                     since: (a["state"] as? String) == "working" || (a["state"] as? String) == "started"
-                         ? date(a["since"]) : nil)
-        }
-        .sorted { ($0.busy ? 0 : 1, -$0.updated.timeIntervalSince1970)
-                < ($1.busy ? 0 : 1, -$1.updated.timeIntervalSince1970) }
-    }
-}
-
-extension AgentRun {
-    var busy: Bool { state == "working" || state == "started" }
-}
-
-/// The rail's empty middle, put to work: one line per agent -- its name, what
-/// it is doing in its own words, and how long ago. Tapping the title opens
-/// lain's Agents page. Fewer lines when the room is short, nothing when there
-/// is none, so the keys never move.
-struct AgentBoard: View {
-    @StateObject private var agents = Agents()
-    private let page = URL(string: "https://architect-server.tailaa64e9.ts.net:8443/systems/agents.html")!
-
-    var body: some View {
-        // ViewThatFits picks the first that fits the height: two lines of
-        // detail each, one line each, the title alone, then nothing.
-        ViewThatFits(in: .vertical) {
-            board(lines: 2)
-            board(lines: 1)
-            title
-            Color.clear.frame(height: 0)
-        }
-        .padding(.horizontal, 12)
-        .task { await agents.watch() }
-    }
-
-    private var title: some View {
-        Link(destination: page) {
-            HStack(spacing: 6) {
-                Text("AGENTS").font(Skin.mono(12, .bold)).tracking(2).foregroundStyle(Skin.mag)
-                let busy = agents.runs.filter(\.busy).count
-                Text(busy == 0 ? "ALL QUIET" : "\(busy) AT WORK")
-                    .font(Skin.mono(11)).foregroundStyle(Skin.cyan.opacity(0.7))
-                Spacer(minLength: 0)
-                Image(systemName: "arrow.up.right").font(.system(size: 9)).foregroundStyle(Skin.cyan.opacity(0.5))
-            }
-        }
-    }
-
-    @ViewBuilder private func board(lines: Int) -> some View {
-        if agents.runs.isEmpty { title } else {
-            // The ages move on by themselves; the list only when lain says so.
-            TimelineView(.everyMinute) { tl in
-                VStack(alignment: .leading, spacing: 10) {
-                    title
-                    ForEach(agents.runs) { run in row(run, lines: lines, now: tl.date) }
-                }
-            }
-        }
-    }
-
-    private func row(_ run: AgentRun, lines: Int, now: Date) -> some View {
-        let ink: Color = run.busy ? Skin.cyan
-            : run.state == "failed" ? Skin.recording
-            : run.state == "done" ? Skin.good : Skin.cyan.opacity(0.45)
-        return HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Circle().fill(ink).frame(width: 6, height: 6)
-                .shadow(color: run.busy ? ink : .clear, radius: 4)
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(run.id.uppercased()).font(Skin.mono(13, .semibold)).foregroundStyle(.white)
-                    Text(run.state.uppercased()).font(Skin.mono(10)).foregroundStyle(ink)
-                    Spacer(minLength: 0)
-                    Text(Self.ago(run.since ?? run.updated, now: now, running: run.busy))
-                        .font(Skin.mono(10)).foregroundStyle(Skin.cyan.opacity(0.55))
-                }
-                Text(run.doing).font(Skin.mono(12)).foregroundStyle(.white.opacity(0.7))
-                    .lineLimit(lines).fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
-    /// "FOR 12 MIN" while it works (since it started), "3 H AGO" after.
-    static func ago(_ t: Date, now: Date, running: Bool) -> String {
-        let m = max(0, Int(now.timeIntervalSince(t) / 60))
-        let span = m < 1 ? "<1 MIN" : m < 60 ? "\(m) MIN" : m < 48 * 60 ? "\(m / 60) H" : "\(m / 1440) D"
-        return running ? "FOR " + span : span + " AGO"
-    }
-}
-

@@ -1,5 +1,6 @@
 import SwiftUI
 import WebKit
+import UIKit
 
 /// The hologram: `FaceView` for her, plus scanlines and a sweep over the top.
 ///
@@ -10,6 +11,12 @@ import WebKit
 /// scanlines and the sweep stayed here because they belong to the room rather
 /// than to her, and they still cost nothing per frame.
 struct ContentView: View {
+    private enum Presentation: String, CaseIterable, Identifiable {
+        case base, free, singularity
+        var id: String { rawValue }
+        var label: String { rawValue.uppercased() }
+    }
+
     @ObservedObject var pet: Pet
     @ObservedObject var live: Live
     @ObservedObject var room: Room
@@ -47,8 +54,10 @@ struct ContentView: View {
     /// The guided tour running now, and which stop it is on.
     @State private var tour: [TourStep]?
     @State private var tourIndex = 0
-    /// Where he was before the tour moved the screen, to put him back after.
-    @State private var lookBeforeTour = Look.classic
+    /// The mode before a tour, and the non-eye mode to return to when Light is
+    /// pressed again.
+    @State private var modeBeforeTour: Presentation = .base
+    @State private var modeBeforeEye: Presentation = .base
     /// The last version whose tour started by itself: a new version opens on
     /// its tour once, then never again unless he asks (Oscar, 2026-10-02).
     @AppStorage("arisu.touredVersion") private var touredVersion = ""
@@ -96,6 +105,53 @@ struct ContentView: View {
     @State private var messages: [Bubble] = []
     /// The Pencil touched the screen: the scribble canvas is up.
     @State private var scribbling = false
+    /// Sleep dims the iPad and leaves a tap here to wake it.
+    @State private var displaySleeping = false
+    @State private var brightnessBeforeSleep: CGFloat = 0.5
+
+    private var presentation: Presentation {
+        if look == .singularity { return .singularity }
+        return freeForm ? .free : .base
+    }
+
+    private func setPresentation(_ next: Presentation) {
+        let previous = presentation
+        if next == .singularity, previous != .singularity { modeBeforeEye = previous }
+        if next != .singularity {
+            look = .classic
+            freeForm = next == .free
+            modeBeforeEye = next
+        } else {
+            freeForm = false
+            look = .singularity
+        }
+    }
+
+    private func cyclePresentation(_ by: Int) {
+        let all = Presentation.allCases
+        let index = all.firstIndex(of: presentation) ?? 0
+        setPresentation(all[(index + by + all.count) % all.count])
+    }
+
+    private func toggleEye() {
+        setPresentation(presentation == .singularity ? modeBeforeEye : .singularity)
+    }
+
+    private func sleepScreen() {
+        pet.stop()
+        setPresentation(.base)
+        brightnessBeforeSleep = UIScreen.main.brightness
+        UIScreen.main.brightness = 0
+        UIApplication.shared.isIdleTimerDisabled = false
+        displaySleeping = true
+    }
+
+    private func wakeScreen() {
+        guard displaySleeping else { return }
+        UIScreen.main.brightness = brightnessBeforeSleep
+        UIApplication.shared.isIdleTimerDisabled = true
+        displaySleeping = false
+    }
 
     private struct Bubble: Identifiable, Equatable {
         let id = UUID()
@@ -196,15 +252,13 @@ struct ContentView: View {
         if look == .classic {
         // Free form (Oscar, 2026-10-02): she is always there, large and dim in
         // the middle of the whole screen, behind the controls, breathing
-        // slowly. In voice mode she comes forward into her own pane instead.
-        if freeForm && showChat {
-            VoiceVisual(style: (FaceStyle(rawValue: faceStyle) ?? .ribbon) == .portrait
-                            ? .ribbon : (FaceStyle(rawValue: faceStyle) ?? .ribbon),
-                        state: .idle, amplitude: 0, tint: Skin.cyan,
-                        scale: faceScale * 1.5, bloom: faceBloom, speed: 0.45, smoke: true)
-                .opacity(0.55)
+        // slowly. Voice brings this same animation forward over the layout.
+        if freeForm {
+            freeFormVisual
+                .opacity(showChat ? 0.55 : 1)
                 .ignoresSafeArea()
-                .transition(.opacity.combined(with: .scale(scale: 0.85)))
+                .allowsHitTesting(false)
+                .zIndex(showChat ? 0 : 1)
         }
         GeometryReader { geo in
             // Her name is the app's, not the conversation's: it sits over the
@@ -219,7 +273,15 @@ struct ContentView: View {
                         // the deck below where his hand is, a quarter of the
                         // screen each at the default half (Oscar, 2026-09-30).
                         VStack(spacing: 0) {
-                            RecordPanel { pet.stop() }.frame(maxHeight: .infinity).tourSpot("record")
+                            HStack(spacing: 0) {
+                                RecordPanel { pet.stop() }
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .tourSpot("record")
+                                Rectangle().fill(Skin.cyan.opacity(0.3)).frame(width: 1)
+                                voiceCommandsPanel
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            }
+                            .frame(maxHeight: .infinity)
                             DeckRail().frame(maxHeight: .infinity).tourSpot("deck")
                         }
                         .frame(width: geo.size.width * deckFraction)
@@ -233,6 +295,27 @@ struct ContentView: View {
                     conversation
                 }
             }
+        }
+        .opacity(freeForm && !showChat ? 0.08 : 1)
+        .allowsHitTesting(!freeForm || showChat)
+        .accessibilityHidden(freeForm && !showChat)
+        if freeForm && !showChat {
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture(count: 2) { pet.toggleRunning() }
+                .overlay(alignment: .bottomTrailing) {
+                    // Keep the way back and microphone reachable over the faded screen.
+                    HStack(spacing: 10) {
+                        squareButton(live.muted || !pet.running ? "mic.slash" : "mic.fill",
+                                     "Microphone", tint: pet.running && !live.muted ? listener : off) {
+                            if pet.running { live.muted.toggle() }
+                        }
+                        squareButton("keyboard", "Back to the chat", tint: Self.mag) { toChat() }
+                    }
+                    .padding(.trailing, 18)
+                    .padding(.bottom, 28)
+                }
+                .zIndex(2)
         }
         } else {
             // A version that is all her (Oscar, 2026-10-01).
@@ -255,8 +338,9 @@ struct ContentView: View {
         }
         }
         .animation(.easeInOut(duration: 0.4), value: look)
+        .animation(.easeInOut(duration: 0.4), value: freeForm)
         .animation(.easeInOut(duration: 0.5), value: showChat)
-        .background(ThreeFingerSwipe { look = look.step($0) })
+        .background(ThreeFingerSwipe { cyclePresentation($0) })
         .background(Color.black)
         .background(PencilWatch(enabled: !scribbling) { scribbling = true })
         .overlay { if scribbling { ScribbleCanvas { scribbling = false } } }
@@ -268,12 +352,24 @@ struct ContentView: View {
         }
         .onChange(of: tourIndex) { _, i in if let tour, i < tour.count { stage(tour[i].scene) } }
         .fontDesign(.monospaced)
-        .ignoresSafeArea()
+        // Bottom stays inside the safe area so the permanent deck sits below
+        // the composer instead of over it.
+        .ignoresSafeArea(.container, edges: [.top, .horizontal])
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            PermanentDeck(eyeOn: presentation == .singularity,
+                          toggleEye: toggleEye, sleep: sleepScreen)
+        }
+        .overlay {
+            if displaySleeping {
+                Color.black.ignoresSafeArea().contentShape(Rectangle()).onTapGesture { wakeScreen() }
+            }
+        }
         // A page she was asked to show. The desk already decided how it can be
         // shown, so this only draws it.
         .sheet(item: $live.page) { PageSheet(page: $0) { live.page = nil } }
         .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet, live: live) }
         .sheet(isPresented: $showNew) { ReleasesSheet { startTour() } }
+        .onChange(of: scene) { _, now in if now == .active { wakeScreen() } }
         .onChange(of: pet.heard) { _, t in
             lastSpoke = Date(); say(t, mine: true); obey(t); notice(t); record(t, "heard")
         }
@@ -340,7 +436,7 @@ struct ContentView: View {
         // `simctl launch … -arisu.tourStop 3` opens the tour on its fourth stop.
         tourIndex = min(max(0, UserDefaults.standard.integer(forKey: "arisu.tourStop")), steps.count - 1)
         #endif
-        lookBeforeTour = look
+        modeBeforeTour = presentation
         stage(steps[tourIndex].scene)
         withAnimation { tour = steps }
     }
@@ -348,7 +444,7 @@ struct ContentView: View {
     private func endTour() {
         withAnimation { tour = nil; chrome = false }
         stage(.chat)
-        look = lookBeforeTour
+        setPresentation(modeBeforeTour)
     }
 
     /// Put the screen where a tour stop needs it, without opening the
@@ -356,11 +452,11 @@ struct ContentView: View {
     private func stage(_ scene: TourScene) {
         switch scene {
         case .keep: break
-        case .chat: look = .classic; deckShown = true; showChat = true
-        case .chatGlance: look = .classic; deckShown = true; showChat = true
-        case .voice: look = .classic; showChat = false
-        case .glance: look = .classic; showChat = false; withAnimation { chrome = true }
-        case .singularity: look = .singularity
+        case .chat: setPresentation(.base); deckShown = true; showChat = true
+        case .chatGlance: setPresentation(.base); deckShown = true; showChat = true
+        case .voice: setPresentation(.base); showChat = false
+        case .glance: setPresentation(.base); showChat = false; withAnimation { chrome = true }
+        case .singularity: setPresentation(.singularity)
         }
     }
 
@@ -386,10 +482,10 @@ struct ContentView: View {
     /// changing mode feel like leaving the app (Oscar, 2026-09-27). The page
     /// draws no chrome of its own here: the row along the top is the app's.
     @ViewBuilder private var conversation: some View {
-        if showChat {
-            ChatPane(chat: chat, phase: phaseColor, openHistory: $chatHistory, toVoice: { toVoice() },
+        if showChat || freeForm {
+            ChatPane(chat: chat, openHistory: $chatHistory, toVoice: { toVoice() },
                      show: { live.page = $0 }, glance: info.glance, focus: $focus, shown: tourScene == .chatGlance,
-                     character: room.character, calling: pet.running)
+                     character: room.character, calling: pet.running, active: showChat)
                 .equatable()
         } else {
             hologram.tourSpot("her")
@@ -432,17 +528,6 @@ struct ContentView: View {
                 }
                 .padding(.top, 24)
                 .padding(.leading, 34)
-
-                // Top right, clear of her: she is drawn in the middle.
-                VStack {
-                    HStack {
-                        Spacer()
-                        if chrome { commandButtons.tourSpot("commands").transition(.opacity) }
-                    }
-                    Spacer()
-                }
-                .padding(.top, 24)
-                .padding(.trailing, 24)
 
                 VStack {
                     Spacer()
@@ -564,8 +649,8 @@ struct ContentView: View {
         return HStack(alignment: .firstTextBaseline, spacing: 14) {
             // The title is the menu of versions (Oscar, 2026-10-01).
             Menu {
-                Picker("Version", selection: $look) {
-                    ForEach(Look.allCases) { Text($0.label).tag($0) }
+                Picker("Mode", selection: Binding(get: { presentation }, set: { setPresentation($0) })) {
+                    ForEach(Presentation.allCases) { Text($0.label).tag($0) }
                 }
             } label: {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -664,8 +749,24 @@ struct ContentView: View {
         ("How's my running?", nil, "How is my running going this week?"),
     ]
 
+    private var voiceCommandsPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("ARISU//COMMANDS")
+                .font(Skin.mono(12, .bold)).tracking(2)
+                .foregroundStyle(Skin.mag)
+                .lineLimit(1).minimumScaleFactor(0.8)
+            commandButtons
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .console(Skin.cyan, brackets: Skin.mag)
+        .padding(10)
+        .tourSpot("commands")
+    }
+
     private var commandButtons: some View {
-        VStack(alignment: .trailing, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
             ForEach(Self.commands, id: \.label) { c in
                 Button { press(c.line, c.ask) } label: {
                     Text(c.label)
@@ -673,6 +774,7 @@ struct ContentView: View {
                         .foregroundStyle(.white)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .plate { Capsule().fill(Color.black.opacity(0.45)) }
                         .edge { Capsule().stroke(Skin.cyan.opacity(0.5), lineWidth: 1) }
                 }
@@ -786,6 +888,24 @@ struct ContentView: View {
         }
     }
 
+    /// One renderer stays mounted while the text fades, preserving its motion
+    /// and its position across the whole screen when switching modes.
+    private var freeFormVisual: some View {
+        let saved = FaceStyle(rawValue: faceStyle) ?? .ribbon
+        let state: VoiceState = showChat ? .idle : voiceState
+        return Metered(meter: pet.meter, music: music) { level, musicLevel in
+            VoiceVisual(style: saved == .portrait ? .ribbon : saved,
+                        state: state,
+                        amplitude: showChat ? 0 : (state == .idle ? max(level, musicLevel) : level),
+                        tint: showChat || live.muted || !pet.running ? Skin.cyan : phaseColor,
+                        scale: faceScale * 1.5, bloom: faceBloom,
+                        speed: showChat ? 0.45 : faceSpeed, smoke: true)
+        }
+        .task(id: !showChat && voiceState == .idle) {
+            if !showChat && voiceState == .idle { await music.listen() }
+        }
+    }
+
     private var scanlines: some View {
         GeometryReader { geo in
             Path { p in
@@ -887,7 +1007,7 @@ struct ContentView: View {
         case .sleep?: if pet.running { pet.toggleRunning() }
         case .leave?:
             if pet.running { pet.toggleRunning() }
-            look = .classic
+            setPresentation(.base)
         case .transcript(let on)?: withAnimation { chrome = on }
         case .settings(let open)?: showSettings = open
         case nil: break
