@@ -86,6 +86,16 @@ enum DemoAct {
     /// The page window's To the desk key, as though pressed (27.0). Nothing
     /// is sent.
     case toDesk
+    /// A reminder arriving with no call: her line on the thread and said out
+    /// loud by the iPad itself (28.0). The line is taken off the thread when
+    /// the stop ends; nothing is read from or written to the desk.
+    case reminderSaid
+    /// The reminders sheet holding two sample reminders and a third being
+    /// written (28.0). Nothing is sent.
+    case reminders
+
+    /// What `.reminderSaid` says.
+    static let reminderLine = "It is ten past four. You asked me to remind you to stretch."
 
     /// Whether this stop holds the screen sheet up.
     var screens: Bool { self == .screens || self == .screensSent }
@@ -150,6 +160,42 @@ enum Releases {
     static var current: Release { all.first { $0.version == running } ?? all[0] }
 
     static let all: [Release] = [
+        Release(version: "28.0", name: "At the time", date: "2026-10-07", highlights: [
+            Highlight(symbol: "speaker.wave.2", name: "Reminders said out loud",
+                      what: "A reminder you asked her for arrives on the screen in front of you at the time. On "
+                          + "the iPad it only appeared as a silent line in the chat, and with her voice on screen "
+                          + "or on Singularity nothing picked it up at all. Now the iPad says it out loud in her "
+                          + "own voice, in every mode, without starting a call or opening the microphone. The "
+                          + "line also goes in the chat, and a page that comes with it opens. At night it is said "
+                          + "at half volume. The morning brief and the ring at the door arrive the same way.",
+                      how: "Press the bell, write \"stretch\", press in 5 min, press Remind me, and leave the "
+                          + "iPad on."),
+            Highlight(symbol: "bell.badge", name: "Your reminders, in one list",
+                      what: "A new bell key in the title bar opens every reminder the desk is holding, with its "
+                          + "time and how long until it is said. You can set one by hand, in five, ten, twenty "
+                          + "or sixty minutes or at any time in the next week, and cancel any of them, including "
+                          + "the ones you asked her for out loud. The bell turns magenta while one is waiting.",
+                      how: "Press the bell left of the sparkles."),
+        ], tour: [
+            TourStep(scene: .chat, title: "Arisu 28.0 — At the time",
+                     text: "Reminders are said out loud now, and you can see and set them yourself. Tap anywhere "
+                         + "to go on."),
+            TourStep(scene: .chat, spot: "thread", title: "Said out loud",
+                     text: "When a reminder comes due, the iPad says it in her voice and puts it here, in any "
+                         + "mode and with no call. At night, at half volume."),
+            TourStep(scene: .chat, spot: "reminders", title: "The bell",
+                     text: "Every reminder waiting on the desk, with its time. Set one by hand or cancel one. "
+                         + "Magenta while one is waiting."),
+            TourStep(scene: .chat, spot: "whatsNew", title: "Watch it",
+                     text: "Behind the sparkles, WATCH THE DEMO plays this release by itself."),
+        ], demo: [
+            DemoStep(scene: .chat, act: .reminderSaid, seconds: 8, title: "A reminder comes due",
+                     text: "With no call, her line arrives in the chat and the iPad says it out loud. Only "
+                         + "this iPad hears it; nothing came from or went to the desk."),
+            DemoStep(scene: .chat, act: .reminders, seconds: 9, title: "The bell",
+                     text: "Two reminders waiting, soonest first, each with its time and a cancel key, and a "
+                         + "third being written. A demo: nothing is sent."),
+        ]),
         Release(version: "27.0", name: "Screen keys", date: "2026-10-07", highlights: [
             Highlight(symbol: "display", name: "Put a page on a screen yourself",
                       what: "Until now only Arisu, Claude or Hermes could put one of your pages on a screen. A new "

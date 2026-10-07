@@ -171,22 +171,103 @@ import GameController
 
     private let brain = Brain()
 
-    /// What the desk queued for this screen while he is reading the chat
-    /// with no call running (17.0, Backlog: "Arisu puts a page on screen
-    /// inside her own tab"). A call takes these itself and says them; with
-    /// no call nothing collected them, so a page she put up waited up to an
-    /// hour, or until he came back to the app, and then started a call. Her
-    /// line goes on the thread -- this screen only, the desk's stored thread
-    /// does not have it -- and the page, if there is one, is returned for
-    /// the app's page sheet. Same pop-on-read queue: exactly one screen gets
-    /// each batch.
-    func collect(character: String) async -> ShowPage? {
+    /// What the desk queued for this screen while no call is running (17.0,
+    /// Backlog: "Arisu puts a page on screen inside her own tab"). A call
+    /// takes these itself and says them; with no call nothing collected them,
+    /// so a page she put up waited up to an hour, or until he came back to the
+    /// app, and then started a call. Her lines go on the thread -- this screen
+    /// only, the desk's stored thread does not have them -- and come back to
+    /// be said aloud (28.0), with the page, if there is one, for the app's
+    /// page sheet. Same pop-on-read queue: exactly one screen gets each batch.
+    func collect(character: String) async -> (said: [String], page: ShowPage?) {
         var page: ShowPage?
-        for cmd in await brain.commands(character: character) {
-            if !cmd.text.isEmpty { lines.append(Line(mine: false, text: cmd.text, at: Date())) }
+        var said: [String] = []
+        for cmd in await queued(character: character) {
+            if !cmd.text.isEmpty {
+                lines.append(Line(mine: false, text: cmd.text, at: Date()))
+                said.append(cmd.text)
+            }
             if let p = cmd.show, p.worthShowing { page = p }
         }
-        return page
+        return (said, page)
+    }
+
+    /// Her line arriving here as a queued one would, for a demo stop (28.0);
+    /// `withdraw` takes it off the thread again when the stop ends.
+    func stage(_ text: String) -> UUID {
+        let l = Line(mine: false, text: text, at: Date())
+        lines.append(l)
+        return l.id
+    }
+    func withdraw(_ id: UUID) { lines.removeAll { $0.id == id } }
+
+    private func queued(character: String) async -> [QueuedCommand] {
+        #if DEBUG && targetEnvironment(simulator)
+        // The simulator never pops the desk's queue (Brain.commands), so a
+        // queued line is checked by handing one in at launch, taken once:
+        // `simctl launch … -arisu.queued "Stretch, it is time."`.
+        if !Self.handedIn, let t = UserDefaults.standard.string(forKey: "arisu.queued") {
+            Self.handedIn = true
+            return [QueuedCommand(id: "sim", text: t, show: nil)]
+        }
+        #endif
+        return await brain.commands(character: character)
+    }
+    #if DEBUG
+    private static var handedIn = false
+    #endif
+
+    // MARK: reminders (28.0)
+
+    /// One reminder the desk is holding (lain's server/reminders.py): said by
+    /// whichever screen collects it once `at` has passed.
+    struct Reminder: Decodable, Identifiable, Equatable {
+        let id: String
+        let text: String
+        let at: Double
+        var due: Date { Date(timeIntervalSince1970: at) }
+    }
+
+    /// The desk's pending reminders, soonest first. Kept as they were when the
+    /// desk cannot be reached: a list that empties on a dropped read would
+    /// say there is nothing coming when there is.
+    @Published private(set) var reminders: [Reminder] = []
+
+    func loadReminders() async {
+        struct Got: Decodable { let reminders: [Reminder] }
+        guard let (data, resp) = try? await net.data(from: Brain.base.appendingPathComponent("reminders")),
+              (resp as? HTTPURLResponse)?.statusCode == 200,
+              let got = try? JSONDecoder().decode(Got.self, from: data) else { return }
+        let next = got.reminders.sorted { $0.at < $1.at }
+        if next != reminders { reminders = next }
+    }
+
+    /// Ask the desk to say `text` at `at`. Nil when it took it, else why not,
+    /// in the desk's own words ("that is more than a week away").
+    func remind(_ text: String, at: Date) async -> String? {
+        let err = await reminderPost("reminder", ["text": text, "at": at.timeIntervalSince1970])
+        await loadReminders()
+        return err
+    }
+
+    /// Forget one. Nil when it is gone, else why not.
+    func cancelReminder(_ id: String) async -> String? {
+        let err = await reminderPost("reminder/cancel", ["id": id])
+        await loadReminders()
+        return err
+    }
+
+    private func reminderPost(_ path: String, _ body: [String: Any]) async -> String? {
+        struct Reply: Decodable { let error: String? }
+        var r = URLRequest(url: Brain.base.appendingPathComponent(path))
+        r.httpMethod = "POST"
+        r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        r.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        // A press, not a turn: seconds at most, as with the screen keys.
+        r.timeoutInterval = 10
+        guard let (data, resp) = try? await net.data(for: r) else { return "The desk could not be reached." }
+        if (resp as? HTTPURLResponse)?.statusCode == 200 { return nil }
+        return (try? JSONDecoder().decode(Reply.self, from: data))?.error ?? "The desk did not take it."
     }
 
     /// A page made showable by the desk, the same reading a call's page gets
@@ -343,13 +424,8 @@ struct ChatPane: View, Equatable {
     @Binding var focus: GlanceFocus?
     /// Held up by a tour stop, without touching his own setting.
     var shown = false
-    /// Whose queue this screen collects, and whether a call is collecting it
-    /// already (17.0).
-    var character = ""
-    var calling = false
     /// Free mode keeps the thread mounted beneath the voice animation.
     var active = true
-    @Environment(\.scenePhase) private var scene
 
     /// Bubbles or terminal lines, the chat's own answer.
     @AppStorage("arisu.bubbles.chat") private var bubbles = true
@@ -432,18 +508,6 @@ struct ChatPane: View, Equatable {
                 do { try await Task.sleep(for: .seconds(60)) } catch { return }
             }
         }
-        // Her queued lines and pages, every 8 s while the chat is up, the app
-        // is in front and no call is taking them (17.0). It waits first: on
-        // arrival Pet.arrive takes the queue and a brief is a call, which is
-        // voice (Oscar, 2026-09-30), so the chat must not get there first.
-        .task(id: active && !calling && scene == .active) {
-            guard active && !calling && scene == .active else { return }
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(8))
-                guard !Task.isCancelled else { return }
-                if let page = await chat.collect(character: character) { show(page) }
-            }
-        }
         .onAppear {
             keyboardConnected = GCKeyboard.coalesced != nil
             writing = active && keyboardConnected
@@ -460,7 +524,7 @@ struct ChatPane: View, Equatable {
     static func == (a: ChatPane, b: ChatPane) -> Bool {
         a.chat === b.chat && a.openHistory == b.openHistory
             && a.topInset == b.topInset && a.glance == b.glance && a.focus == b.focus
-            && a.shown == b.shown && a.character == b.character && a.calling == b.calling
+            && a.shown == b.shown
             && a.active == b.active
     }
 

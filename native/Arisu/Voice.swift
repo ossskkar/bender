@@ -27,10 +27,13 @@ final class Voice: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
         synth.stopSpeaking(at: .immediate)
     }
 
-    func say(_ text: String) {
+    /// `volume` is 0...1 of the system volume: a reminder said at night is
+    /// said at half (28.0), for a house with a baby asleep in it.
+    func say(_ text: String, volume: Float = 1) {
         guard !text.isEmpty else { return }
         synth.stopSpeaking(at: .immediate)
         let u = AVSpeechUtterance(string: text)
+        u.volume = volume
         // Low and flat: she is a machine, not an assistant.
         u.rate = 0.52
         u.pitchMultiplier = 0.72

@@ -53,6 +53,10 @@ struct ContentView: View {
     @State private var showNew = false
     /// The sheet that puts his pages on a screen (27.0).
     @State private var showScreens = false
+    /// Her reminders, his to read, set and cancel (28.0).
+    @State private var showReminders = false
+    /// The line a demo stop put on the thread, to take off again.
+    @State private var demoLine: UUID?
     /// The guided tour running now, and which stop it is on.
     @State private var tour: [TourStep]?
     @State private var tourIndex = 0
@@ -416,6 +420,10 @@ struct ContentView: View {
                 Task { try? await Task.sleep(for: .seconds(0.7)); reopen(held) }
             }, staged: demoAct.screens ? demoAct : .none)
         }
+        .sheet(isPresented: Binding(get: { showReminders || demoAct == .reminders },
+                                    set: { if !$0 { showReminders = false } })) {
+            RemindersSheet(chat: chat, close: { showReminders = false }, staged: demoAct == .reminders)
+        }
         .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet, live: live) }
         .sheet(isPresented: $showNew) { ReleasesSheet { startTour() } onDemo: { startDemo($0) } }
         .onChange(of: pet.heard) { _, t in
@@ -469,6 +477,34 @@ struct ContentView: View {
                 try? await Task.sleep(for: .seconds(4))
             }
         }
+        // Her queued lines -- a reminder, the brief, the ring at the door --
+        // every 8 s while the app is in front and no call is taking them, in
+        // every mode; 17.0 collected them in the chat only. Said out loud in
+        // her on-device voice (28.0, Backlog: "She speaks at the time, on the
+        // screen I am near"): until now a reminder arriving with no call was a
+        // silent line on the thread, and in voice mode or Singularity nothing
+        // took it at all. No call starts and no microphone opens for it. It
+        // waits first: on arrival Pet.arrive takes the queue, and a brief
+        // waiting then is a call, which is voice (Oscar, 2026-09-30).
+        .task(id: !pet.running && scene == .active) {
+            guard !pet.running && scene == .active else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(8))
+                guard !Task.isCancelled, !pet.running else { return }
+                let got = await chat.collect(character: room.character)
+                if let page = got.page { live.page = page }
+                speak(got.said)
+            }
+        }
+        // The desk's pending reminders, for the bell key. Twice a minute: the
+        // list changes when one is set or said, and the sheet reads it fresh.
+        .task(id: scene == .active) {
+            guard scene == .active else { return }
+            while !Task.isCancelled {
+                await chat.loadReminders()
+                try? await Task.sleep(for: .seconds(30))
+            }
+        }
         // Night begins and ends on the hour; a look twice a minute is enough,
         // and only a change is published (17.0).
         .task(id: [nightFrom, nightTo]) {
@@ -492,10 +528,12 @@ struct ContentView: View {
             // For checking a demo in the simulator, where nothing can tap:
             // `simctl launch … -arisu.demo 21.0 [-arisu.demoStop 2]`; and the
             // sheet behind the sparkles, on a tab: `-arisu.sheetTab 1`; Settings:
-            // `-arisu.settings YES`; Put on a screen: `-arisu.screens YES`.
+            // `-arisu.settings YES`; Put on a screen: `-arisu.screens YES`;
+            // Reminders: `-arisu.reminders YES`; a queued line: `-arisu.queued "…"`.
             if UserDefaults.standard.object(forKey: "arisu.sheetTab") != nil { showNew = true }
             if UserDefaults.standard.bool(forKey: "arisu.settings") { showSettings = true }
             if UserDefaults.standard.bool(forKey: "arisu.screens") { showScreens = true }
+            if UserDefaults.standard.bool(forKey: "arisu.reminders") { showReminders = true }
             if let v = UserDefaults.standard.string(forKey: "arisu.demo"),
                let r = Releases.all.first(where: { $0.version == v }) {
                 Task { try? await Task.sleep(for: .seconds(2)); startDemo(r.demo) }
@@ -617,16 +655,29 @@ struct ContentView: View {
                 if steps[i].act == .wake { chantLine = Self.victory.randomElement()! }
                 if let staged = steps[i].act.page { live.page = staged }
                 else if DemoAct.staged(live.page) { live.page = nil }
+                // A reminder arriving: on the thread and said, by this iPad
+                // only, and off the thread again when the stop ends (28.0).
+                if steps[i].act == .reminderSaid {
+                    demoLine = chat.stage(DemoAct.reminderLine)
+                    pet.voice.say(DemoAct.reminderLine)
+                }
                 try? await Task.sleep(for: .seconds(steps[i].seconds))
+                unstageLine()
                 if Task.isCancelled { return }
             }
             endDemo()
         }
     }
 
+    private func unstageLine() {
+        if let id = demoLine { chat.withdraw(id); pet.voice.stop() }
+        demoLine = nil
+    }
+
     private func endDemo() {
         demoRun?.cancel()
         demoRun = nil
+        unstageLine()
         if DemoAct.staged(live.page) { live.page = nil }
         withAnimation { demo = nil; chrome = false }
         demoIndex = 0
@@ -700,7 +751,7 @@ struct ContentView: View {
         if showChat || freeForm {
             ChatPane(chat: chat, openHistory: $chatHistory, toVoice: { toVoice() },
                      show: { live.page = $0 }, glance: info.glance, focus: $focus, shown: tourScene == .chatGlance,
-                     character: room.character, calling: pet.running, active: showChat)
+                     active: showChat)
                 .equatable()
         } else {
             hologram.tourSpot("her")
@@ -895,6 +946,12 @@ struct ContentView: View {
                 if demo == nil { showScreens = true }
             }
             .tourSpot("screenPut")
+            // Her reminders (28.0): magenta while one is waiting on the desk.
+            squareButton(chat.reminders.isEmpty ? "bell" : "bell.badge", "Reminders",
+                         tint: chat.reminders.isEmpty ? Skin.cyan : Skin.mag, stroke: 0.7, ink: .white) {
+                if demo == nil { showReminders = true }
+            }
+            .tourSpot("reminders")
             squareButton("sparkles", "What's new", tint: Skin.mag, stroke: 0.7, ink: .white) {
                 showNew = true
             }
@@ -1209,6 +1266,15 @@ struct ContentView: View {
     private func record(_ text: String, _ kind: String) {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if !t.isEmpty { brain.logVoice(t, kind: kind) }
+    }
+
+    /// Lines the desk queued, said out loud with no call (28.0): her caption
+    /// in voice mode and the panel lit as for anything she says, then her
+    /// on-device voice -- half volume at night.
+    private func speak(_ said: [String]) {
+        guard !said.isEmpty else { return }
+        for t in said { say(t, mine: false); notice(t) }
+        pet.voice.say(said.joined(separator: " "), volume: night ? 0.5 : 1)
     }
 
     private func say(_ text: String, mine: Bool) {
@@ -1550,6 +1616,121 @@ struct ScreenSheet: View {
         said = await chat.clearScreen(target) ? label(target) + " is clear." : label(target) + " held nothing."
         changed(target)
         known = await chat.screens()
+    }
+}
+
+/// Her reminders, his to read, set and take back (28.0, Backlog: "Arisu
+/// reminds me out loud at the time I asked"). The same requests her own tool
+/// makes on the desk (lain's /arisu/reminder); at the time, whichever screen is
+/// in front of him collects it and says it.
+struct RemindersSheet: View {
+    @ObservedObject var chat: Chat
+    let close: () -> Void
+    /// A demo stop: sample reminders shown, one being written, nothing sent.
+    var staged = false
+
+    @State private var text = ""
+    @State private var at = Date().addingTimeInterval(600)
+    @State private var busy = false
+    @State private var said: String?
+
+    private static let sample: [Chat.Reminder] = [
+        .init(id: "demo1", text: "Stretch", at: Date().addingTimeInterval(1200).timeIntervalSince1970),
+        .init(id: "demo2", text: "Take the pasta off the stove",
+              at: Date().addingTimeInterval(3 * 3600).timeIntervalSince1970),
+    ]
+    private var list: [Chat.Reminder] { staged ? Self.sample : chat.reminders }
+    private var canSet: Bool {
+        !staged && !busy && !text.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("What should she remind you of", text: $text)
+                        .font(Skin.mono(15))
+                        .disabled(staged)
+                        .onSubmit { Task { await set() } }
+                    // The usual ones in one press; the picker for anything else.
+                    HStack(spacing: 10) {
+                        ForEach([5, 10, 20, 60], id: \.self) { m in
+                            Button("in \(m) min") { at = Date().addingTimeInterval(Double(m) * 60) }
+                                .font(Skin.mono(13)).buttonStyle(.bordered).tint(Skin.cyan)
+                        }
+                    }
+                    // A week ahead at most: the desk refuses more.
+                    DatePicker("At", selection: $at, in: Date()...Date().addingTimeInterval(7 * 86400 - 60),
+                               displayedComponents: [.date, .hourAndMinute])
+                        .font(Skin.mono(14)).tint(Skin.cyan)
+                    Button { Task { await set() } } label: {
+                        Label("Remind me", systemImage: "bell.badge")
+                            .font(Skin.mono(15, .bold)).foregroundStyle(canSet ? Skin.cyan : Skin.off)
+                    }
+                    .disabled(!canSet)
+                    if let said { Text(said).font(Skin.mono(13, .bold)).foregroundStyle(Skin.cyan) }
+                } header: { Text("A new reminder") }
+                Section {
+                    if list.isEmpty {
+                        Text("Nothing waiting.").font(Skin.mono(13)).foregroundStyle(Skin.off)
+                    }
+                    ForEach(list) { r in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(r.text).foregroundStyle(.white)
+                                // The clock, then how long, counting by itself.
+                                (Text(r.due.formatted(date: Calendar.current.isDateInToday(r.due) ? .omitted : .abbreviated,
+                                                      time: .shortened) + " · in ")
+                                 + Text(r.due, style: .relative))
+                                    .font(Skin.mono(12)).foregroundStyle(Skin.off)
+                            }
+                            Spacer()
+                            Button(role: .destructive) { Task { await cancel(r) } } label: {
+                                Image(systemName: "xmark.circle")
+                            }
+                            .buttonStyle(.borderless)
+                            .disabled(staged || busy)
+                        }
+                    }
+                } header: {
+                    Text("Waiting, soonest first")
+                } footer: {
+                    Text("At the time, the screen in front of you says it out loud: this iPad, or the web page "
+                         + "on a phone. At night the iPad says it at half volume.")
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Grid(tint: Skin.cyan).ignoresSafeArea())
+            .navigationTitle("Reminders")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Done", action: close).tint(Skin.cyan) }
+            }
+            .task { if !staged { await chat.loadReminders() } }
+            .onChange(of: staged, initial: true) { _, on in
+                if on { text = "Call the vet"; at = Date().addingTimeInterval(3600) }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private func set() async {
+        guard canSet else { return }
+        busy = true
+        defer { busy = false }
+        let what = text.trimmingCharacters(in: .whitespaces)
+        if let err = await chat.remind(what, at: at) {
+            said = err
+        } else {
+            said = "Set for " + at.formatted(date: .omitted, time: .shortened) + "."
+            text = ""
+        }
+    }
+
+    private func cancel(_ r: Chat.Reminder) async {
+        busy = true
+        defer { busy = false }
+        said = await chat.cancelReminder(r.id) ?? ("Cancelled: " + r.text + ".")
     }
 }
 
