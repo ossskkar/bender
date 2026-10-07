@@ -107,7 +107,9 @@ struct DeckRail: View {
         .padding(10)
         .task { await deck.load() }
         .task { await deck.watchFront() }
-        .task { await deck.readLight() }
+        // Again each time the iPad comes back: she or the dashboard may have
+        // switched the strip meanwhile (24.0).
+        .task(id: phase == .active) { if phase == .active { await deck.readLight() } }
         // The Mac changed app: bring that deck up. Only on the change, never
         // continuously -- a rail that re-asserts itself every two seconds is
         // one he cannot hold on a different group while he works.

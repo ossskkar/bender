@@ -77,6 +77,11 @@ struct ContentView: View {
     /// clearing the screen closes that page and no other.
     @AppStorage("arisu.screenRev") private var screenRev = -1
     @State private var screenShown: String?
+    /// What the screen holds now, open or not, and what it held before: the
+    /// way back to a page he closed (24.0, Backlog: "Each screen remembers
+    /// what it was showing and comes back to it").
+    @State private var screenHeld: ScreenState?
+    @State private var screenTrail: [ScreenVisit] = []
     static var screenName: String {
         #if DEBUG
         // To check the whole path in the simulator without writing to the
@@ -491,6 +496,7 @@ struct ContentView: View {
     private func followScreen() async {
         let got: ScreenState?
         do { got = try await chat.screen(Self.screenName) } catch { return }
+        if got != screenHeld { screenHeld = got }
         guard let s = got else {
             if screenRev != -1 {
                 screenRev = -1
@@ -504,6 +510,53 @@ struct ContentView: View {
         guard demo == nil, let page = await chat.screenPage(s) else { return }
         screenShown = page.url
         live.page = page
+    }
+
+    /// Put a page this screen holds, or held, back up. Only this iPad's sheet:
+    /// the desk's record of the screen is not touched.
+    private func reopen(_ s: ScreenState) {
+        Task { if let page = await chat.screenPage(s) { live.page = page } }
+    }
+
+    /// The screen's page as the chip shows it: the real one, or the demo's
+    /// page while a demo or the tour stop about the chip needs one to point at.
+    private var heldPage: ScreenState? {
+        let staged = ScreenState(url: DemoAct.screenPage.url, title: "Screen ipad", rev: 0)
+        if demoAct == .held { return staged }
+        if demo != nil { return nil }
+        if let tour, tourIndex < tour.count, tour[tourIndex].spot == "screenBack" { return screenHeld ?? staged }
+        return screenHeld
+    }
+
+    /// Back to the screen: lit while it holds a page, a press opens it again,
+    /// a long press lists what it showed before.
+    @ViewBuilder private var screenChip: some View {
+        if let held = heldPage {
+            squareButton("rectangle.on.rectangle", "Back to the screen: " + held.title,
+                         tint: Skin.mag, stroke: 0.7, ink: .white) {
+                if demo == nil && held.url != DemoAct.screenPage.url { reopen(held) }
+            }
+            .contextMenu {
+                Section("On screen " + Self.screenName) {
+                    Button(held.title.isEmpty ? held.url : held.title, systemImage: "rectangle.on.rectangle") {
+                        reopen(held)
+                    }
+                }
+                if !screenTrail.isEmpty {
+                    Section("Shown before") {
+                        ForEach(screenTrail.filter { $0.url != held.url }, id: \.self) { v in
+                            Button(v.title.isEmpty ? v.url : v.title) {
+                                reopen(ScreenState(url: v.url, title: v.title, rev: 0))
+                            }
+                        }
+                    }
+                }
+            }
+            .tourSpot("screenBack")
+            // The trail changes only when something new is pushed: read it
+            // then, not every four seconds.
+            .task(id: held.rev) { screenTrail = await chat.screenTrail(Self.screenName) }
+        }
     }
 
     /// What the screen says while no call is on: that she can be woken, or
@@ -864,6 +917,7 @@ struct ContentView: View {
                     room.listenHere()
                 }
             }
+            screenChip
             squareButton("sparkles", "What's new", tint: Skin.mag, stroke: 0.7, ink: .white) {
                 showNew = true
             }

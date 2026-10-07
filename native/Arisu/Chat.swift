@@ -218,6 +218,18 @@ import GameController
         return try JSONDecoder().decode(ScreenReply.self, from: data).screen
     }
 
+    /// The last pages the screen called `name` showed, newest first, each
+    /// once (24.0, Backlog: "Each screen remembers what it was showing and
+    /// comes back to it"). Read, never popped; empty when the desk is away.
+    func screenTrail(_ name: String) async -> [ScreenVisit] {
+        var c = URLComponents(string: "/screens")!
+        c.queryItems = [URLQueryItem(name: "name", value: name), URLQueryItem(name: "history", value: "1")]
+        guard let at = c.url(relativeTo: Brain.base), let (data, _) = try? await net.data(from: at),
+              let got = try? JSONDecoder().decode(ScreenReply.self, from: data) else { return [] }
+        var seen = Set<String>()
+        return (got.trail ?? []).reversed().filter { seen.insert($0.url).inserted }.prefix(6).map { $0 }
+    }
+
     /// A page pushed to this screen, made showable. lain's own pages are shown
     /// as they are: the reader will not fetch the desk from the desk, and they
     /// need no login.

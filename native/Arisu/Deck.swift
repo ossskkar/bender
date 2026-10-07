@@ -306,32 +306,44 @@ struct DeckButton: Codable, Equatable, Identifiable {
     /// nil until read, or when the desk did not answer.
     @Published var lightOn: Bool?
     private static let lights = URL(string: "https://architect-server.tailaa64e9.ts.net:8443/lights")!
-    private struct LightState: Decodable {
-        struct Strip: Decodable { let on: Bool? }
-        let lights: [Strip]?
+    private struct Strip: Decodable { let on: Bool?; let error: String? }
+    private struct LightState: Decodable { let lights: [Strip]? }
+
+    /// lain answers with no lights while a pattern holds the strip for more
+    /// than three seconds ("busy"), and the key read once at launch then
+    /// stayed unknown for good. Ask again a little later, a few times (24.0).
+    func readLight(tries: Int = 3) async {
+        for n in 0..<tries {
+            if let (data, _) = try? await session.data(from: Self.lights),
+               let strip = (try? JSONDecoder().decode(LightState.self, from: data))?.lights?.first {
+                lightOn = strip.on
+                return
+            }
+            if n < tries - 1 { try? await Task.sleep(for: .seconds(5)) }
+        }
     }
 
-    func readLight() async {
-        guard let (data, _) = try? await session.data(from: Self.lights),
-              let got = try? JSONDecoder().decode(LightState.self, from: data) else { return }
-        lightOn = got.lights?.first?.on
-    }
-
-    /// Switch the strip the other way from how it was last read.
+    /// Switch the strip the other way from how it is. Unknown is read once
+    /// more first, so a press is not a guess when it need not be.
     func toggleLight() async {
-        let want = !(lightOn ?? false)
         running = "light"
         defer { running = nil }
+        if lightOn == nil { await readLight(tries: 1) }
+        let want = !(lightOn ?? false)
         var r = URLRequest(url: Self.lights)
         r.httpMethod = "POST"
         r.setValue("application/json", forHTTPHeaderField: "Content-Type")
         r.httpBody = try? JSONSerialization.data(withJSONObject: ["on": want])
+        // lain answers 200 with an `error` when the strip itself refused or
+        // was not there; that is a failure, not a switch (24.0: it was shown
+        // green and the key flipped while nothing happened).
         guard let (data, response) = try? await session.data(for: r),
-              (response as? HTTPURLResponse)?.statusCode == 200 else {
+              (response as? HTTPURLResponse)?.statusCode == 200,
+              let strip = try? JSONDecoder().decode(Strip.self, from: data), strip.error == nil else {
             mark("light", false)
             return
         }
-        lightOn = (try? JSONDecoder().decode(LightState.self, from: data))?.lights?.first?.on ?? want
+        lightOn = strip.on ?? want
         mark("light", true)
     }
 

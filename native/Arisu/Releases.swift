@@ -71,6 +71,9 @@ enum DemoAct {
     /// A page pushed to this screen, as one would arrive (23.0). The page is
     /// written here; nothing is read from or written to the desk.
     case screen
+    /// The page closed again, and the screen's chip in the title bar holding
+    /// it (24.0). Nothing is read from the desk.
+    case held
 
     /// What `.screen` puts up.
     static let screenPage = ShowPage(
@@ -108,6 +111,51 @@ enum Releases {
     static var current: Release { all.first { $0.version == running } ?? all[0] }
 
     static let all: [Release] = [
+        Release(version: "24.0", name: "Way back", date: "2026-10-07", highlights: [
+            Highlight(symbol: "rectangle.on.rectangle", name: "Back to the screen",
+                      what: "While lain's screen called ipad holds a page, a magenta key sits in the title bar. "
+                          + "Closing the page no longer loses it: one press puts it back up. A long press lists "
+                          + "the pages the screen showed before, newest first, and opens any of them. Only "
+                          + "this iPad's view changes; what the screen holds stays as the desk has it.",
+                      how: "Close a page that was put on the ipad screen, then press the key left of the "
+                          + "sparkles; hold it for the earlier pages."),
+            Highlight(symbol: "lightbulb", name: "The Light key tells the truth",
+                      what: "The Light key read God's Eye once, when the deck opened. When lain was busy with "
+                          + "the strip it answered with no lights, and the key stayed unsure for good, so a "
+                          + "press guessed. It now asks again a few seconds later, again each time the iPad "
+                          + "comes back to the app, and once more just before a press if it still does not "
+                          + "know. When lain says the strip refused, the key turns red instead of green.",
+                      how: "Press Light in the Deck's top row."),
+            Highlight(symbol: "circle.dashed", name: "Her eye without blurs",
+                      what: "Singularity's eye was drawn with ten blurred passes a picture, each one a copy "
+                          + "of the whole screen: its rings, its photon ring, its smoke and the glow of the "
+                          + "mesh behind it. They are now soft gradients and a wide faint line, which look "
+                          + "the same and need no copy. The simulator draws this screen at about 20 a second "
+                          + "with or without any blur, so the saving shows on the iPad, not here."),
+        ], tour: [
+            TourStep(scene: .chat, title: "Arisu 24.0 — Way back",
+                     text: "A page put on this iPad can be found again after you close it. Tap anywhere to go on."),
+            TourStep(scene: .chat, spot: "screenBack", title: "Back to the screen",
+                     text: "This key is lit while the ipad screen holds a page. Press it to put the page back up."),
+            TourStep(scene: .chat, spot: "screenBack", title: "What it showed before",
+                     text: "Hold the same key for the pages the screen showed earlier, newest first."),
+            TourStep(scene: .chat, spot: "deck", title: "An honest Light key",
+                     text: "Light asks lain again when it was not sure, and turns red when the strip refused."),
+            TourStep(scene: .singularity, title: "Her eye, lighter",
+                     text: "The eye and the mesh behind it are drawn without blurs now: the same picture, "
+                         + "ten fewer copies of the screen each time."),
+            TourStep(scene: .chat, spot: "whatsNew", title: "Watch it",
+                     text: "Behind the sparkles, WATCH THE DEMO plays this release by itself."),
+        ], demo: [
+            DemoStep(scene: .chat, act: .screen, seconds: 8, title: "A page arrives",
+                     text: "Something was put on the screen called ipad, so it opens. This one is written "
+                         + "by the demo; nothing was asked of the desk."),
+            DemoStep(scene: .chat, act: .held, seconds: 8, title: "Closed, not gone",
+                     text: "The page is closed, and the key left of the sparkles is lit: the screen still "
+                         + "holds it, and one press brings it back."),
+            DemoStep(scene: .singularity, seconds: 7, title: "Her eye, lighter",
+                     text: "The eye, its smoke and the mesh, drawn with gradients instead of blurs."),
+        ]),
         Release(version: "23.0", name: "On screen", date: "2026-10-07", highlights: [
             Highlight(symbol: "rectangle.on.rectangle", name: "The iPad is a screen",
                       what: "lain keeps a list of named screens and what each one shows; the Mac's desk "

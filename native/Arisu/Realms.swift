@@ -692,9 +692,32 @@ private struct Scene {
                                                      center: p, startRadius: 0, endRadius: r))
     }
 
-    /// The glow ring: wide and faint to thin and bright, no hard edge.
+    /// The glow ring: wide and faint to thin and bright, no hard edge. Drawn
+    /// as the same three passes, but each as a ring of gradient rather than a
+    /// blurred stroke: a blur is a whole-screen layer, and the eye alone took
+    /// nine of them a frame (24.0).
     func softRing(_ p: CGPoint, _ r: Double, _ col: Color, _ lw: Double, _ o: Double = 1) {
-        softPath(circle(p, r), col, lw, o)
+        for (w, b, a) in [(lw * 5, M * 0.04, 0.2), (lw * 2.2, M * 0.015, 0.4), (lw, M * 0.004, 0.85)] {
+            glowRing(lit, p, r, col, lw: w, blur: b, a * o)
+        }
+    }
+
+    /// What a blurred circle's stroke looks like, without the blur: a radial
+    /// gradient whose stops follow the bell a blur makes across the line.
+    func glowRing(_ c: GraphicsContext, _ p: CGPoint, _ r: Double, _ col: Color,
+                  lw: Double, blur: Double, _ a: Double) {
+        let s = max(blur, lw * 0.3)
+        let peak = a * min(1, lw / (2.5 * s))
+        let outer = r + 3 * s
+        guard outer > 0, peak > 0.002 else { return }
+        var stops: [Gradient.Stop] = []
+        for i in -4...4 {
+            let x = Double(i) * 0.75 * s
+            guard r + x >= 0 else { continue }
+            stops.append(.init(color: col.opacity(peak * exp(-x * x / (2 * s * s))), location: (r + x) / outer))
+        }
+        c.fill(circle(p, outer), with: .radialGradient(Gradient(stops: stops), center: p,
+                                                       startRadius: 0, endRadius: outer))
     }
 
     func softPath(_ path: Path, _ col: Color, _ lw: Double, _ o: Double = 1) {
@@ -737,17 +760,28 @@ private struct Scene {
 
     /// White cloud off a ring round her, rising, fuller when she is loud.
     func smoke(_ R: Double, n: Int = 40) {
-        var c = lit
-        c.addFilter(.blur(radius: R * 0.25))
-        for i in 0..<n {
-            let h1 = hash(i, 1), h2 = hash(i, 2), h3 = hash(i, 3)
-            let life = (t * (0.09 + 0.07 * h1) * (1 + 0.8 * deco) + h2).truncatingRemainder(dividingBy: 1)
-            let ang = h3 * tau + t * 0.18 + life * 0.9
-            let r = R * (1 + 0.5 * life + 0.15 * deco)
-            let p = CGPoint(x: cx + cos(ang) * r,
-                            y: cy + sin(ang) * r * 0.4 + R * 0.3 - life * R * (1.1 + 0.6 * h1))
-            let s = R * (0.12 + 0.24 * life) * (0.8 + 0.5 * deco + 0.3 * h2)
-            c.fill(circle(p, s), with: .color(.white.opacity(sin(life * .pi) * 0.22 * (0.6 + 0.4 * deco))))
+        // Each puff a soft gradient of its own rather than all of them blurred:
+        // the same cloud, no blur pass (24.0). Still one layer, so where puffs
+        // overlap they cover each other instead of adding up to white.
+        let b = R * 0.25
+        lit.drawLayer { c in
+            var c = c
+            c.blendMode = .normal
+            for i in 0..<n {
+                let h1 = hash(i, 1), h2 = hash(i, 2), h3 = hash(i, 3)
+                let life = (t * (0.09 + 0.07 * h1) * (1 + 0.8 * deco) + h2).truncatingRemainder(dividingBy: 1)
+                let ang = h3 * tau + t * 0.18 + life * 0.9
+                let r = R * (1 + 0.5 * life + 0.15 * deco)
+                let p = CGPoint(x: cx + cos(ang) * r,
+                                y: cy + sin(ang) * r * 0.4 + R * 0.3 - life * R * (1.1 + 0.6 * h1))
+                let s = R * (0.12 + 0.24 * life) * (0.8 + 0.5 * deco + 0.3 * h2)
+                let o = sin(life * .pi) * 0.22 * (0.6 + 0.4 * deco), out = s + 1.5 * b
+                c.fill(circle(p, out), with: .radialGradient(
+                    Gradient(stops: [.init(color: .white.opacity(o * 0.6), location: 0),
+                                     .init(color: .white.opacity(o * 0.3), location: s / out),
+                                     .init(color: .white.opacity(0), location: 1)]),
+                    center: p, startRadius: 0, endRadius: out))
+            }
         }
     }
 
@@ -805,10 +839,10 @@ private struct Scene {
         // Her cyan at rest; with music the mesh turns through magenta and violet.
         let meshInk = clock.hue == clock.hue.rounded() ? Skin.cyan
             : Color(hue: palette(clock.hue), saturation: 0.72, brightness: 0.97)
-        var meshGlow = lit
-        meshGlow.addFilter(.blur(radius: 3))
-        meshGlow.stroke(rings, with: .color(meshInk.opacity((0.22 + deco * 0.15) * pres)), lineWidth: 2)
-        meshGlow.stroke(marks, with: .color(Skin.mag.opacity(0.3 * pres)), lineWidth: 2)
+        // The mesh's glow is a wide faint line under the thin one, not a blur:
+        // a 3-point blur of the whole screen was the costliest pass left (24.0).
+        lit.stroke(rings, with: .color(meshInk.opacity((0.22 + deco * 0.15) * 0.35 * pres)), lineWidth: 6)
+        lit.stroke(marks, with: .color(Skin.mag.opacity(0.3 * 0.35 * pres)), lineWidth: 6)
         lit.stroke(rings, with: .color(meshInk.opacity((0.22 + deco * 0.1) * pres)), lineWidth: 1)
         lit.stroke(spokes, with: .color(Skin.cyan.opacity(0.12 * pres)), lineWidth: 1)
         lit.stroke(marks, with: .color(Skin.mag.opacity(0.28 * pres)), lineWidth: 1)
@@ -1036,17 +1070,13 @@ private struct Scene {
         let split = 2.0
         for (dx, col, o) in [(-split, Color(red: 1, green: 0.2, blue: 0.33), 0.6),
                              (split, Color(red: 0.2, green: 0.53, blue: 1), 0.6)] {
-            var c = eyeLit
-            c.addFilter(.blur(radius: M * 0.01))
-            c.stroke(circle(CGPoint(x: cx + dx, y: cy), pr), with: .color(col.opacity(o)), lineWidth: 3)
+            glowRing(eyeLit, CGPoint(x: cx + dx, y: cy), pr, col, lw: 3, blur: M * 0.01, o)
         }
         // The photon ring, soft (Oscar, 2026-10-01): blurred passes only, no
         // hard stroke, and the hole fades into it rather than being cut out.
         let photon = Color(red: 1, green: 0.95, blue: 0.75)
         for (w, blur, o) in [(pr * 0.5, pr * 0.25, 0.25), (pr * 0.2, pr * 0.1, 0.45), (pr * 0.07, pr * 0.04, 0.6)] {
-            var c = eyeLit
-            c.addFilter(.blur(radius: blur))
-            c.stroke(circle(center, pr), with: .color(photon.opacity(o)), lineWidth: w)
+            glowRing(eyeLit, center, pr, photon, lw: w, blur: blur, o)
         }
         eyeCtx.fill(circle(center, pr * 1.05), with: .radialGradient(
             Gradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.72),

@@ -127,6 +127,14 @@ struct ScreenState: Decodable, Equatable {
 
 struct ScreenReply: Decodable {
     let screen: ScreenState?
+    /// The pages this screen showed before, oldest first; only when asked for.
+    var trail: [ScreenVisit]? = nil
+}
+
+/// One page a screen showed, from its trail (24.0).
+struct ScreenVisit: Decodable, Hashable {
+    let url: String
+    let title: String
 }
 
 struct CommandInbox: Decodable {
