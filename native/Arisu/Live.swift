@@ -388,6 +388,9 @@ final class Live: ObservableObject {
             // appears with nothing said reads as a glitch, and a line about a
             // page that never arrives reads as a promise.
             if let page = cmd.show, page.worthShowing { self.page = page }
+            // On Gemini she answered the show_page call herself; the queued
+            // line would be a second one.
+            if onGemini && cmd.show != nil { continue }
             await sayCommand(cmd.text)
         }
     }
