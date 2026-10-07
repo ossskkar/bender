@@ -11,7 +11,7 @@ import UIKit
 /// scanlines and the sweep stayed here because they belong to the room rather
 /// than to her, and they still cost nothing per frame.
 struct ContentView: View {
-    private enum Presentation: String, CaseIterable, Identifiable {
+    enum Presentation: String, CaseIterable, Identifiable {
         case base, free, singularity
         var id: String { rawValue }
         var label: String { rawValue.uppercased() }
@@ -107,8 +107,6 @@ struct ContentView: View {
     /// talking in holds the microphone open and burns a realtime session for
     /// nothing, so it closes itself (Oscar, 2026-09-28).
     @State private var lastSpoke = Date()
-    /// The wordmark's flicker: a tube that is not quite well.
-    @State private var flicker = 1.0
     /// The typed chat: its own screen, the terminal page lain serves
     /// (arisu/chat.html) full screen over her. Voice and chat are two
     /// separate UIs in one app (Oscar, 2026-09-23).
@@ -397,7 +395,7 @@ struct ContentView: View {
         .ignoresSafeArea()
         // A page she was asked to show. The desk already decided how it can be
         // shown, so this only draws it.
-        .sheet(item: $live.page) { PageSheet(page: $0) { live.page = nil } }
+        .sheet(item: $live.page) { PageSheet(page: $0, close: { live.page = nil }, front: demoAct == .pagesNext ? 1 : 0) }
         .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet, live: live) }
         .sheet(isPresented: $showNew) { ReleasesSheet { startTour() } onDemo: { startDemo($0) } }
         .onChange(of: pet.heard) { _, t in
@@ -596,8 +594,8 @@ struct ContentView: View {
                 // The line she would speak as the call starts, carved as it is
                 // then; spoken by nobody.
                 if steps[i].act == .wake { chantLine = Self.victory.randomElement()! }
-                if steps[i].act == .screen { live.page = DemoAct.screenPage }
-                else if live.page == DemoAct.screenPage { live.page = nil }
+                if let staged = steps[i].act.page { live.page = staged }
+                else if DemoAct.staged(live.page) { live.page = nil }
                 try? await Task.sleep(for: .seconds(steps[i].seconds))
                 if Task.isCancelled { return }
             }
@@ -608,7 +606,7 @@ struct ContentView: View {
     private func endDemo() {
         demoRun?.cancel()
         demoRun = nil
-        if live.page == DemoAct.screenPage { live.page = nil }
+        if DemoAct.staged(live.page) { live.page = nil }
         withAnimation { demo = nil; chrome = false }
         demoIndex = 0
         stage(.chat)
@@ -838,55 +836,7 @@ struct ContentView: View {
     private static let mag = Skin.mag
 
     private var masthead: some View {
-        let cyan = Skin.cyan
-        // One line, not two: the title row is a row (Oscar, 2026-09-29). The
-        // tagline drops out first when the window is narrow, as the
-        // dashboard's own wordmark does.
-        return HStack(alignment: .firstTextBaseline, spacing: 14) {
-            // The title is the menu of versions (Oscar, 2026-10-01).
-            Menu {
-                Picker("Mode", selection: Binding(get: { presentation }, set: { setPresentation($0) })) {
-                    ForEach(Presentation.allCases) { Text($0.label).tag($0) }
-                }
-            } label: {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("Arisuへようこそ！")
-                        // As tall as the button beside it: the title is the other half
-                        // of that row, not a caption over it (Oscar, 2026-09-29).
-                        .font(Skin.mono(26, .bold))
-                        .tracking(4.5)
-                    Image(systemName: "chevron.down").font(.system(size: 14, weight: .bold))
-                }
-                .foregroundStyle(Self.mag)
-                .shadow(color: Self.mag.opacity(0.7 * flicker), radius: 12)
-                .fixedSize()
-            }
-            Text("PRESENT DAY · PRESENT TIME")
-                .font(Skin.mono(11, .medium))
-                .tracking(2.8)
-                .foregroundStyle(cyan)
-                .lineLimit(1)
-                .layoutPriority(-1)
-        }
-        .opacity(flicker)
-        .shadow(color: .black.opacity(0.85), radius: 4)
-        .allowsHitTesting(false)
-        .task { await flickerForever() }
-    }
-
-    /// A bad tube. It sits still for a few seconds, drops for a frame or two,
-    /// sometimes twice, then settles -- the point is that he cannot predict
-    /// it, so the interval and the dip are both drawn fresh each time.
-    private func flickerForever() async {
-        while !Task.isCancelled {
-            try? await Task.sleep(for: .milliseconds(Int.random(in: 2600...9000)))
-            for _ in 0..<Int.random(in: 1...3) {
-                withAnimation(.linear(duration: 0.05)) { flicker = Double.random(in: 0.45...0.75) }
-                try? await Task.sleep(for: .milliseconds(Int.random(in: 40...110)))
-                withAnimation(.linear(duration: 0.07)) { flicker = 1.0 }
-                try? await Task.sleep(for: .milliseconds(Int.random(in: 50...140)))
-            }
-        }
+        Masthead(presentation: Binding(get: { presentation }, set: { setPresentation($0) }))
     }
 
     /// Everything that is always on screen, in one row at the top: the
@@ -1247,6 +1197,69 @@ struct ContentView: View {
 
 /// A page she put on screen, in the app's own sheet.
 ///
+/// Her name over the room, with its flicker (see `ContentView.masthead`).
+/// Its own view since 26.0: the flicker lived on ContentView, so every dip
+/// of the tube, up to six a flicker every few seconds, re-ran the whole
+/// screen's body and layout; now only the wordmark redraws.
+private struct Masthead: View {
+    @Binding var presentation: ContentView.Presentation
+    /// The wordmark's flicker: a tube that is not quite well.
+    @State private var flicker = 1.0
+
+    var body: some View {
+        let cyan = Skin.cyan
+        // One line, not two: the title row is a row (Oscar, 2026-09-29). The
+        // tagline drops out first when the window is narrow, as the
+        // dashboard's own wordmark does.
+        return HStack(alignment: .firstTextBaseline, spacing: 14) {
+            // The title is the menu of versions (Oscar, 2026-10-01).
+            Menu {
+                Picker("Mode", selection: $presentation) {
+                    ForEach(ContentView.Presentation.allCases) { Text($0.label).tag($0) }
+                }
+            } label: {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("Arisuへようこそ！")
+                        // As tall as the button beside it: the title is the other half
+                        // of that row, not a caption over it (Oscar, 2026-09-29).
+                        .font(Skin.mono(26, .bold))
+                        .tracking(4.5)
+                    Image(systemName: "chevron.down").font(.system(size: 14, weight: .bold))
+                }
+                .foregroundStyle(Skin.mag)
+                .shadow(color: Skin.mag.opacity(0.7 * flicker), radius: 12)
+                .fixedSize()
+            }
+            Text("PRESENT DAY · PRESENT TIME")
+                .font(Skin.mono(11, .medium))
+                .tracking(2.8)
+                .foregroundStyle(cyan)
+                .lineLimit(1)
+                .layoutPriority(-1)
+        }
+        .opacity(flicker)
+        .shadow(color: .black.opacity(0.85), radius: 4)
+        .allowsHitTesting(false)
+        .task { await flickerForever() }
+    }
+
+    /// A bad tube. It sits still for a few seconds, drops for a frame or two,
+    /// sometimes twice, then settles -- the point is that he cannot predict
+    /// it, so the interval and the dip are both drawn fresh each time.
+    private func flickerForever() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(Int.random(in: 2600...9000)))
+            for _ in 0..<Int.random(in: 1...3) {
+                withAnimation(.linear(duration: 0.05)) { flicker = Double.random(in: 0.45...0.75) }
+                try? await Task.sleep(for: .milliseconds(Int.random(in: 40...110)))
+                withAnimation(.linear(duration: 0.07)) { flicker = 1.0 }
+                try? await Task.sleep(for: .milliseconds(Int.random(in: 50...140)))
+            }
+        }
+    }
+
+}
+
 /// The three modes are the desk's decision (server/reader.py), mirroring
 /// arisu-voice.js `drawPage` so the app and the web face show the same thing
 /// for the same page: `frame` is the site itself in a web view, `reader` is
@@ -1255,47 +1268,74 @@ struct ContentView: View {
 struct PageSheet: View {
     let page: ShowPage
     let close: () -> Void
+    /// The page a demo puts in front; he switches with the picker.
+    var front = 0
     @Environment(\.openURL) private var openURL
+    /// Which of several pages pushed at once is in front (26.0).
+    @State private var at = 0
 
-    private var heads: [String] { page.headlines ?? [] }
-    private var body_text: String { page.text ?? "" }
+    private var pages: [ShowPage] { page.panels ?? [page] }
+    private var shown: ShowPage { pages[min(at, pages.count - 1)] }
 
     var body: some View {
         NavigationStack {
-            content
-                .navigationTitle(page.host ?? page.url)
+            // Every page stays loaded and only the one in front shows, so
+            // switching back does not reload a page or lose its place.
+            ZStack {
+                ForEach(Array(pages.enumerated()), id: \.offset) { i, p in
+                    content(p).opacity(i == at ? 1 : 0).allowsHitTesting(i == at)
+                }
+            }
+                .navigationTitle(shown.host ?? shown.url)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Close", action: close)
                     }
+                    if pages.count > 1 {
+                        // A screen given several pages at once ("put my habits and
+                        // my health up", lain's screens.put): one switch with each
+                        // page's title, in the order they were pushed.
+                        ToolbarItem(placement: .principal) {
+                            Picker("Page", selection: $at) {
+                                ForEach(Array(pages.enumerated()), id: \.offset) { i, p in
+                                    Text(p.title?.isEmpty == false ? p.title! : (p.host ?? "Page \(i + 1)")).tag(i)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(maxWidth: 520)
+                        }
+                    }
                     ToolbarItem(placement: .primaryAction) {
-                        Button("Safari") { if let u = URL(string: page.url) { openURL(u) } }
+                        Button("Safari") { if let u = URL(string: shown.url) { openURL(u) } }
                     }
                 }
         }
+        .onChange(of: front, initial: true) { at = front }
     }
 
-    @ViewBuilder private var content: some View {
+    @ViewBuilder private func content(_ page: ShowPage) -> some View {
+        let heads = page.headlines ?? []
+        let text = page.text ?? ""
         if page.mode == "frame" {
             WebPage(url: URL(string: page.url))
-        } else if page.mode == "tab" || (heads.isEmpty && body_text.isEmpty) {
+        } else if page.mode == "tab" || (heads.isEmpty && text.isEmpty) {
             note(page.mode == "tab"
                  ? "This one needs you signed in, so it opens in your own browser."
-                 : (page.error ?? "I could not read anything off that page."))
+                 : (page.error ?? "I could not read anything off that page."), url: page.url)
         } else if !heads.isEmpty {
             List(Array(heads.enumerated()), id: \.offset) { _, head in
                 Text(head)
             }
         } else {
-            ScrollView { Text(body_text).padding() }
+            ScrollView { Text(text).padding() }
         }
     }
 
-    private func note(_ line: String) -> some View {
+    private func note(_ line: String, url: String) -> some View {
         VStack(spacing: 16) {
             Text(line).multilineTextAlignment(.center)
-            Button("Open in Safari") { if let u = URL(string: page.url) { openURL(u) } }
+            Button("Open in Safari") { if let u = URL(string: url) { openURL(u) } }
                 .buttonStyle(.borderedProminent)
         }
         .padding(32)

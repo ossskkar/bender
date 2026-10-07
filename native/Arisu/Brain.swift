@@ -107,6 +107,9 @@ struct ShowPage: Decodable, Sendable, Identifiable, Equatable {
     let headlines: [String]?
     let ok: Bool?
     let error: String?
+    /// The other pages pushed with this one, this one first, when a screen was
+    /// given several at once (26.0); nil for a single page. Never from the desk.
+    var panels: [ShowPage]? = nil
 
     /// The url is the identity: two pages on screen at once is not a thing,
     /// and re-showing the same page should not re-present the sheet.
@@ -123,6 +126,15 @@ struct ScreenState: Decodable, Equatable {
     let url: String
     let title: String
     let rev: Int
+    /// Every page of the push, in order, when it was several at once
+    /// ("put my habits and my health up", lain's screens.put, up to six).
+    var panels: [ScreenVisit]? = nil
+
+    /// The pages to show: the panels, or the one page of an older push.
+    var pages: [ScreenVisit] {
+        if let panels, !panels.isEmpty { return panels }
+        return [ScreenVisit(url: url, title: title)]
+    }
 }
 
 struct ScreenReply: Decodable {

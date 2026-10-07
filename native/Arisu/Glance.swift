@@ -48,6 +48,21 @@ struct Glance: Equatable {
     ]
     static var raceKm: Double { planTable.last!.long }
 
+    /// The day he stopped Project 100K ("I'm not gonna do the 100 kilometer
+    /// project", Oscar, 2026-10-01), as lain's server/p100k.py DROPPED has it.
+    /// While it is set the iPad knows no race: no countdown, no plan week, no
+    /// race pace, no planned bars, and the ring says the week's kilometres
+    /// only. The runs themselves still show. nil brings it all back.
+    /// checks/race-plan.py fails if this and lain's drift.
+    static let dropped: String? = "2026-10-01"
+
+    /// The race day from data.json's settings, or nil when there is no race
+    /// to speak of (26.0). The one place both the panel and the ring ask.
+    static func raceDay(_ d: [String: Any]) -> Date? {
+        guard dropped == nil, let s = (d["settings"] as? [String: Any])?["raceDate"] as? String else { return nil }
+        return LainInfo.parse(s)
+    }
+
     struct Training: Equatable {
         /// 1 to 14.
         let week: Int
@@ -108,7 +123,7 @@ struct Glance: Equatable {
         // minus 13 weeks, as p100k.py works it out.
         var planStart: Date?
         var raceDay: Date?
-        if let s = (d["settings"] as? [String: Any])?["raceDate"] as? String, let race = LainInfo.parse(s) {
+        if let race = Self.raceDay(d) {
             let back = (cal.component(.weekday, from: race) + 5) % 7      // days since Monday
             planStart = cal.date(byAdding: .day, value: -back - 7 * 13, to: race)
             raceDay = race

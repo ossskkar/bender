@@ -77,6 +77,33 @@ enum DemoAct {
     /// The day panel beside her with its running part lit, as when he asks
     /// how his running is going (25.0). His own numbers; nothing is sent.
     case running
+    /// Two pages pushed to this screen at once, the first in front, then the
+    /// second (26.0). Written here; nothing is read from or written to the desk.
+    case pages, pagesNext
+
+    /// What `.pages` puts up: two of the demo's own pages, nothing fetched.
+    static let pagesPage: ShowPage = {
+        func one(_ title: String, _ lines: [String]) -> ShowPage {
+            ShowPage(url: "about:arisu-pages-demo-" + title.lowercased(), host: title, mode: "reader",
+                     title: title, text: nil, headlines: lines, ok: true, error: nil)
+        }
+        var first = one("Habits", ["A screen can be given several pages at once.",
+                                   "Each one is a segment in the bar above, in the order they were pushed."])
+        first.panels = [first, one("Health", ["The second page, one tap away.",
+                                              "Both stay loaded, so going back does not reload the first."])]
+        return first
+    }()
+
+    /// The page a demo stop puts up, if it puts one up.
+    var page: ShowPage? {
+        switch self {
+        case .screen: return Self.screenPage
+        case .pages, .pagesNext: return Self.pagesPage
+        default: return nil
+        }
+    }
+    /// Whether `page` is one a demo put up, to be taken down when it moves on.
+    static func staged(_ page: ShowPage?) -> Bool { page == screenPage || page == pagesPage }
 
     /// What `.screen` puts up.
     static let screenPage = ShowPage(
@@ -114,6 +141,60 @@ enum Releases {
     static var current: Release { all.first { $0.version == running } ?? all[0] }
 
     static let all: [Release] = [
+        Release(version: "26.0", name: "Several pages", date: "2026-10-07", highlights: [
+            Highlight(symbol: "figure.walk", name: "No race on the iPad",
+                      what: "Project 100K was stopped on 1 October, but the iPad kept counting down to the race, "
+                          + "measuring each week against the training plan and giving a race pace. All of that "
+                          + "is gone: the day panel shows the kilometres of the last eight weeks and the last "
+                          + "run, and Singularity's ring says the kilometres run this week. It follows lain, "
+                          + "which stopped speaking about the race the same day; if the project comes back, one "
+                          + "line brings it all back.",
+                      how: "Open the day panel: tap her in voice mode, or ask about your running."),
+            Highlight(symbol: "rectangle.split.2x1", name: "Several pages on the screen",
+                      what: "lain can put up to six pages on a screen at once, and the Mac's big screen lays them "
+                          + "out side by side. The iPad showed only the first. It now opens all of them in the "
+                          + "same window, with a switch at the top naming each page in the order they were "
+                          + "sent. Every page stays loaded, so switching back does not reload it or lose your "
+                          + "place, and Safari opens the page in front.",
+                      how: "Ask Claude or Hermes to show two pages on the screen called ipad, for example your "
+                          + "habits and your health."),
+            Highlight(symbol: "rectangle.on.rectangle", name: "All of them come back",
+                      what: "The magenta key that puts the screen's page back up after you close it now brings "
+                          + "back every page that was sent together, not only the first.",
+                      how: "Close the window, then press the key left of the sparkles."),
+            Highlight(symbol: "bolt.slash", name: "A quieter title",
+                      what: "Each time the title flickered, every few seconds, the whole screen was worked out "
+                          + "again: the chat, the deck, the day panel. Now only the title is. Measured in the "
+                          + "simulator on the chat at rest: the screen's updates fell from 450 to 86 in twelve "
+                          + "seconds, and the app's use of the processor from about 8 to about 3 percent."),
+        ], tour: [
+            TourStep(scene: .glance, title: "Arisu 26.0 — Several pages",
+                     text: "The race is gone from the iPad, and a screen can hold several pages. Tap anywhere "
+                         + "to go on."),
+            TourStep(scene: .glance, spot: "glanceRunning", title: "Running, without the race",
+                     text: "The last eight weeks and the last run. No countdown, plan week or race pace since "
+                         + "Project 100K stopped."),
+            TourStep(scene: .singularity, title: "The ring says the week",
+                     text: "The magenta ring reads the kilometres run this week, as before the plan."),
+            TourStep(scene: .chat, title: "Several pages at once",
+                     text: "When several pages are put on the screen called ipad, they open together, with a "
+                         + "switch at the top naming each one."),
+            TourStep(scene: .chat, spot: "screenBack", title: "All of them come back",
+                     text: "This key, lit while the screen holds pages, puts all of them back up."),
+            TourStep(scene: .chat, spot: "whatsNew", title: "Watch it",
+                     text: "Behind the sparkles, WATCH THE DEMO plays this release by itself."),
+        ], demo: [
+            DemoStep(scene: .glance, act: .running, seconds: 8, title: "How is my running going?",
+                     text: "The running part lights: the weeks and the last run, and no race any more."),
+            DemoStep(scene: .chat, act: .pages, seconds: 8, title: "Two pages arrive",
+                     text: "Two pages were put on the screen called ipad together, so both open, the first in "
+                         + "front. These are written by the demo; nothing was asked of the desk."),
+            DemoStep(scene: .chat, act: .pagesNext, seconds: 8, title: "The second one",
+                     text: "The switch at the top brings the second page to the front. The first stays loaded "
+                         + "behind it."),
+            DemoStep(scene: .singularity, seconds: 7, title: "The ring says the week",
+                     text: "The magenta ring reads the kilometres run this week, with no race beside them."),
+        ]),
         Release(version: "25.0", name: "Race month", date: "2026-10-07", highlights: [
             Highlight(symbol: "figure.run", name: "The week against the plan",
                       what: "The running part of the day panel now knows Project 100K's 14-week plan. A line "

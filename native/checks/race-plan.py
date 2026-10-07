@@ -18,3 +18,10 @@ theirs = [(p, float(k), float(l)) for _, p, k, l in re.findall(r'\((\d+), "([^"]
 
 assert len(ours) == 14 and ours == theirs, (ours, theirs)
 print("race plan ok")
+
+# 26.0: the iPad hides the race while lain says the project is dropped.
+lain = (root.parents[1] / "lain/server/p100k.py").read_text()
+want = re.search(r'^DROPPED = (None|"[\d-]+")', lain, re.M).group(1)
+have = re.search(r'static let dropped: String\? = (nil|"[\d-]+")', swift).group(1)
+assert want.replace("None", "nil") == have, ("lain DROPPED", want, "iPad dropped", have)
+print("dropped ok:", have)

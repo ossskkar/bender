@@ -1205,8 +1205,7 @@ private struct Scene {
 
         // the race, the week's running, today's habits
         var parts: [String] = []
-        if let race = (d["settings"] as? [String: Any])?["raceDate"] as? String,
-           let r = Self.parse(race), let left = cal.dateComponents([.day], from: cal.startOfDay(for: now), to: r).day,
+        if let r = Glance.raceDay(d), let left = cal.dateComponents([.day], from: cal.startOfDay(for: now), to: r).day,
            left >= 0 {
             parts.append("P100K ∴ \(left) DAYS TO THE RACE")
             g.raceDays = left

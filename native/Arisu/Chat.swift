@@ -233,13 +233,24 @@ import GameController
     /// A page pushed to this screen, made showable. lain's own pages are shown
     /// as they are: the reader will not fetch the desk from the desk, and they
     /// need no login.
+    ///
+    /// Several pages pushed at once come back as the first, carrying all of
+    /// them in `panels` (26.0): the sheet shows one at a time with a switch
+    /// between them, where the desk's big screen lays them out as a grid.
     func screenPage(_ s: ScreenState) async -> ShowPage? {
-        guard let url = URL(string: s.url, relativeTo: Brain.base)?.absoluteURL else { return nil }
-        if url.host() == Brain.base.host() {
-            return ShowPage(url: url.absoluteString, host: s.title.isEmpty ? url.host() : s.title,
-                            mode: "frame", title: s.title, text: nil, headlines: nil, ok: true, error: nil)
+        var got: [ShowPage] = []
+        for v in s.pages {
+            guard let url = URL(string: v.url, relativeTo: Brain.base)?.absoluteURL else { continue }
+            if url.host() == Brain.base.host() {
+                got.append(ShowPage(url: url.absoluteString, host: v.title.isEmpty ? url.host() : v.title,
+                                    mode: "frame", title: v.title, text: nil, headlines: nil, ok: true, error: nil))
+            } else {
+                got.append(await page(url))
+            }
         }
-        return await page(url)
+        guard var first = got.first else { return nil }
+        if got.count > 1 { first.panels = got }
+        return first
     }
 
     func loadSessions() async {
