@@ -46,6 +46,8 @@ struct SettingsSheet: View {
     @AppStorage("arisu.faceX") private var faceX = 0.0
     @AppStorage("arisu.faceY") private var faceY = 0.0
     @AppStorage(Skin.freeFormKey) private var freeForm = false
+    @AppStorage(Night.fromKey) private var nightFrom = Night.from
+    @AppStorage(Night.toKey) private var nightTo = Night.to
 
     private let brain = Brain()
     private let accent = Skin.cyan
@@ -145,6 +147,24 @@ struct SettingsSheet: View {
                 footer("Bubbles put hers on the left and yours on the right. "
                        + "Terminal puts every line on the left, one line each, "
                        + "the way a log reads.")
+            }
+
+            Section {
+                Stepper(value: $nightFrom, in: 0...23) {
+                    Text("Asleep from " + String(format: "%02d:00", nightFrom)).font(.system(size: 17, weight: .medium))
+                }
+                Stepper(value: $nightTo, in: 0...23) {
+                    Text("Awake at " + String(format: "%02d:00", nightTo)).font(.system(size: 17, weight: .medium))
+                }
+            } header: {
+                header("Night")
+            } footer: {
+                footer(nightFrom == nightTo
+                       ? "Off: she listens for 醒来 day and night."
+                       : "From then until morning she does not listen for 醒来 and "
+                         + "Singularity draws half as often. Holding Singularity or "
+                         + "tapping the microphone still brings her. The same hour "
+                         + "twice switches night off.")
             }
 
             if isVisual { visualSection }

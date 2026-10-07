@@ -145,6 +145,24 @@ private final class RealmClock {
         return path
     }
 
+    /// A whole label as one shape, letters side by side and centred on the
+    /// origin, as `Text` drawn at a point would be. Made once per label.
+    var words: [String: Path] = [:]
+
+    func word(_ s: String, _ size: Double) -> Path {
+        let key = "\(s)\u{1}\(size)"
+        if let p = words[key] { return p }
+        let step = size * 0.62
+        var path = Path()
+        for (i, ch) in s.enumerated() {
+            let x = (Double(i) - Double(s.count - 1) / 2) * step
+            path.addPath(letter(ch, size), transform: CGAffineTransform(translationX: x, y: 0))
+        }
+        if words.count > 500 { words.removeAll() }
+        words[key] = path
+        return path
+    }
+
     enum Tap { case app(String), button(DeckButton), her, ring(Int) }
 
     var now: Double { Date().timeIntervalSince(start) }
@@ -199,18 +217,23 @@ struct RealmView: View {
     /// A demo's track instead of the Mac's: a beat every half second, louder
     /// and softer over a few seconds, made here and heard by nobody (21.0).
     var fakeMusic = false
+    /// lain's day, read once for the whole app: Singularity used to keep a
+    /// second reader of the same data.json (22.0).
+    @ObservedObject var info: LainInfo
+    /// Night hours: she is not listening, and the screen draws half as often.
+    var night = false
 
     @StateObject private var deck = Deck()
     @StateObject private var music = MacMusic()
-    @StateObject private var info = LainInfo()
     @State private var clock = RealmClock()
     @State private var chosen = ""
     @State private var pressed: (label: String, id: String, t: Double)?
 
     var body: some View {
         // Thirty frames a second while she is away: space only drifts then, and
-        // sixty cost twice the battery for nothing he could see (19.0).
-        TimelineView(.animation(minimumInterval: running ? nil : 1.0 / 30)) { tl in
+        // sixty cost twice the battery for nothing he could see (19.0). Fifteen
+        // at night, when nobody is watching it drift (22.0).
+        TimelineView(.animation(minimumInterval: running ? nil : 1.0 / (night ? 15 : 30))) { tl in
             Canvas { ctx, size in
                 let t = tl.date.timeIntervalSince(clock.start)
                 step(t)
@@ -245,7 +268,6 @@ struct RealmView: View {
         .ignoresSafeArea()
         .task { await deck.load() }
         .task { await deck.watchFront() }
-        .task { await info.watch() }
         .task(id: idle) { if idle { await music.listen() } }
         .onChange(of: deck.front) { _, g in if !g.isEmpty { chosen = g } }
         .onAppear {
@@ -550,6 +572,12 @@ private struct Stage {
 /// One frame of one look. A value: it draws and records where the tappable
 /// things landed, nothing else.
 private struct Scene {
+    /// The words falling down the spiral arms, grouped to be drawn together:
+    /// their colour (cyan, worked, failed) and their fade in twentieths.
+    struct Fall: Hashable { let ink: Int, step: Int }
+    /// The size the arms' words are made at, once; each is scaled from it.
+    static let wordSize = 13.0
+
     let ctx: GraphicsContext
     let size: CGSize
     /// Real time, for ripples; `tw` is time that runs faster while she
@@ -836,6 +864,7 @@ private struct Scene {
         // spiral arms of words. The apps sit on a smaller circle since
         // 2026-10-03 -- the outer ring belongs to the chosen app's actions now.
         let n = max(1, groups.count), Rmax = M * 0.295
+        var falling: [Fall: Path] = [:]
         for (i, g) in groups.enumerated() {
             let on = g.name == chosen, col = on ? Skin.mag : Skin.cyan
             let base = Double(i) / Double(n) * tau + tw * 0.07
@@ -860,7 +889,7 @@ private struct Scene {
             // The chosen app's actions are drawn on the outer ring below;
             // only the other apps still trail theirs down the arm, faintly, so
             // the eye is not surrounded by words it cannot read.
-            let count = max(1, g.buttons.count), speed = on ? 0.008 : 0.04
+            let count = max(1, g.buttons.count), speed = 0.04
             for (k, b) in g.buttons.enumerated() where !on {
                 let u = (Double(k) / Double(count) + tw * speed + Double(i) * 0.13).truncatingRemainder(dividingBy: 1)
                 let r = M * 0.06 * 1.3 + (Rmax * 0.93 - M * 0.06 * 1.3) * pow(1 - u, 1.4)
@@ -868,22 +897,31 @@ private struct Scene {
                 var ang = atan2(q.y - p.y, q.x - p.x)
                 if cos(ang) < 0 { ang += .pi }
                 let near = 1 - r / Rmax
-                let fs = (on ? 22 : 13) * (0.45 + 0.75 * r / Rmax)
-                let alpha = (on ? 1 : 0.5) * min(1, u * 6) * min(1, (r - M * 0.06) / (M * 0.05))
-                var c = ctx
-                c.translateBy(x: p.x, y: p.y)
-                c.rotate(by: .radians(ang))
-                c.scaleBy(x: 1 + near * near * 2.2, y: 1 - near * 0.5)       // spaghettified
-                c.opacity = max(0, alpha)
-                let ink = outcome[b.id].map { $0 ? Skin.good : Skin.recording } ?? (on ? .white : col)
-                let txt = Text(b.label).font(.system(size: fs, weight: .medium, design: .monospaced))
-                    .foregroundColor(ink)
-                var gl = c
-                gl.addFilter(.blur(radius: 5))
-                gl.draw(txt, at: .zero)
-                c.draw(txt, at: .zero)
-                if on && alpha > 0.3 { hit(p, M * 0.075, .button(b)) }
+                let fs = 13 * (0.45 + 0.75 * r / Rmax)
+                let alpha = 0.5 * min(1, u * 6) * min(1, (r - M * 0.06) / (M * 0.05))
+                // In steps of 0.05: each step and colour is one shape below.
+                let step = Int((max(0, alpha) * 20).rounded())
+                guard step > 0 else { continue }
+                let ink = outcome[b.id].map { $0 ? 1 : 2 } ?? 0
+                let k = Scene.Fall(ink: ink, step: step)
+                let s = fs / Scene.wordSize
+                let place = CGAffineTransform(scaleX: s * (1 + near * near * 2.2), y: s * (1 - near * 0.5))  // spaghettified
+                    .concatenating(CGAffineTransform(rotationAngle: ang))
+                    .concatenating(CGAffineTransform(translationX: p.x, y: p.y))
+                falling[k, default: Path()].addPath(clock.word(b.label, Scene.wordSize), transform: place)
             }
+        }
+        // Every falling word drawn at once: one glow and one fill per colour
+        // and step of fade, instead of a laid-out Text and a blur each, which
+        // was more than half of Singularity's drawing (22.0).
+        for (k, words) in falling {
+            let ink = [Skin.cyan, Skin.good, Skin.recording][k.ink]
+            var c = ctx
+            c.opacity = Double(k.step) / 20
+            var gl = c
+            gl.addFilter(.blur(radius: 5))
+            gl.fill(words, with: .color(ink))
+            c.fill(words, with: .color(ink))
         }
 
         // ---- the actions of the chosen app, around the outside

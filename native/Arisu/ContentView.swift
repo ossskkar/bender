@@ -69,6 +69,10 @@ struct ContentView: View {
     /// (Oscar, 2026-10-02: summoning shows the conversation look without
     /// opening a call).
     @State private var present = false
+    /// Night hours (22.0): not listening for 醒来 until morning.
+    @State private var night = false
+    @AppStorage(Night.fromKey) private var nightFrom = Night.from
+    @AppStorage(Night.toKey) private var nightTo = Night.to
     /// The deck: his Mac's buttons, on the iPad.
     /// The deck rail, on the right of both modes. Up by default and kept across
     /// launches: it was a full screen he had to open until 2026-09-27, which
@@ -344,7 +348,8 @@ struct ContentView: View {
                           // The room is alive the moment he walks in; two taps
                           // are what start her listening (Oscar, 2026-10-03).
                           onTalk: { if pet.running { pet.toggleRunning() } else { summon() } },
-                          chant: chantLine, fakeMusic: demoAct == .music)
+                          chant: chantLine, fakeMusic: demoAct == .music,
+                          info: info, night: night || demoAct == .night)
             }
             .transition(.opacity)
         }
@@ -412,10 +417,19 @@ struct ContentView: View {
             for l in chat.lines.suffix(new - old) { notice(l.text) }
         }
         // 醒来, heard on the device while she is asleep and the app is in front.
-        .task(id: pet.running || scene != .active) {
-            guard !pet.running && scene == .active else { wake.stop(); return }
+        .task(id: pet.running || scene != .active || night) {
+            guard !pet.running && scene == .active && !night else { wake.stop(); return }
             wake.onWake = { summon() }
             await wake.start()
+        }
+        // Night begins and ends on the hour; a look twice a minute is enough,
+        // and only a change is published (17.0).
+        .task(id: [nightFrom, nightTo]) {
+            while !Task.isCancelled {
+                let n = Night.on(from: nightFrom, to: nightTo)
+                if n != night { night = n }
+                try? await Task.sleep(for: .seconds(30))
+            }
         }
         // Leaving Singularity sends her away; so does ten minutes of nobody
         // saying 醒来, because a summoned room draws at full rate (21.0).
@@ -430,8 +444,10 @@ struct ContentView: View {
             #if DEBUG
             // For checking a demo in the simulator, where nothing can tap:
             // `simctl launch … -arisu.demo 21.0 [-arisu.demoStop 2]`; and the
-            // sheet behind the sparkles, on a tab: `-arisu.sheetTab 1`.
+            // sheet behind the sparkles, on a tab: `-arisu.sheetTab 1`; Settings:
+            // `-arisu.settings YES`.
             if UserDefaults.standard.object(forKey: "arisu.sheetTab") != nil { showNew = true }
+            if UserDefaults.standard.bool(forKey: "arisu.settings") { showSettings = true }
             if let v = UserDefaults.standard.string(forKey: "arisu.demo"),
                let r = Releases.all.first(where: { $0.version == v }) {
                 Task { try? await Task.sleep(for: .seconds(2)); startDemo(r.demo) }
@@ -450,6 +466,7 @@ struct ContentView: View {
     /// why she cannot be by voice.
     private var idleWord: String {
         if let l = demoAct.line { return l }
+        if night { return "asleep until " + Night.until }
         if let p = wake.problem { return "wake word off: " + p }
         return wake.listening ? "say 醒来 to wake her" : "not listening"
     }

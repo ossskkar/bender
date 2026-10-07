@@ -125,3 +125,23 @@ import Speech
         player?.play()
     }
 }
+
+/// Night: from his bedtime until morning she stops listening for 醒来 and
+/// Singularity draws half as often (Backlog, Arisu: "She goes to her
+/// sleeping face and stops listening until morning"). A touch still brings
+/// her: holding Singularity or tapping the microphone are things he chose to
+/// do. The hours are set in Settings ▸ Night; the same hour twice means never.
+enum Night {
+    static let fromKey = "arisu.nightFrom", toKey = "arisu.nightTo"
+    static let from = 23, to = 7
+
+    static func on(_ now: Date = Date(), from a: Int, to b: Int) -> Bool {
+        let h = Calendar.current.component(.hour, from: now)
+        if a == b { return false }
+        return a < b ? (h >= a && h < b) : (h >= a || h < b)
+    }
+
+    static var until: String {
+        String(format: "%02d:00", UserDefaults.standard.object(forKey: toKey) as? Int ?? to)
+    }
+}

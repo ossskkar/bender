@@ -66,6 +66,8 @@ enum DemoAct {
     case summon
     /// 醒来 heard: what happens at the moment a call would start.
     case wake
+    /// Night hours: not listening, and Singularity drifting slowly.
+    case night
 
     /// Her presence on Singularity, as though she had been summoned.
     var present: Bool { self == .summon || self == .wake }
@@ -74,6 +76,7 @@ enum DemoAct {
         switch self {
         case .listen, .summon: return "say 醒来 to wake her"
         case .wake: return "heard 醒来"
+        case .night: return "asleep until " + Night.until
         default: return nil
         }
     }
@@ -92,6 +95,52 @@ enum Releases {
     static var current: Release { all.first { $0.version == running } ?? all[0] }
 
     static let all: [Release] = [
+        Release(version: "22.0", name: "Night", date: "2026-10-07", highlights: [
+            Highlight(symbol: "moon.zzz", name: "She sleeps at night",
+                      what: "From 23:00 until 07:00 she no longer listens for 醒来: the iPad's microphone stays "
+                          + "off all night and cannot be woken by the room, a film or the baby. The line under "
+                          + "her and Singularity's rim say ASLEEP UNTIL 07:00, and Singularity draws half as "
+                          + "often to spare the battery. A touch still brings her: hold Singularity, tap twice "
+                          + "or tap the microphone. In the morning she listens again by herself.",
+                      how: "Settings, Night: choose when she goes to sleep and when she wakes. The same hour "
+                          + "twice switches night off."),
+            Highlight(symbol: "circle.dashed", name: "Singularity's falling words cost half",
+                      what: "The words falling down the spiral arms were each laid out and blurred on their own, "
+                          + "every picture: more than half of Singularity's work. They are now made once as "
+                          + "shapes and drawn together. Measured in the simulator: 17 pictures a second instead "
+                          + "of 11, with less of the processor, so about 45 percent less work per picture. At "
+                          + "night it uses 55 percent of a core where it used 87."),
+            Highlight(symbol: "arrow.triangle.2.circlepath", name: "One reader of your day",
+                      what: "Singularity read lain's data for its rings separately from the rest of the app, "
+                          + "so the same file was fetched twice. Both now share one reader."),
+        ], tour: [
+            TourStep(scene: .singularity, title: "Arisu 22.0 — Night",
+                     text: "From 23:00 to 07:00 she does not listen for 醒来. The rim says ASLEEP UNTIL 07:00 "
+                         + "and Singularity draws half as often. Tap anywhere to go on."),
+            TourStep(scene: .voice, title: "The same in Classic",
+                     text: "The line under her says it too. A touch still brings her: tap twice, or tap the "
+                         + "microphone."),
+            TourStep(scene: .chat, spot: "settings", title: "Your hours",
+                     text: "Settings, Night: when she goes to sleep and when she wakes. The same hour twice "
+                         + "switches night off."),
+            TourStep(scene: .singularity, title: "Lighter arms",
+                     text: "The words falling down the arms are drawn together now, as shapes made once: "
+                         + "about half the work per picture."),
+            TourStep(scene: .chat, spot: "whatsNew", title: "Watch it",
+                     text: "Behind the sparkles, WATCH THE DEMO plays this release by itself."),
+        ], demo: [
+            DemoStep(scene: .singularity, act: .night, seconds: 8, title: "Night on Singularity",
+                     text: "From bedtime until morning she is not listening. The rim says ASLEEP UNTIL 07:00 "
+                         + "and Singularity draws half as often."),
+            DemoStep(scene: .glance, act: .night, seconds: 7, title: "Night in Classic",
+                     text: "The line under her says the same. The microphone stays off all night."),
+            DemoStep(scene: .singularity, act: .summon, seconds: 9, title: "A touch still brings her",
+                     text: "Held at night, Singularity brings her as it does by day. Only the listening for "
+                         + "醒来 sleeps."),
+            DemoStep(scene: .singularity, seconds: 7, title: "Lighter arms",
+                     text: "The words falling down the spiral arms, drawn together as shapes: about half the "
+                         + "work per picture, so more pictures a second for less battery."),
+        ]),
         Release(version: "21.0", name: "Summoned", date: "2026-10-07", highlights: [
             Highlight(symbol: "play.rectangle", name: "Watch the demo",
                       what: "Next to TAKE THE TOUR there is now WATCH THE DEMO: the release plays by itself. "
