@@ -136,6 +136,17 @@ final class Live: ObservableObject {
     /// draws it directly, and publishing it at audio rate redrew the screen.
     var level: Float = 0
 
+    /// Gemini Live instead of OpenAI realtime: Settings > Voice, off by
+    /// default (stage 3 of arisu/GEMINI-LIVE-PLAN.md, 2026-10-07). Read at
+    /// each connect, so the switch takes effect on the next session.
+    static let geminiKey = "arisu.voice.gemini"
+    /// This session talks to Gemini. Everything Gemini-specific is in the
+    /// extension at the end of this file.
+    private(set) var onGemini = false
+    private var geminiModel = ""
+    private var geminiHeard = ""
+    private var geminiSaid = ""
+
     /// She called `set_mood`: the hologram's colour and animation.
     var onMood: ((String, String) -> Void)?
     /// Her words, as they are spoken -- for the caption under the pet.
@@ -392,13 +403,17 @@ final class Live: ObservableObject {
         guard !stopped, !line.isEmpty else { return }
         if !connected || dormant { await reconnect() }
         guard connected else { return }
-        ownResponses += 1
-        send(["type": "response.create",
-              "response": ["instructions":
-                            "Say exactly this out loud, word for word, and "
-                            + "nothing else: \"" + line + "\"",
-                           "output_modalities": ["audio"],
-                           "tool_choice": "none"]])
+        if onGemini {
+            geminiSay(line)
+        } else {
+            ownResponses += 1
+            send(["type": "response.create",
+                  "response": ["instructions":
+                                "Say exactly this out loud, word for word, and "
+                                + "nothing else: \"" + line + "\"",
+                               "output_modalities": ["audio"],
+                               "tool_choice": "none"]])
+        }
         // Hold until `response.done` (speaker dry) or an error -- see
         // `handle`. A second response.create while one is running is
         // refused, so queued commands must be said in order and never on top
@@ -441,11 +456,17 @@ final class Live: ObservableObject {
             return
         }
         do {
-            let token = try await brain.realtimeToken(model: model,
-                                                      character: character)
-            var r = URLRequest(url: URL(string: token.url)!)
-            r.setValue("Bearer " + token.value, forHTTPHeaderField: "Authorization")
-            let ws = session.webSocketTask(with: r)
+            onGemini = UserDefaults.standard.bool(forKey: Live.geminiKey)
+            let ws: URLSessionWebSocketTask
+            if onGemini {
+                ws = try await geminiSocket()
+            } else {
+                let token = try await brain.realtimeToken(model: model,
+                                                          character: character)
+                var r = URLRequest(url: URL(string: token.url)!)
+                r.setValue("Bearer " + token.value, forHTTPHeaderField: "Authorization")
+                ws = session.webSocketTask(with: r)
+            }
             socket = ws
             // A new session has none of the old one's responses.
             voiceInputs = VoiceInputs()
@@ -454,6 +475,7 @@ final class Live: ObservableObject {
             work.removeAll(); latestWork = nil
             openPlans.removeAll(); owedPlans.removeAll()
             ws.resume()
+            if onGemini { geminiOpened() }
             connected = true
             dormant = false
             status = ""
@@ -467,7 +489,7 @@ final class Live: ObservableObject {
             // One call rather than three: mute, turn mode and the room all
             // decide the same field, and sending them in sequence let the
             // looser one land last and undo the stricter.
-            applyInput()
+            if !onGemini { applyInput() }
         } catch {
             connected = false
             status = "no session"
@@ -587,7 +609,13 @@ final class Live: ObservableObject {
             case .success(let message):
                 guard !self.halted.withLock({ $0 }) else { return }
                 self.arm(socket)
-                guard case .string(let text) = message else { return }
+                // Gemini sends its JSON as binary frames; OpenAI as text.
+                let text: String
+                switch message {
+                case .string(let t): text = t
+                case .data(let d): text = String(decoding: d, as: UTF8.self)
+                @unknown default: return
+                }
                 Task { @MainActor in
                     guard self.socket === socket else { return }
                     self.handle(text)
@@ -632,6 +660,7 @@ final class Live: ObservableObject {
         // her face, her transcript and her hands as though nothing happened --
         // which is what made a paused pet look like a running one.
         guard !stopped else { return }
+        if onGemini { handleGemini(text); return }
         guard let data = text.data(using: .utf8),
               let ev = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let type = ev["type"] as? String else { return }
@@ -855,7 +884,7 @@ final class Live: ObservableObject {
     /// what it heard by itself would be a fourth voice nobody asked for.
     private func applyInput() {
         pushing = false
-        guard connected else { return }
+        guard connected, !onGemini else { return }
         if silenced {
             hearing = false
             send(["type": "session.update",
@@ -1272,7 +1301,12 @@ final class Live: ObservableObject {
             // the microphone is alive -- but the audio goes nowhere until he
             // is actually holding the button down.
             guard !self.turnMode || self.pushing else { return }
-            self.send(["type": "input_audio_buffer.append", "audio": b64])
+            if self.onGemini {
+                self.send(["realtimeInput": ["audio": ["data": b64,
+                                                       "mimeType": "audio/pcm;rate=24000"]]])
+            } else {
+                self.send(["type": "input_audio_buffer.append", "audio": b64])
+            }
         }
     }
 
@@ -1469,5 +1503,109 @@ struct VoiceInputs {
     func text(_ id: String) -> String? {
         guard id == latest, entries[id]?.committed == true else { return nil }
         return entries[id]?.text
+    }
+}
+
+// MARK: - Gemini Live (Settings > Voice; stage 3 of arisu/GEMINI-LIVE-PLAN.md)
+//
+// The same microphone, speaker, mouth and idle rules as the OpenAI session;
+// only the words on the wire differ. One Gemini Live model hears him, answers
+// and calls lain tools itself (measured 1.5-2.3 s to her first word, against
+// 4-6 s through the OpenAI relay); every tool call goes to the desk's
+// /arisu/tool, which runs the allowlisted voice tools or hands heavy jobs to
+// Hermes. The desk mints a single-use token with her setup locked in, so the
+// key never reaches this device. Audio goes up at 24 kHz, the rate the tap
+// already produces (Gemini resamples; checked 2026-10-07), and comes back at
+// 24 kHz, the rate `play` already takes.
+extension Live {
+    fileprivate func geminiSocket() async throws -> URLSessionWebSocketTask {
+        let t = try await brain.geminiToken(character: character)
+        var c = URLComponents(string: t.url)!
+        c.queryItems = [URLQueryItem(name: "access_token", value: t.token)]
+        geminiModel = t.model
+        return session.webSocketTask(with: c.url!)
+    }
+
+    /// The first frame Gemini needs: which model. Everything else -- her
+    /// instructions, tools, voice -- is fixed in the token.
+    fileprivate func geminiOpened() {
+        geminiHeard = ""
+        geminiSaid = ""
+        send(["setup": ["model": geminiModel]])
+        brain.debug(["ev": "gemini-open", "text": geminiModel])
+    }
+
+    fileprivate func handleGemini(_ text: String) {
+        guard let data = text.data(using: .utf8),
+              let ev = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return }
+        if let call = ev["toolCall"] as? [String: Any],
+           let fns = call["functionCalls"] as? [[String: Any]] {
+            for f in fns { Task { await self.runGeminiTool(f) } }
+        }
+        if let away = ev["goAway"] { brain.debug(["ev": "gemini-goaway", "text": "\(away)"]) }
+        guard let sc = ev["serverContent"] as? [String: Any] else { return }
+        if sc["interrupted"] as? Bool == true { flush() }
+        if let t = (sc["inputTranscription"] as? [String: Any])?["text"] as? String {
+            geminiHeard += t
+            lastVoice = Date()
+        }
+        if let t = (sc["outputTranscription"] as? [String: Any])?["text"] as? String {
+            geminiSaid += t
+        }
+        let parts = ((sc["modelTurn"] as? [String: Any])?["parts"] as? [[String: Any]]) ?? []
+        for p in parts {
+            guard let inline = p["inlineData"] as? [String: Any],
+                  let b64 = inline["data"] as? String else { continue }
+            // She is talking, so whatever she was looking up has come back.
+            toolsOut = 0
+            if !speaking { brain.debug(["ev": "audio-began"]) }
+            play(b64)
+            speaking = true
+            lastVoice = Date()
+        }
+        if sc["turnComplete"] as? Bool == true { geminiTurnDone() }
+    }
+
+    /// The turn's captions, once each. The screen records them to the desk.
+    private func geminiTurnDone() {
+        let heard = geminiHeard.trimmingCharacters(in: .whitespacesAndNewlines)
+        let said = geminiSaid.trimmingCharacters(in: .whitespacesAndNewlines)
+        geminiHeard = ""
+        geminiSaid = ""
+        if !heard.isEmpty {
+            applyVoiceControls(heard)
+            onHeard?(heard)
+        }
+        if !said.isEmpty {
+            onTranscript?(said)
+        }
+    }
+
+    /// Her hands. Through the desk, like every other tool she has; and into
+    /// the voice record, so Hermes's nightly review sees what she did.
+    private func runGeminiTool(_ f: [String: Any]) async {
+        let id = f["id"] as? String ?? ""
+        let name = f["name"] as? String ?? ""
+        let args = f["args"] as? [String: Any] ?? [:]
+        let raw = (try? JSONSerialization.data(withJSONObject: args))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        toolsOut += 1
+        lastVoice = Date()
+        defer { toolsOut = max(0, toolsOut - 1) }
+        let out = (try? await brain.tool(name: name, rawArgs: raw)) ?? "{\"error\":\"desk unreachable\"}"
+        let response: Any = (out.data(using: .utf8))
+            .flatMap { try? JSONSerialization.jsonObject(with: $0) } ?? ["result": out]
+        guard onGemini, socket != nil else { return }
+        send(["toolResponse": ["functionResponses": [["id": id, "name": name,
+                                                       "response": response]]]])
+        brain.logVoice(name + " " + raw.prefix(200) + " -> " + out.prefix(600), kind: "think")
+    }
+
+    /// A queued line (reminder, brief, a deck button), said word for word.
+    fileprivate func geminiSay(_ line: String) {
+        send(["clientContent": ["turns": [["role": "user", "parts": [["text":
+                "Say exactly this out loud, word for word, and nothing else: \"" + line + "\""]]]],
+                                "turnComplete": true]])
     }
 }

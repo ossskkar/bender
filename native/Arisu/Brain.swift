@@ -16,6 +16,14 @@ struct Snap: Decodable {
 /// What the desk hands over so the phone can open a realtime session: a
 /// client secret good for a few minutes, with her persona and all 37 tools
 /// already fixed to it. The OpenAI key itself never leaves the Mac.
+/// A single-use Gemini Live token from the desk (lain /arisu/gemini), her
+/// setup locked in server-side; the key never reaches the iPad (2026-10-07).
+struct GeminiToken: Decodable {
+    let token: String
+    let url: String
+    let model: String
+}
+
 struct LiveToken: Decodable {
     let value: String
     let url: String
@@ -213,6 +221,19 @@ final class Brain {
             throw URLError(.badServerResponse)
         }
         return try JSONDecoder().decode(LiveToken.self, from: data)
+    }
+
+    func geminiToken(character: String = "") async throws -> GeminiToken {
+        var c = URLComponents(url: Brain.base.appendingPathComponent("gemini"),
+                              resolvingAgainstBaseURL: false)!
+        if !character.isEmpty {
+            c.queryItems = [URLQueryItem(name: "character", value: character)]
+        }
+        let (data, resp) = try await session.data(from: c.url!)
+        guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(GeminiToken.self, from: data)
     }
 
     /// What she is like right now.

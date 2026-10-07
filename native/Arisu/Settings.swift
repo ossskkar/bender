@@ -35,6 +35,7 @@ struct SettingsSheet: View {
     /// Shared with `ContentView`, which hands it to the face. A preference of
     /// this screen, not of the character, so it lives on the device.
     @AppStorage("arisu.live2d") private var live2dFace = true
+    @AppStorage(Live.geminiKey) private var geminiVoice = false
     @AppStorage("arisu.faceStyle") private var faceStyle = FaceStyle.ribbon.rawValue
     /// Bubbles or terminal lines, for her subtitles and the typed chat alike.
     @AppStorage("arisu.bubbles.voice") private var voiceBubbles = true
@@ -234,6 +235,24 @@ struct SettingsSheet: View {
                 // thing he tried and the first thing that looked broken.
                 footer("She reconnects to change voice, so she will go quiet "
                        + "for a moment.")
+            }
+
+            // Gemini Live, behind a switch until it is proven on this iPad
+            // (stage 3 of arisu/GEMINI-LIVE-PLAN.md, 2026-10-07).
+            Section {
+                Toggle("Gemini voice (test)", isOn: Binding(
+                    get: { geminiVoice },
+                    set: { on in
+                        geminiVoice = on
+                        Task { await live.reconnect() }
+                    }))
+                .font(.system(size: 19))
+            } header: {
+                header("Engine")
+            } footer: {
+                footer("One Gemini model hears you, answers and uses her tools "
+                       + "itself: faster replies. Off is the voice she has had. "
+                       + "Her voice above applies only when this is off.")
             }
 
             Section {
