@@ -74,6 +74,9 @@ enum DemoAct {
     /// The page closed again, and the screen's chip in the title bar holding
     /// it (24.0). Nothing is read from the desk.
     case held
+    /// The day panel beside her with its running part lit, as when he asks
+    /// how his running is going (25.0). His own numbers; nothing is sent.
+    case running
 
     /// What `.screen` puts up.
     static let screenPage = ShowPage(
@@ -111,6 +114,52 @@ enum Releases {
     static var current: Release { all.first { $0.version == running } ?? all[0] }
 
     static let all: [Release] = [
+        Release(version: "25.0", name: "Race month", date: "2026-10-07", highlights: [
+            Highlight(symbol: "figure.run", name: "The week against the plan",
+                      what: "The running part of the day panel now knows Project 100K's 14-week plan. A line "
+                          + "says which week of the plan this is, what kind of week, how many kilometres are "
+                          + "run of how many planned, and the long run it asks for. In the chart each week's "
+                          + "planned kilometres stand behind its bar in magenta, so a short week shows as "
+                          + "short against the plan rather than against nothing. The plan moves with the race "
+                          + "date, as the running system's own does.",
+                      how: "Open the panel: tap her in voice mode, or ask about your running."),
+            Highlight(symbol: "stopwatch", name: "A race pace",
+                      what: "Under the last run, the panel gives a finish time for the 100 km, the even pace "
+                          + "per kilometre it means, and the clock at 25, 50 and 75 km. It is worked out from "
+                          + "your longest timed run of the last eight weeks with a common race-time formula, "
+                          + "and says which run it used. It is an estimate; past a marathon the formula tends "
+                          + "to promise too much, so treat it as the fastest sensible plan.",
+                      how: "Look under LAST RUN in the panel."),
+            Highlight(symbol: "circle.dashed", name: "The rings say the week",
+                      what: "Singularity's magenta ring said only how many kilometres were run this week. It "
+                          + "now says the plan's week, its kind and the kilometres run of those planned, and "
+                          + "the race pace, beside the days to the race."),
+        ], tour: [
+            TourStep(scene: .glance, title: "Arisu 25.0 — Race month",
+                     text: "A month to the 100 km: the panel beside her now measures the running against "
+                         + "the plan. Tap anywhere to go on."),
+            TourStep(scene: .glance, spot: "glanceTraining", title: "This week of the plan",
+                     text: "Which week of fourteen, what kind, the kilometres run of those planned and the "
+                         + "long run it asks for."),
+            TourStep(scene: .glance, spot: "glanceRunning", title: "Planned behind run",
+                     text: "Each week's planned kilometres stand in magenta behind what was run."),
+            TourStep(scene: .glance, spot: "glancePace", title: "A race pace",
+                     text: "A finish time and even pace for 100 km, from your longest recent timed run. "
+                         + "An estimate, and it says which run it used."),
+            TourStep(scene: .singularity, title: "The rings say the week",
+                     text: "The magenta ring reads the plan's week and the race pace too."),
+            TourStep(scene: .chat, spot: "whatsNew", title: "Watch it",
+                     text: "Behind the sparkles, WATCH THE DEMO plays this release by itself."),
+        ], demo: [
+            DemoStep(scene: .glance, act: .running, seconds: 8, title: "How is my running going?",
+                     text: "Asked about his running, the panel lights its running part: this week of the "
+                         + "plan, and the plan behind each week's bar. His own numbers, read from lain."),
+            DemoStep(scene: .glance, act: .running, seconds: 8, title: "The race at this running",
+                     text: "Under the last run: a finish time for 100 km, the pace it means and the clock "
+                         + "at each quarter, and the run it came from."),
+            DemoStep(scene: .singularity, seconds: 8, title: "The rings say the week",
+                     text: "The magenta ring reads the week of the plan, the kilometres run of those planned and the race pace."),
+        ]),
         Release(version: "24.0", name: "Way back", date: "2026-10-07", highlights: [
             Highlight(symbol: "rectangle.on.rectangle", name: "Back to the screen",
                       what: "While lain's screen called ipad holds a page, a magenta key sits in the title bar. "

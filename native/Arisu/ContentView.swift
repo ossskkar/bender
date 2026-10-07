@@ -713,7 +713,7 @@ struct ContentView: View {
                     HStack {
                         if glanceShown {
                             // Narrower on a narrow pane, so the bubbles on the right stay clear.
-                            GlancePanel(glance: info.glance, focus: focus,
+                            GlancePanel(glance: info.glance, focus: demoAct == .running ? .running : focus,
                                         width: min(320, max(240, geo.size.width - 250)))
                                 .tourSpot("glance")
                                 .transition(.move(edge: .leading).combined(with: .opacity))

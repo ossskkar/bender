@@ -1217,14 +1217,21 @@ private struct Scene {
             guard let date = Self.parse(k), date >= monday else { continue }
             km += (v as? Double) ?? ((v as? [String: Any])?["km"] as? Double) ?? 0
         }
-        parts.append(String(format: "%.0f KM THIS WEEK", km))
+        g.read(d, now: now, monday: monday)
+        // While the plan runs the week is said against it (25.0): "12 KM
+        // THIS WEEK" cannot tell a cutback week from a lost one.
+        if let t = g.training {
+            parts.append("WEEK \(t.week) \(t.phase.uppercased()) ∴ " + String(format: "%.0f OF %.0f KM", km, t.planned))
+            if let p = g.pace { parts.append("RACE PACE " + Glance.perKm(p.perKm) + "/KM") }
+        } else {
+            parts.append(String(format: "%.0f KM THIS WEEK", km))
+        }
         if let h = d["habits"] as? [String: Any], let list = h["list"] as? [[String: Any]] {
             let due = list.filter { ($0["days"] as? [Int] ?? []).contains(wd) }.count
             let done = ((h["log"] as? [String: [String]])?[day] ?? []).count
             parts.append("HABITS \(done)/\(due)")
         }
         body = parts.joined(separator: " ∴ ")
-        g.read(d, now: now, monday: monday)
         glance = g
     }
 

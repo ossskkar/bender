@@ -22,11 +22,67 @@ struct Glance: Equatable {
     var weeks: [Week] = []
     var lastRun: String?
     var habits: [Habit] = []
+    /// This week of the 14-week plan, while the plan runs (25.0).
+    var training: Training?
+    /// What 100 km would take at his current running, while the plan runs (25.0).
+    var pace: RacePace?
 
     struct Week: Identifiable, Equatable {
         let start: Date
         let km: Double
+        /// The plan's kilometres for this week; nil outside the plan (25.0).
+        var planned: Double? = nil
         var id: Date { start }
+    }
+
+    /// Project 100K's 14-week plan, as `p100k.py` (PLAN, copied from the old
+    /// app.html) has it: phase, planned km, long run km. Week 1 is the Monday
+    /// of race week minus 13 weeks, so moving the race moves the plan. The
+    /// last week's long run is the race itself.
+    static let planTable: [(phase: String, km: Double, long: Double)] = [
+        ("Rebuild", 30, 15), ("Rebuild", 36, 18), ("Rebuild", 42, 24),
+        ("Cutback", 30, 16), ("Ultra block", 48, 28), ("Ultra block", 54, 32),
+        ("Cutback", 38, 20), ("Ultra block", 58, 36), ("Ultra block", 62, 40),
+        ("Cutback", 44, 24), ("Peak", 68, 58), ("Recover", 46, 26),
+        ("Taper", 32, 18), ("RACE", 111, 100),
+    ]
+    static var raceKm: Double { planTable.last!.long }
+
+    struct Training: Equatable {
+        /// 1 to 14.
+        let week: Int
+        let phase: String
+        let planned: Double
+        let longRun: Double
+        /// Run so far this week, and the longest single run in it.
+        let run: Double
+        let longest: Double
+    }
+
+    /// A finish time for the race from one run he has done, by Riegel's
+    /// formula (time grows as distance to the power 1.06), the common way to
+    /// carry a time from one distance to another. An estimate, and said to be
+    /// one: past the marathon it tends to promise too much.
+    struct RacePace: Equatable {
+        /// Seconds for the whole race, and per kilometre at an even pace.
+        let finish: Double
+        let perKm: Double
+        /// The run it comes from, as "16 KM · 30 AUG".
+        let from: String
+
+        static func riegel(km: Double, secPerKm: Double, to distance: Double) -> Double {
+            km * secPerKm * pow(distance / km, 1.06)
+        }
+    }
+
+    /// "13:32" for a time of hours and minutes, "8:07" for a pace.
+    static func clock(_ s: Double) -> String {
+        let m = Int(s.rounded()) / 60
+        return String(format: "%d:%02d", m / 60, m % 60)
+    }
+    static func perKm(_ s: Double) -> String {
+        let r = Int(s.rounded())
+        return String(format: "%d:%02d", r / 60, r % 60)
     }
 
     struct Habit: Identifiable, Equatable {
@@ -48,12 +104,48 @@ struct Glance: Equatable {
             if let km = v as? Double { return (date, ["km": km]) }
             return (date, v as? [String: Any] ?? [:])
         }
+        // The plan's week 1, from the race date: the Monday of race week,
+        // minus 13 weeks, as p100k.py works it out.
+        var planStart: Date?
+        var raceDay: Date?
+        if let s = (d["settings"] as? [String: Any])?["raceDate"] as? String, let race = LainInfo.parse(s) {
+            let back = (cal.component(.weekday, from: race) + 5) % 7      // days since Monday
+            planStart = cal.date(byAdding: .day, value: -back - 7 * 13, to: race)
+            raceDay = race
+        }
+        func planWeek(_ start: Date) -> Int? {
+            guard let planStart, let days = cal.dateComponents([.day], from: planStart, to: start).day,
+                  days >= 0, days / 7 < Self.planTable.count else { return nil }
+            return days / 7
+        }
         weeks = (0..<8).reversed().map { back in
             let start = cal.date(byAdding: .day, value: -7 * back, to: monday)!
             let end = cal.date(byAdding: .day, value: 7, to: start)!
             let km = runs.filter { $0.0 >= start && $0.0 < end }
                 .reduce(0.0) { $0 + (($1.1["km"] as? Double) ?? 0) }
-            return Week(start: start, km: km)
+            return Week(start: start, km: km, planned: planWeek(start).map { Self.planTable[$0].km })
+        }
+        // This week of the plan, from week 1 to race day and not after it:
+        // the question every day of the plan is "am I on it" (Backlog, Arisu:
+        // "Arisu gets me through race week").
+        if let raceDay, let w = planWeek(monday), cal.startOfDay(for: now) <= raceDay {
+            let row = Self.planTable[w]
+            let mine = runs.filter { $0.0 >= monday }.map { ($0.1["km"] as? Double) ?? 0 }
+            training = Training(week: w + 1, phase: row.phase, planned: row.km, longRun: row.long,
+                                run: mine.reduce(0, +), longest: mine.max() ?? 0)
+            // The longest run with a pace in the last eight weeks says the
+            // most about a long race; failing that, the longest he has timed.
+            let timed = runs.compactMap { date, run -> (Date, Double, Double)? in
+                guard let km = run["km"] as? Double, km >= 5, let sp = run["sp"] as? Double, sp > 0
+                else { return nil }
+                return (date, km, sp)
+            }
+            let recent = timed.filter { $0.0 >= cal.date(byAdding: .day, value: -56, to: now)! }
+            if let (date, km, sp) = (recent.isEmpty ? timed : recent).max(by: { $0.1 < $1.1 }) {
+                let finish = RacePace.riegel(km: km, secPerKm: sp, to: Self.raceKm)
+                pace = RacePace(finish: finish, perKm: finish / Self.raceKm,
+                                from: String(format: "%g KM", km) + " · " + LainInfo.short(LainInfo.iso(date)))
+            }
         }
         if let (date, run) = runs.max(by: { $0.0 < $1.0 }), let km = run["km"] as? Double {
             var words = String(format: "%g KM", km) + " · " + LainInfo.short(LainInfo.iso(date))
@@ -185,10 +277,30 @@ struct GlancePanel: View {
                     Text("\(days) DAYS TO THE RACE").font(Skin.mono(11, .semibold)).foregroundStyle(Skin.mag)
                 }
             }
+            if let t = glance.training {
+                // The week against the plan, in the words the plan uses (25.0).
+                // No-break spaces inside each figure, so a narrow panel wraps
+                // between the parts and not inside "0 OF 44 KM".
+                Text("WEEK \(t.week) OF \(Glance.planTable.count) · \(t.phase.uppercased()) · "
+                     + String(format: "%g\u{a0}OF\u{a0}%g\u{a0}KM", t.run, t.planned)
+                     + " · LONG\u{a0}RUN\u{a0}" + String(format: "%g", t.longRun)
+                     + (t.longest >= t.longRun ? "\u{a0}DONE" : "\u{a0}KM"))
+                    .font(Skin.mono(11, .medium)).foregroundStyle(.white)
+                    .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                    .tourSpot("glanceTraining")
+            }
             // Eight weeks, this one lit: whether the training is building is
-            // the question, and one week alone cannot answer it.
+            // the question, and one week alone cannot answer it. The plan's
+            // kilometres stand behind each bar in magenta (25.0), so a short
+            // week reads as short against what was meant, not against zero.
             Chart(glance.weeks) { w in
-                BarMark(x: .value("Week", w.start, unit: .weekOfYear), y: .value("km", w.km))
+                if let p = w.planned {
+                    BarMark(x: .value("Week", w.start, unit: .weekOfYear), y: .value("km", p),
+                            stacking: .unstacked)
+                        .foregroundStyle(Skin.mag.opacity(0.22))
+                }
+                BarMark(x: .value("Week", w.start, unit: .weekOfYear), y: .value("km", w.km),
+                        stacking: .unstacked)
                     .foregroundStyle(w.id == glance.weeks.last?.id ? Skin.cyan : Skin.cyan.opacity(0.4))
                     .annotation(position: .top) {
                         if w.km > 0 {
@@ -205,8 +317,29 @@ struct GlancePanel: View {
             .frame(height: 92)
             Text("LAST RUN · " + (glance.lastRun ?? "NONE")).font(Skin.mono(12)).foregroundStyle(.white)
                 .lineLimit(1).minimumScaleFactor(0.7)
+            if let p = glance.pace { pace(p) }
         }
         .overlay(lit(focus == .running))
+    }
+
+    /// The race at his current running (25.0, Backlog: "Race-day pacing
+    /// plan"): a finish time, the even pace it means, and the clock at each
+    /// quarter, from the run it was worked out from.
+    private func pace(_ p: Glance.RacePace) -> some View {
+        let km = Glance.raceKm
+        let quarters = [0.25, 0.5, 0.75].map { f in
+            String(format: "%g", km * f) + " " + Glance.clock(p.finish * f)
+        }
+        return VStack(alignment: .leading, spacing: 2) {
+            Text(String(format: "RACE · %g KM IN ~", km) + Glance.clock(p.finish)
+                 + " · " + Glance.perKm(p.perKm) + "/KM")
+                .font(Skin.mono(12, .semibold)).foregroundStyle(Skin.mag)
+                .lineLimit(1).minimumScaleFactor(0.7)
+            Text(quarters.joined(separator: " · ") + " · ESTIMATE FROM " + p.from)
+                .font(Skin.mono(10)).foregroundStyle(Skin.ink)
+                .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+        }
+        .tourSpot("glancePace")
     }
 
     private var habits: some View {
