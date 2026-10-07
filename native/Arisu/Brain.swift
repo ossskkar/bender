@@ -129,12 +129,19 @@ struct ScreenState: Decodable, Equatable {
     /// Every page of the push, in order, when it was several at once
     /// ("put my habits and my health up", lain's screens.put, up to six).
     var panels: [ScreenVisit]? = nil
+    /// Which screen this is; lain names each one in a list of them all (27.0).
+    var name: String? = nil
 
     /// The pages to show: the panels, or the one page of an older push.
     var pages: [ScreenVisit] {
         if let panels, !panels.isEmpty { return panels }
         return [ScreenVisit(url: url, title: title)]
     }
+}
+
+/// Every screen lain knows of, newest push first (GET /screens with no name).
+struct ScreenList: Decodable {
+    let screens: [ScreenState]
 }
 
 struct ScreenReply: Decodable {

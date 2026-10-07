@@ -253,6 +253,58 @@ import GameController
         return first
     }
 
+    /// Every screen lain holds a page for, newest push first; empty when the
+    /// desk is away (27.0).
+    func screens() async -> [ScreenState] {
+        guard let at = URL(string: "/screens", relativeTo: Brain.base),
+              let (data, _) = try? await net.data(from: at),
+              let got = try? JSONDecoder().decode(ScreenList.self, from: data) else { return [] }
+        return got.screens
+    }
+
+    /// Put pages on the screen called `name` without her (27.0, Backlog: "A
+    /// screen command puts a view on a named screen without her"). The same
+    /// POST /screens her screen_show tool makes: several pages go as one
+    /// comma-separated push, in order, up to lain's six. A title cannot carry
+    /// a comma, because lain splits the titles on them too. Returns what the
+    /// screen holds now, nil when the desk refused or did not answer.
+    func put(_ name: String, pages: [ScreenVisit]) async -> ScreenState? {
+        let pages = Array(pages.prefix(6))
+        guard !pages.isEmpty else { return nil }
+        let body: [String: Any] = [
+            "name": name,
+            "url": pages.map(\.url).joined(separator: ","),
+            "title": pages.map { $0.title.replacingOccurrences(of: ",", with: " ") }.joined(separator: ","),
+        ]
+        return await screenPost(body)
+    }
+
+    /// Blank the screen called `name`. True when it held something.
+    func clearScreen(_ name: String) async -> Bool {
+        struct Cleared: Decodable { let cleared: Bool }
+        guard let data = await screenPostData(["name": name, "clear": true]) else { return false }
+        return (try? JSONDecoder().decode(Cleared.self, from: data))?.cleared ?? false
+    }
+
+    private func screenPost(_ body: [String: Any]) async -> ScreenState? {
+        guard let data = await screenPostData(body) else { return nil }
+        return (try? JSONDecoder().decode(ScreenReply.self, from: data))?.screen
+    }
+
+    private func screenPostData(_ body: [String: Any]) async -> Data? {
+        guard let at = URL(string: "/screens", relativeTo: Brain.base) else { return nil }
+        var r = URLRequest(url: at)
+        r.httpMethod = "POST"
+        r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        r.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        // A press waits seconds at most: the long timeout of a typed turn
+        // would leave the button spinning with the desk away.
+        r.timeoutInterval = 10
+        guard let (data, resp) = try? await net.data(for: r),
+              (resp as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        return data
+    }
+
     func loadSessions() async {
         guard let url = URL(string: "history", relativeTo: Brain.base) else { return }
         guard let (data, _) = try? await net.data(from: url),

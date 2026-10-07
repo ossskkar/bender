@@ -80,6 +80,15 @@ enum DemoAct {
     /// Two pages pushed to this screen at once, the first in front, then the
     /// second (26.0). Written here; nothing is read from or written to the desk.
     case pages, pagesNext
+    /// The sheet that puts pages on a screen, Habits and Health picked for
+    /// the desk, then as though put up (27.0). Nothing is written to the desk.
+    case screens, screensSent
+    /// The page window's To the desk key, as though pressed (27.0). Nothing
+    /// is sent.
+    case toDesk
+
+    /// Whether this stop holds the screen sheet up.
+    var screens: Bool { self == .screens || self == .screensSent }
 
     /// What `.pages` puts up: two of the demo's own pages, nothing fetched.
     static let pagesPage: ShowPage = {
@@ -98,7 +107,7 @@ enum DemoAct {
     var page: ShowPage? {
         switch self {
         case .screen: return Self.screenPage
-        case .pages, .pagesNext: return Self.pagesPage
+        case .pages, .pagesNext, .toDesk: return Self.pagesPage
         default: return nil
         }
     }
@@ -141,6 +150,50 @@ enum Releases {
     static var current: Release { all.first { $0.version == running } ?? all[0] }
 
     static let all: [Release] = [
+        Release(version: "27.0", name: "Screen keys", date: "2026-10-07", highlights: [
+            Highlight(symbol: "display", name: "Put a page on a screen yourself",
+                      what: "Until now only Arisu, Claude or Hermes could put one of your pages on a screen. A new "
+                          + "key in the title bar opens a list of your pages: habits, health, diary, backlog, "
+                          + "agents and the rest. Pick a screen, this iPad or the desk, tick up to six pages in "
+                          + "the order you want them, and press Put up. It is the same request her own tool "
+                          + "makes, so the desk lays them out side by side and remembers them. Clear takes a "
+                          + "screen's pages down again.",
+                      how: "Press the screen key left of the sparkles, choose Desk, tick Habits and Health, press "
+                          + "Put up on Desk."),
+            Highlight(symbol: "ipad.landscape", name: "The desk's page, here",
+                      what: "The same list says what each screen shows now. Open it here puts the desk's pages in "
+                          + "this iPad's page window, for when you are away from the desk. The desk keeps "
+                          + "showing them.",
+                      how: "Press the screen key, choose Desk, press Open it here."),
+            Highlight(symbol: "rectangle.portrait.and.arrow.right", name: "To the desk",
+                      what: "A page open on the iPad, from her or from a screen, has a To the desk key at the top. "
+                          + "It sends every page in the window to the desk's big screen, in the same order, as "
+                          + "the sites themselves rather than the iPad's text reading of them.",
+                      how: "Open any page on the iPad, press To the desk at the top right."),
+        ], tour: [
+            TourStep(scene: .chat, title: "Arisu 27.0 — Screen keys",
+                     text: "You can put your own pages on a screen now, without asking her. Tap anywhere to go on."),
+            TourStep(scene: .chat, spot: "screenPut", title: "Put on a screen",
+                     text: "This key opens your pages. Pick a screen, tick up to six pages in order, and press "
+                         + "Put up. Clear takes them down."),
+            TourStep(scene: .chat, spot: "screenPut", title: "The desk's page, here",
+                     text: "The same list says what each screen shows now, and Open it here brings the desk's "
+                         + "pages to this iPad without taking them off the desk."),
+            TourStep(scene: .chat, title: "To the desk",
+                     text: "Any page open on the iPad has a To the desk key at the top: it sends every page in "
+                         + "the window to the big screen."),
+            TourStep(scene: .chat, spot: "whatsNew", title: "Watch it",
+                     text: "Behind the sparkles, WATCH THE DEMO plays this release by itself."),
+        ], demo: [
+            DemoStep(scene: .chat, act: .screens, seconds: 8, title: "Your pages",
+                     text: "The screen key opens your pages. Desk is chosen, and Habits then Health are ticked, "
+                         + "numbered in the order they will sit side by side."),
+            DemoStep(scene: .chat, act: .screensSent, seconds: 7, title: "Put up on Desk",
+                     text: "Pressed, the desk would show both. This is the demo: nothing was sent."),
+            DemoStep(scene: .chat, act: .toDesk, seconds: 8, title: "To the desk",
+                     text: "Two pages open on the iPad, and To the desk at the top sends both to the big screen. "
+                         + "Shown as pressed; nothing was sent."),
+        ]),
         Release(version: "26.0", name: "Several pages", date: "2026-10-07", highlights: [
             Highlight(symbol: "figure.walk", name: "No race on the iPad",
                       what: "Project 100K was stopped on 1 October, but the iPad kept counting down to the race, "

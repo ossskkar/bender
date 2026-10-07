@@ -51,6 +51,8 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scene
     @State private var showSettings = false
     @State private var showNew = false
+    /// The sheet that puts his pages on a screen (27.0).
+    @State private var showScreens = false
     /// The guided tour running now, and which stop it is on.
     @State private var tour: [TourStep]?
     @State private var tourIndex = 0
@@ -395,7 +397,25 @@ struct ContentView: View {
         .ignoresSafeArea()
         // A page she was asked to show. The desk already decided how it can be
         // shown, so this only draws it.
-        .sheet(item: $live.page) { PageSheet(page: $0, close: { live.page = nil }, front: demoAct == .pagesNext ? 1 : 0) }
+        .sheet(item: $live.page) {
+            PageSheet(page: $0, close: { live.page = nil }, front: demoAct == .pagesNext ? 1 : 0,
+                      toDesk: Self.screenName == "desk" ? nil : { pages in
+                          demo == nil ? await chat.put("desk", pages: pages) != nil : false
+                      },
+                      stagedSent: demoAct == .toDesk)
+        }
+        // Put a page on a screen, by his hand (27.0). Up while he has it open,
+        // or while a demo stop shows it.
+        .sheet(isPresented: Binding(get: { showScreens || demoAct.screens },
+                                    set: { if !$0 { showScreens = false } })) {
+            ScreenSheet(chat: chat, changed: { name in
+                if name == Self.screenName { Task { await followScreen() } }
+            }, close: { showScreens = false }, open: { held in
+                showScreens = false
+                // One sheet at a time: the page window waits for this one to go.
+                Task { try? await Task.sleep(for: .seconds(0.7)); reopen(held) }
+            }, staged: demoAct.screens ? demoAct : .none)
+        }
         .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet, live: live) }
         .sheet(isPresented: $showNew) { ReleasesSheet { startTour() } onDemo: { startDemo($0) } }
         .onChange(of: pet.heard) { _, t in
@@ -472,9 +492,10 @@ struct ContentView: View {
             // For checking a demo in the simulator, where nothing can tap:
             // `simctl launch … -arisu.demo 21.0 [-arisu.demoStop 2]`; and the
             // sheet behind the sparkles, on a tab: `-arisu.sheetTab 1`; Settings:
-            // `-arisu.settings YES`.
+            // `-arisu.settings YES`; Put on a screen: `-arisu.screens YES`.
             if UserDefaults.standard.object(forKey: "arisu.sheetTab") != nil { showNew = true }
             if UserDefaults.standard.bool(forKey: "arisu.settings") { showSettings = true }
+            if UserDefaults.standard.bool(forKey: "arisu.screens") { showScreens = true }
             if let v = UserDefaults.standard.string(forKey: "arisu.demo"),
                let r = Releases.all.first(where: { $0.version == v }) {
                 Task { try? await Task.sleep(for: .seconds(2)); startDemo(r.demo) }
@@ -868,6 +889,12 @@ struct ContentView: View {
                 }
             }
             screenChip
+            // Put a page on a screen without her (27.0, Backlog: "A screen
+            // command puts a view on a named screen without her").
+            squareButton("display", "Put on a screen", tint: Skin.cyan, stroke: 0.7, ink: .white) {
+                if demo == nil { showScreens = true }
+            }
+            .tourSpot("screenPut")
             squareButton("sparkles", "What's new", tint: Skin.mag, stroke: 0.7, ink: .white) {
                 showNew = true
             }
@@ -1270,7 +1297,13 @@ struct PageSheet: View {
     let close: () -> Void
     /// The page a demo puts in front; he switches with the picker.
     var front = 0
+    /// Send what is open here to the desk's big screen (27.0); nil where
+    /// there is no desk to send to. True when the desk took it.
+    var toDesk: (([ScreenVisit]) async -> Bool)? = nil
+    /// A demo showing the key as pressed; nothing is sent.
+    var stagedSent = false
     @Environment(\.openURL) private var openURL
+    @State private var sent: Bool?
     /// Which of several pages pushed at once is in front (26.0).
     @State private var at = 0
 
@@ -1306,12 +1339,33 @@ struct PageSheet: View {
                             .frame(maxWidth: 520)
                         }
                     }
+                    if let toDesk {
+                        // What he is reading on the iPad, onto the big screen,
+                        // every page of it in the same order (27.0). The page's
+                        // own address, so the desk shows the site and not the
+                        // iPad's reading of it.
+                        ToolbarItem(placement: .primaryAction) {
+                            Button {
+                                guard !stagedSent, pages.allSatisfy({ $0.url.hasPrefix("http") }) else { return }
+                                Task { sent = await toDesk(pages.map { ScreenVisit(url: $0.url, title: $0.title ?? $0.host ?? "") }) }
+                            } label: {
+                                // Words as well as the icon: a toolbar shows a Label's
+                                // icon alone, and a bare monitor says nothing.
+                                HStack(spacing: 6) {
+                                    Image(systemName: sent == true ? "checkmark.rectangle" : "display")
+                                    Text(sent == true ? "On the desk" : sent == false ? "Desk refused" : "To the desk")
+                                }
+                            }
+                            .tint(sent == false ? .red : Skin.cyan)
+                        }
+                    }
                     ToolbarItem(placement: .primaryAction) {
                         Button("Safari") { if let u = URL(string: shown.url) { openURL(u) } }
                     }
                 }
         }
         .onChange(of: front, initial: true) { at = front }
+        .onChange(of: stagedSent, initial: true) { _, on in if on { sent = true } }
     }
 
     @ViewBuilder private func content(_ page: ShowPage) -> some View {
@@ -1340,6 +1394,162 @@ struct PageSheet: View {
         }
         .padding(32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// Put his pages on a screen without her (27.0, Backlog: "A screen command
+/// (deck button, shortcut, /show) puts a view on a named screen without
+/// her"). The pages are the ones her screen_show tool knows, by the same
+/// addresses, so a page put up here and one she put up are the same push to
+/// lain. This iPad and the desk are always offered; any other screen lain
+/// holds a page for is offered too.
+struct ScreenSheet: View {
+    @ObservedObject var chat: Chat
+    /// After a push to or a clear of `name`, so this iPad can follow its own
+    /// screen at once rather than at its next four-second read.
+    let changed: (String) -> Void
+    let close: () -> Void
+    /// Open what another screen shows in this iPad's page window, without
+    /// changing that screen.
+    let open: (ScreenState) -> Void
+    /// What a demo stop puts on show: its pages picked, and whether it reads
+    /// as sent. Nothing is ever written while this is set.
+    var staged: DemoAct = .none
+
+    static let pages: [(title: String, url: String, symbol: String)] = [
+        ("Habits", "/systems/habits.html", "checklist"),
+        ("Health", "/systems/health.html", "heart.text.square"),
+        ("Diary", "/systems/diary.html", "book.closed"),
+        ("Backlog", "/systems/backlog.html", "list.bullet.rectangle"),
+        ("Agents", "/systems/agents.html", "person.2.wave.2"),
+        ("Cookbook", "/systems/cookbook.html", "fork.knife"),
+        ("Podcast", "/systems/podcast.html", "mic"),
+        ("Lights", "/systems/lights.html", "lightbulb"),
+        ("Chat", "/systems/chat.html", "bubble.left.and.text.bubble.right"),
+        ("X-ray", "/systems/xray.html", "waveform.path.ecg"),
+        ("Systems", "/systems/systems.html", "square.grid.2x2"),
+        ("Deck", "/index.html", "rectangle.grid.3x2"),
+        ("Microboard", "/systems/microboard/", "rectangle.split.3x3"),
+    ]
+
+    @State private var target = "desk"
+    @State private var known: [ScreenState] = []
+    /// In the order he picked them, which is the order lain lays them out.
+    @State private var picked: [String] = []
+    @State private var busy = false
+    @State private var said: String?
+
+    private var demoing: Bool { staged != .none }
+    private var names: [String] {
+        var seen = Set<String>()
+        return (["ipad", "desk"] + known.compactMap(\.name)).filter { seen.insert($0).inserted }
+    }
+    private func label(_ name: String) -> String {
+        switch name {
+        case "ipad": return "This iPad"
+        case "desk": return "Desk"
+        default: return name
+        }
+    }
+    private var holding: ScreenState? { demoing ? nil : known.first { $0.name == target } }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Picker("Screen", selection: $target) {
+                        ForEach(names, id: \.self) { Text(label($0)).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    Text(holding.map { "Shows now: " + $0.pages.map { $0.title.isEmpty ? $0.url : $0.title }
+                                                   .joined(separator: ", ") }
+                         ?? "Shows nothing from lain now.")
+                        .font(Skin.mono(13)).foregroundStyle(Skin.off)
+                    // The answer to a press, at the top where it is seen: the
+                    // buttons sit below the fold of a long list.
+                    if let said { Text(said).font(Skin.mono(13, .bold)).foregroundStyle(Skin.cyan) }
+                    // What the desk shows, read here (27.0): the screen near
+                    // him is the iPad, and the desk keeps its page.
+                    if let h = holding, target != ContentView.screenName {
+                        Button { open(h) } label: {
+                            Label("Open it here", systemImage: "ipad.landscape").foregroundStyle(Skin.cyan)
+                        }
+                    }
+                } header: { Text("Which screen") }
+                Section {
+                    ForEach(Self.pages, id: \.url) { p in
+                        Button { toggle(p.url) } label: {
+                            HStack {
+                                Label(p.title, systemImage: p.symbol).foregroundStyle(.white)
+                                Spacer()
+                                if let i = picked.firstIndex(of: p.url) {
+                                    Text("\(i + 1)").font(Skin.mono(14, .bold)).foregroundStyle(Skin.mag)
+                                }
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Pages, up to six, side by side in the order you pick them")
+                }
+                Section {
+                    Button { Task { await putUp() } } label: {
+                        Label("Put up on " + label(target), systemImage: "rectangle.badge.plus")
+                            .font(Skin.mono(15, .bold)).foregroundStyle(picked.isEmpty ? Skin.off : Skin.cyan)
+                    }
+                    .disabled(picked.isEmpty || busy)
+                    Button(role: .destructive) { Task { await clear() } } label: {
+                        Label("Clear " + label(target), systemImage: "rectangle.slash")
+                    }
+                    .disabled(busy || (!demoing && holding == nil))
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Grid(tint: Skin.cyan).ignoresSafeArea())
+            .navigationTitle("Put on a screen")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Done", action: close).tint(Skin.cyan) }
+            }
+            .task { if !demoing { known = await chat.screens() } }
+            .onChange(of: staged, initial: true) { _, act in
+                guard act != .none else { return }
+                target = "desk"
+                picked = ["/systems/habits.html", "/systems/health.html"]
+                said = act == .screensSent ? "Habits and Health are on Desk. (A demo: nothing was sent.)" : nil
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private func toggle(_ url: String) {
+        guard !demoing else { return }
+        said = nil
+        if let i = picked.firstIndex(of: url) { picked.remove(at: i) }
+        else if picked.count < 6 { picked.append(url) }
+    }
+
+    private func putUp() async {
+        guard !demoing else { return }
+        busy = true
+        defer { busy = false }
+        let visits = picked.compactMap { u in Self.pages.first { $0.url == u }.map { ScreenVisit(url: u, title: $0.title) } }
+        let names = visits.map(\.title).joined(separator: " and ")
+        guard await chat.put(target, pages: visits) != nil else {
+            said = "The desk did not take it. Nothing changed."
+            return
+        }
+        said = names + (visits.count > 1 ? " are" : " is") + " on " + label(target) + "."
+        changed(target)
+        known = await chat.screens()
+    }
+
+    private func clear() async {
+        guard !demoing else { return }
+        busy = true
+        defer { busy = false }
+        said = await chat.clearScreen(target) ? label(target) + " is clear." : label(target) + " held nothing."
+        changed(target)
+        known = await chat.screens()
     }
 }
 
