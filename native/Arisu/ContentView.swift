@@ -71,6 +71,21 @@ struct ContentView: View {
     @State private var present = false
     /// Night hours (22.0): not listening for 醒来 until morning.
     @State private var night = false
+    /// This iPad as a screen on lain's /screens channel, by the name `ipad`
+    /// (23.0): the last push it opened, kept across launches so a page is
+    /// opened once rather than on every launch, and the page it put up, so
+    /// clearing the screen closes that page and no other.
+    @AppStorage("arisu.screenRev") private var screenRev = -1
+    @State private var screenShown: String?
+    static var screenName: String {
+        #if DEBUG
+        // To check the whole path in the simulator without writing to the
+        // desk: follow a screen that already shows something, read-only.
+        // `simctl launch … -arisu.screenName desk`.
+        if let n = UserDefaults.standard.string(forKey: "arisu.screenName") { return n }
+        #endif
+        return "ipad"
+    }
     @AppStorage(Night.fromKey) private var nightFrom = Night.from
     @AppStorage(Night.toKey) private var nightTo = Night.to
     /// The deck: his Mac's buttons, on the iPad.
@@ -422,6 +437,15 @@ struct ContentView: View {
             wake.onWake = { summon() }
             await wake.start()
         }
+        // Pages pushed to this screen (23.0): a 100-byte read every four
+        // seconds while the app is in front; nothing while it is away.
+        .task(id: scene == .active) {
+            guard scene == .active else { return }
+            while !Task.isCancelled {
+                await followScreen()
+                try? await Task.sleep(for: .seconds(4))
+            }
+        }
         // Night begins and ends on the hour; a look twice a minute is enough,
         // and only a change is published (17.0).
         .task(id: [nightFrom, nightTo]) {
@@ -462,11 +486,31 @@ struct ContentView: View {
         }
     }
 
+    /// Open what was pushed to this screen since the last look, or close it
+    /// when the screen was cleared. A failed read changes nothing.
+    private func followScreen() async {
+        let got: ScreenState?
+        do { got = try await chat.screen(Self.screenName) } catch { return }
+        guard let s = got else {
+            if screenRev != -1 {
+                screenRev = -1
+                if let shown = screenShown, live.page?.url == shown { live.page = nil }
+                screenShown = nil
+            }
+            return
+        }
+        guard s.rev != screenRev else { return }
+        screenRev = s.rev
+        guard demo == nil, let page = await chat.screenPage(s) else { return }
+        screenShown = page.url
+        live.page = page
+    }
+
     /// What the screen says while no call is on: that she can be woken, or
     /// why she cannot be by voice.
     private var idleWord: String {
         if let l = demoAct.line { return l }
-        if night { return "asleep until " + Night.until }
+        if night && demo == nil { return "asleep until " + Night.until }
         if let p = wake.problem { return "wake word off: " + p }
         return wake.listening ? "say 醒来 to wake her" : "not listening"
     }
@@ -499,6 +543,8 @@ struct ContentView: View {
                 // The line she would speak as the call starts, carved as it is
                 // then; spoken by nobody.
                 if steps[i].act == .wake { chantLine = Self.victory.randomElement()! }
+                if steps[i].act == .screen { live.page = DemoAct.screenPage }
+                else if live.page == DemoAct.screenPage { live.page = nil }
                 try? await Task.sleep(for: .seconds(steps[i].seconds))
                 if Task.isCancelled { return }
             }
@@ -509,6 +555,7 @@ struct ContentView: View {
     private func endDemo() {
         demoRun?.cancel()
         demoRun = nil
+        if live.page == DemoAct.screenPage { live.page = nil }
         withAnimation { demo = nil; chrome = false }
         demoIndex = 0
         stage(.chat)
@@ -949,6 +996,13 @@ struct ContentView: View {
         }
     }
 
+    /// Her sleeping face (23.0, Backlog: "She goes to her sleeping face and
+    /// stops listening until morning"): at night, with no call, she is drawn
+    /// dim and slow, a quarter of the frames, and no longer moves with the
+    /// Mac's music. A call wakes her face with her.
+    /// While a demo plays, only the demo says whether it is night.
+    private var sleeping: Bool { (demo == nil ? night : demoAct == .night) && !pet.running }
+
     private var faceState: String {
         // Muted is not asleep: she still thinks and speaks what was asked
         // before the mute; `phase` already keeps her from looking like she is
@@ -975,12 +1029,16 @@ struct ContentView: View {
                         amplitude: state == .idle ? max(level, musicLevel) : level,
                         // Mic off reads as cyan (Oscar, 2026-10-01).
                         tint: live.muted || !pet.running ? Skin.cyan : phaseColor,
-                        scale: faceScale, bloom: faceBloom, speed: faceSpeed, smoke: freeForm)
+                        scale: faceScale, bloom: faceBloom * (sleeping ? 0.5 : 1),
+                        speed: faceSpeed * (sleeping ? 0.3 : 1), smoke: freeForm,
+                        fps: sleeping ? 15 : nil)
         }
+        .opacity(sleeping ? 0.5 : 1)
+        .animation(.easeInOut(duration: 2), value: sleeping)
         // She steps aside for the panel rather than sitting under it.
         .offset(x: faceX + (glanceShown ? 150 : 0), y: faceY)
-        .task(id: voiceState == .idle) {
-            if voiceState == .idle { await music.listen() }
+        .task(id: voiceState == .idle && !sleeping) {
+            if voiceState == .idle && !sleeping { await music.listen() }
         }
     }
 
@@ -994,11 +1052,14 @@ struct ContentView: View {
                         state: state,
                         amplitude: showChat ? 0 : (state == .idle ? max(level, musicLevel) : level),
                         tint: showChat || live.muted || !pet.running ? Skin.cyan : phaseColor,
-                        scale: faceScale * 1.5, bloom: faceBloom,
-                        speed: showChat ? 0.45 : faceSpeed, smoke: true)
+                        scale: faceScale * 1.5, bloom: faceBloom * (sleeping ? 0.5 : 1),
+                        speed: sleeping ? faceSpeed * 0.3 : showChat ? 0.45 : faceSpeed, smoke: true,
+                        fps: sleeping ? 15 : nil)
         }
-        .task(id: !showChat && voiceState == .idle) {
-            if !showChat && voiceState == .idle { await music.listen() }
+        .opacity(sleeping ? 0.5 : 1)
+        .animation(.easeInOut(duration: 2), value: sleeping)
+        .task(id: !showChat && voiceState == .idle && !sleeping) {
+            if !showChat && voiceState == .idle && !sleeping { await music.listen() }
         }
     }
 

@@ -98,6 +98,7 @@ struct SettingsSheet: View {
     }
 
     private var form: some View {
+        ScrollViewReader { proxy in
         Form {
             if let cast, cast.characters.count > 1 { castSection(cast) }
 
@@ -157,12 +158,13 @@ struct SettingsSheet: View {
                     Text("Awake at " + String(format: "%02d:00", nightTo)).font(.system(size: 17, weight: .medium))
                 }
             } header: {
-                header("Night")
+                header("Night").id("night")
             } footer: {
                 footer(nightFrom == nightTo
                        ? "Off: she listens for 醒来 day and night."
-                       : "From then until morning she does not listen for 醒来 and "
-                         + "Singularity draws half as often. Holding Singularity or "
+                       : "From then until morning she does not listen for 醒来, her "
+                         + "face sleeps, dim and slow, and Singularity draws half as "
+                         + "often. Holding Singularity or "
                          + "tapping the microphone still brings her. The same hour "
                          + "twice switches night off.")
             }
@@ -249,6 +251,16 @@ struct SettingsSheet: View {
             }
         }
         .tint(accent)
+        #if DEBUG
+        // For checking a section in the simulator, where nothing can scroll:
+        // `simctl launch … -arisu.settings YES -arisu.settingsAt night`.
+        .task {
+            guard let at = UserDefaults.standard.string(forKey: "arisu.settingsAt") else { return }
+            try? await Task.sleep(for: .seconds(1))
+            proxy.scrollTo(at, anchor: .top)
+        }
+        #endif
+        }
     }
 
     /// The models as pictures, not names -- the same stills the web panel

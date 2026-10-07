@@ -68,6 +68,19 @@ enum DemoAct {
     case wake
     /// Night hours: not listening, and Singularity drifting slowly.
     case night
+    /// A page pushed to this screen, as one would arrive (23.0). The page is
+    /// written here; nothing is read from or written to the desk.
+    case screen
+
+    /// What `.screen` puts up.
+    static let screenPage = ShowPage(
+        url: "about:arisu-screen-demo", host: "Screen ipad", mode: "reader", title: "Screen ipad",
+        text: nil, headlines: [
+            "A page pushed to the screen called ipad opens here by itself.",
+            "From Claude or Hermes: screen_show with screen \"ipad\" and any address.",
+            "From anywhere on the tailnet: POST /screens with name ipad and a url.",
+            "Clearing the screen closes the page again.",
+        ], ok: true, error: nil)
 
     /// Her presence on Singularity, as though she had been summoned.
     var present: Bool { self == .summon || self == .wake }
@@ -95,6 +108,55 @@ enum Releases {
     static var current: Release { all.first { $0.version == running } ?? all[0] }
 
     static let all: [Release] = [
+        Release(version: "23.0", name: "On screen", date: "2026-10-07", highlights: [
+            Highlight(symbol: "rectangle.on.rectangle", name: "The iPad is a screen",
+                      what: "lain keeps a list of named screens and what each one shows; the Mac's desk "
+                          + "canvas already read it. The iPad now reads it too, as the screen called ipad: a "
+                          + "page put there opens on the iPad by itself within a few seconds, over whatever "
+                          + "is on screen. lain's own pages open as they are; other sites go through the "
+                          + "desk's reader as her pages always have. Clearing the screen closes the page. "
+                          + "Each page opens once, not again at every launch.",
+                      how: "Ask Claude or Hermes to show a page on the screen called ipad (screen_show, "
+                          + "screen \"ipad\"), or POST /screens with name ipad and a url."),
+            Highlight(symbol: "moon.zzz", name: "Her sleeping face",
+                      what: "At night, with no call, she is drawn the way she sleeps: half as bright, a third "
+                          + "as fast, a quarter of the pictures a second, and no longer moving with the Mac's "
+                          + "music, which the iPad stops asking about until morning. A call wakes her face "
+                          + "with her.",
+                      how: "Look at her in Classic after the hour set in Settings, Night."),
+            Highlight(symbol: "circle.dashed", name: "Singularity's apps cost less",
+                      what: "The app icons, their names, the spiral arms and the chosen app's actions round the "
+                          + "outside each had their own glow, every picture. They are now gathered and drawn "
+                          + "together, one glow for each kind, the way 22.0 drew the falling words. Measured "
+                          + "in the simulator on the same screen: 57 percent of a core instead of 73, at the "
+                          + "same rate of pictures."),
+        ], tour: [
+            TourStep(scene: .voice, title: "Arisu 23.0 — On screen",
+                     text: "The iPad is now a screen lain can put a page on, by the name ipad. Tap anywhere "
+                         + "to go on."),
+            TourStep(scene: .chat, title: "A page arrives by itself",
+                     text: "Ask Claude or Hermes to show something on the screen called ipad. It opens here "
+                         + "within a few seconds; clearing the screen closes it."),
+            TourStep(scene: .voice, title: "Her sleeping face",
+                     text: "At night, with no call, she is drawn dim and slow and stops moving with the "
+                         + "Mac's music. A call wakes her."),
+            TourStep(scene: .singularity, title: "Lighter apps",
+                     text: "The icons, names, arms and actions are drawn together now: about a fifth less "
+                         + "work, the same picture."),
+            TourStep(scene: .chat, spot: "whatsNew", title: "Watch it",
+                     text: "Behind the sparkles, WATCH THE DEMO plays this release by itself."),
+        ], demo: [
+            DemoStep(scene: .chat, act: .screen, seconds: 9, title: "A page arrives",
+                     text: "Something was put on the screen called ipad, so it opens by itself. This one is "
+                         + "written by the demo; nothing was asked of the desk."),
+            DemoStep(scene: .voice, act: .night, seconds: 8, title: "Her sleeping face",
+                     text: "At night she is drawn dim and slow, and the line under her says until when."),
+            DemoStep(scene: .voice, seconds: 6, title: "Awake",
+                     text: "The same face by day, for comparison: full light, full speed."),
+            DemoStep(scene: .singularity, seconds: 7, title: "Lighter apps",
+                     text: "The icons, names, arms and actions round her, drawn together: the same picture "
+                         + "for about a fifth less work."),
+        ]),
         Release(version: "22.0", name: "Night", date: "2026-10-07", highlights: [
             Highlight(symbol: "moon.zzz", name: "She sleeps at night",
                       what: "From 23:00 until 07:00 she no longer listens for 醒来: the iPad's microphone stays "

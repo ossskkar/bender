@@ -65,6 +65,18 @@ struct ThreeFingerSwipe: UIViewRepresentable {
 /// the smoothed level, the ripples, her arrival, where each tappable thing was
 /// last drawn.
 private final class RealmClock {
+    #if DEBUG
+    /// Frames a second into the simulator's log every five seconds, for
+    /// measuring the screen's cost: `simctl launch … -arisu.fps YES` (23.0).
+    static let logFPS = UserDefaults.standard.bool(forKey: "arisu.fps")
+    private var frames = 0, since = Date()
+    func countFrame() {
+        guard Self.logFPS else { return }
+        frames += 1
+        let d = Date().timeIntervalSince(since)
+        if d >= 5 { NSLog("arisu fps %.1f", Double(frames) / d); frames = 0; since = Date() }
+    }
+    #endif
     let start = Date()
     var last = 0.0
     var tw = 0.0
@@ -237,6 +249,9 @@ struct RealmView: View {
             Canvas { ctx, size in
                 let t = tl.date.timeIntervalSince(clock.start)
                 step(t)
+                #if DEBUG
+                clock.countFrame()
+                #endif
                 clock.size = size
                 let stage = stage(t)
                 clock.hits = []
@@ -577,6 +592,18 @@ private struct Scene {
     struct Fall: Hashable { let ink: Int, step: Int }
     /// The size the arms' words are made at, once; each is scaled from it.
     static let wordSize = 13.0
+    /// Labels gathered to be drawn together: colour, fade in twentieths, glow.
+    struct Lit: Hashable { let col: Color, step: Int, glow: Double }
+
+    /// A label as a shape, added to the frame's batch rather than drawn: its
+    /// letters are made once and kept (23.0).
+    func label(_ s: String, _ p: CGPoint, _ col: Color, _ size: Double, glow: Double,
+               opacity: Double, into batch: inout [Lit: Path]) {
+        let step = Int((min(1, max(0, opacity)) * 20).rounded())
+        guard step > 0 else { return }
+        batch[Lit(col: col, step: step, glow: glow), default: Path()]
+            .addPath(clock.word(s, size), transform: CGAffineTransform(translationX: p.x, y: p.y))
+    }
 
     let ctx: GraphicsContext
     let size: CGSize
@@ -865,6 +892,13 @@ private struct Scene {
         // 2026-10-03 -- the outer ring belongs to the chosen app's actions now.
         let n = max(1, groups.count), Rmax = M * 0.295
         var falling: [Fall: Path] = [:]
+        // The apps and the chosen app's actions are gathered over the frame
+        // and drawn together after it, one glow per kind rather than one per
+        // app, icon and label (23.0) -- the same cure 22.0 gave the falling
+        // words.
+        var labels: [Lit: Path] = [:]
+        var arms = [Path(), Path()]          // the other apps', the chosen one's
+        var icons: [(name: String, at: CGPoint, col: Color, size: Double)] = []
         for (i, g) in groups.enumerated() {
             let on = g.name == chosen, col = on ? Skin.mag : Skin.cyan
             let base = Double(i) / Double(n) * tau + tw * 0.07
@@ -874,16 +908,13 @@ private struct Scene {
                 let p = pos(Rmax - (Rmax - M * 0.06 * 1.4) * Double(k) / 70)
                 k == 0 ? arm.move(to: p) : arm.addLine(to: p)
             }
-            var a = lit
-            a.addFilter(.blur(radius: 6))
-            a.stroke(arm, with: .color(col.opacity((on ? 0.7 : 0.25) * pres)), lineWidth: on ? 5 : 3)
-            lit.stroke(arm, with: .color(col.opacity((on ? 0.5 : 0.15) * pres)), lineWidth: on ? 1.5 : 1)
+            arms[on ? 1 : 0].addPath(arm)
 
             let tip = pos(Rmax)
             halo(tip, M * (on ? 0.07 : 0.04), col, (on ? 0.4 : 0.18) * pres)
-            glyph(symbol(for: g.name), tip, on ? .white : col, M * (on ? 0.06 : 0.045))
-            text(g.name.uppercased(), CGPoint(x: tip.x, y: tip.y + M * 0.04), col, 10, glow: 6,
-                 opacity: on ? 1 : 0.55)
+            icons.append((symbol(for: g.name), tip, on ? .white : col, M * (on ? 0.06 : 0.045)))
+            label(g.name.uppercased(), CGPoint(x: tip.x, y: tip.y + M * 0.04), col, 10, glow: 6,
+                  opacity: on ? 1 : 0.55, into: &labels)
             hit(tip, M * 0.09, .app(g.name))
 
             // The chosen app's actions are drawn on the outer ring below;
@@ -923,6 +954,24 @@ private struct Scene {
             gl.fill(words, with: .color(ink))
             c.fill(words, with: .color(ink))
         }
+        for (k, arm) in arms.enumerated() where !arm.isEmpty {
+            let on = k == 1, col = on ? Skin.mag : Skin.cyan
+            var a = lit
+            a.addFilter(.blur(radius: 6))
+            a.stroke(arm, with: .color(col.opacity((on ? 0.7 : 0.25) * pres)), lineWidth: on ? 5 : 3)
+            lit.stroke(arm, with: .color(col.opacity((on ? 0.5 : 0.15) * pres)), lineWidth: on ? 1.5 : 1)
+        }
+        // Every icon's glow in one blurred layer, then the icons sharp.
+        let resolved = icons.map { ic -> (GraphicsContext.ResolvedImage, CGRect) in
+            var img = ctx.resolve(Image(systemName: ic.name))
+            img.shading = .color(ic.col)
+            let w = img.size.width, h = img.size.height, k = ic.size / max(w, h, 1)
+            return (img, CGRect(x: ic.at.x - w * k / 2, y: ic.at.y - h * k / 2, width: w * k, height: h * k))
+        }
+        var iconGlow = ctx
+        iconGlow.addFilter(.blur(radius: 7))
+        iconGlow.drawLayer { l in for (img, r) in resolved { l.draw(img, in: r) } }
+        for (img, r) in resolved { ctx.draw(img, in: r) }
 
         // ---- the actions of the chosen app, around the outside
         // (Oscar, 2026-10-03: no shared band, no background -- drawn the way
@@ -932,6 +981,7 @@ private struct Scene {
             let aR = M * 0.44 * st.rf
             let count = g.buttons.count
             let turn = tw * 0.012
+            var rings: [Color: Path] = [:], dots: [Color: Path] = [:]
             for (k, b) in g.buttons.enumerated() {
                 let a = Double(k) / Double(count) * tau + turn - .pi / 2
                 let p = at(aR, a)
@@ -939,17 +989,26 @@ private struct Scene {
                 let col = hot.map { $0 ? Skin.good : Skin.recording } ?? Skin.cyan
                 halo(p, M * 0.035, col, 0.22 * pres)
                 // a small mark rather than an icon: an action has no symbol
-                lit.stroke(circle(p, M * 0.012), with: .color(col.opacity(0.9 * pres)),
-                           lineWidth: 1.5)
-                lit.fill(circle(p, M * 0.004), with: .color(col.opacity(0.9 * pres)))
-                text(b.label.uppercased(), CGPoint(x: p.x, y: p.y + M * 0.032),
-                     .white, 11, glow: 6, opacity: 0.9 * pres)
+                rings[col, default: Path()].addPath(circle(p, M * 0.012))
+                dots[col, default: Path()].addPath(circle(p, M * 0.004))
+                label(b.label.uppercased(), CGPoint(x: p.x, y: p.y + M * 0.032),
+                      .white, 11, glow: 6, opacity: 0.9 * pres, into: &labels)
                 if !b.action.summary.isEmpty {
-                    text(b.action.summary.uppercased(), CGPoint(x: p.x, y: p.y + M * 0.05),
-                         col, 8, glow: 4, opacity: 0.45 * pres)
+                    label(b.action.summary.uppercased(), CGPoint(x: p.x, y: p.y + M * 0.05),
+                          col, 8, glow: 4, opacity: 0.45 * pres, into: &labels)
                 }
                 hit(p, M * 0.06, .button(b))
             }
+            for (col, r) in rings { lit.stroke(r, with: .color(col.opacity(0.9 * pres)), lineWidth: 1.5) }
+            for (col, d) in dots { lit.fill(d, with: .color(col.opacity(0.9 * pres))) }
+        }
+        for (k, words) in labels {
+            var c = ctx
+            c.opacity = Double(k.step) / 20
+            var gl = c
+            gl.addFilter(.blur(radius: k.glow / 2))
+            gl.fill(words, with: .color(k.col))
+            c.fill(words, with: .color(k.col))
         }
 
         // the eye

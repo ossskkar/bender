@@ -205,6 +205,31 @@ import GameController
                         headlines: nil, ok: false, error: "The desk could not be reached to read this page.")
     }
 
+    /// What lain's /screens channel says the screen called `name` shows
+    /// (23.0, Backlog: "The iPad app renders a named lain view on demand").
+    /// Read, never popped: a screen's page is a standing fact the desk keeps
+    /// for every reader. Throws when the desk cannot be reached, so a failed
+    /// poll is not mistaken for the screen being cleared.
+    func screen(_ name: String) async throws -> ScreenState? {
+        var c = URLComponents(string: "/screens")!
+        c.queryItems = [URLQueryItem(name: "name", value: name)]
+        guard let at = c.url(relativeTo: Brain.base) else { throw URLError(.badURL) }
+        let (data, _) = try await net.data(from: at)
+        return try JSONDecoder().decode(ScreenReply.self, from: data).screen
+    }
+
+    /// A page pushed to this screen, made showable. lain's own pages are shown
+    /// as they are: the reader will not fetch the desk from the desk, and they
+    /// need no login.
+    func screenPage(_ s: ScreenState) async -> ShowPage? {
+        guard let url = URL(string: s.url, relativeTo: Brain.base)?.absoluteURL else { return nil }
+        if url.host() == Brain.base.host() {
+            return ShowPage(url: url.absoluteString, host: s.title.isEmpty ? url.host() : s.title,
+                            mode: "frame", title: s.title, text: nil, headlines: nil, ok: true, error: nil)
+        }
+        return await page(url)
+    }
+
     func loadSessions() async {
         guard let url = URL(string: "history", relativeTo: Brain.base) else { return }
         guard let (data, _) = try? await net.data(from: url),

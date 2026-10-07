@@ -116,6 +116,19 @@ struct ShowPage: Decodable, Sendable, Identifiable, Equatable {
     var worthShowing: Bool { ok != false && !url.isEmpty }
 }
 
+/// One named screen on lain's /screens channel (23.0). `rev` moves on every
+/// push, the same URL pushed again included, so "put it up again" works and a
+/// poll that finds nothing new changes nothing.
+struct ScreenState: Decodable, Equatable {
+    let url: String
+    let title: String
+    let rev: Int
+}
+
+struct ScreenReply: Decodable {
+    let screen: ScreenState?
+}
+
 struct CommandInbox: Decodable {
     let commands: [QueuedCommand]
 }
