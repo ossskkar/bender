@@ -16,6 +16,9 @@ struct Release: Identifiable {
     /// The guided tour of this release. Empty for releases from before tours
     /// existed: their builds have no tour engine, so there is nothing to run.
     var tour: [TourStep] = []
+    /// What the release looks like in action, playing by itself (Oscar,
+    /// 2026-10-02). Empty for releases from before 21.0's demo engine.
+    var demo: [DemoStep] = []
     var id: String { version }
 }
 
@@ -38,6 +41,44 @@ struct TourStep: Identifiable {
     let text: String
 }
 
+/// One stop of a demo: a screen, what is pretended on it, and for how long.
+/// Everything a demo shows is local and undone when it ends: it never opens
+/// the microphone, starts a call, sends a message, presses a deck key or
+/// writes to the desk (Oscar, 2026-10-02).
+struct DemoStep: Identifiable {
+    let id = UUID()
+    var scene: TourScene = .keep
+    var act: DemoAct = .none
+    var seconds: Double = 7
+    let title: String
+    let text: String
+}
+
+/// The simulated inputs a demo stop can play.
+enum DemoAct {
+    /// Nothing pretended: the screen as it is.
+    case none
+    /// A track playing on the Mac, a beat every half second.
+    case music
+    /// The wake line as it reads while the iPad listens for 醒来.
+    case listen
+    /// She is summoned: her arrival and her rings awake, no call.
+    case summon
+    /// 醒来 heard: what happens at the moment a call would start.
+    case wake
+
+    /// Her presence on Singularity, as though she had been summoned.
+    var present: Bool { self == .summon || self == .wake }
+    /// What the line under her says instead of the real wake state.
+    var line: String? {
+        switch self {
+        case .listen, .summon: return "say 醒来 to wake her"
+        case .wake: return "heard 醒来"
+        default: return nil
+        }
+    }
+}
+
 /// `glance` is voice mode with its chrome up, so the panel beside her shows;
 /// `chatGlance` is the chat with the same panel held up (13.0).
 enum TourScene { case keep, chat, chatGlance, voice, glance, singularity }
@@ -51,6 +92,65 @@ enum Releases {
     static var current: Release { all.first { $0.version == running } ?? all[0] }
 
     static let all: [Release] = [
+        Release(version: "21.0", name: "Summoned", date: "2026-10-07", highlights: [
+            Highlight(symbol: "play.rectangle", name: "Watch the demo",
+                      what: "Next to TAKE THE TOUR there is now WATCH THE DEMO: the release plays by itself. "
+                          + "The screens change, music plays on Singularity, she arrives, and a caption at "
+                          + "the bottom says what you are looking at. Nothing in a demo is real: no "
+                          + "microphone, no call, no message, no key pressed on the Mac, and everything is "
+                          + "put back when it ends. 20.0's music and wake line have a demo too, under RELEASES.",
+                      how: "Tap the sparkles, then WATCH THE DEMO. Tap anywhere to stop it."),
+            Highlight(symbol: "eye", name: "Summon her without a call",
+                      what: "On Singularity, holding a finger anywhere brings her: the dark, the flash, her "
+                          + "name and the rings awake, as in a conversation, but no call opens and nothing is "
+                          + "paid for. The rim says SAY 醒来 TO WAKE HER; saying it starts the call and she "
+                          + "speaks her line. Hold again and she goes. After ten minutes without 醒来 she goes "
+                          + "by herself, to spare the battery. Two taps still start a call straight away.",
+                      how: "On Singularity, hold a finger anywhere for half a second, then say 醒来."),
+            Highlight(symbol: "ear", name: "The wake line on Singularity",
+                      what: "20.0 said Singularity would show whether she can hear 醒来; only Classic did. "
+                          + "Singularity's outer rim now says it after HOLD TO SUMMON: SAY 醒来 TO WAKE HER, "
+                          + "or why she cannot hear it.",
+                      how: "Read the outer rim on Singularity, after the time."),
+            Highlight(symbol: "tray", name: "Test builds leave your brief alone",
+                      what: "The app in the Mac's simulator, which the builder agents start to check their "
+                          + "work, used to collect what Hermes had queued for you, such as a morning brief, "
+                          + "and say it in a call nobody heard. The simulator no longer collects anything, so "
+                          + "it waits for your iPad."),
+            Highlight(symbol: "rectangle.portrait", name: "Brain dumps read upright",
+                      what: "With the iPad held upright, the REC//BRAIN_DUMP panel had room for one letter per "
+                          + "line. When it is narrow it now puts the log under the button and the tabs under "
+                          + "the title. In landscape nothing changes.",
+                      how: "Turn the iPad upright and look at the panel above the deck."),
+        ], tour: [
+            TourStep(scene: .singularity, title: "Arisu 21.0 — Summoned",
+                     text: "Hold a finger anywhere on Singularity and she arrives, with no call behind her. "
+                         + "Tap anywhere to go on."),
+            TourStep(scene: .singularity, title: "醒来 starts the call",
+                     text: "While she is here the rim says SAY 醒来 TO WAKE HER. Saying it opens the call and "
+                         + "she speaks; holding again sends her away."),
+            TourStep(scene: .chat, spot: "whatsNew", title: "Watch the demo",
+                     text: "Behind the sparkles, WATCH THE DEMO plays a release by itself. Nothing in it is "
+                         + "real: no microphone, no call, no key pressed on the Mac."),
+            TourStep(scene: .chat, spot: "record", title: "Brain dumps, upright",
+                     text: "Held upright, this panel puts the log under the button instead of one letter "
+                         + "per line."),
+            TourStep(scene: .chat, title: "Your brief stays yours",
+                     text: "Test builds on the Mac no longer collect what Hermes queues for you; your iPad "
+                         + "does."),
+        ], demo: [
+            DemoStep(scene: .singularity, seconds: 7, title: "Singularity, at rest",
+                     text: "Her eye is a black hole and the apps of the deck fall into it. The rim says "
+                         + "HOLD TO SUMMON."),
+            DemoStep(scene: .singularity, act: .summon, seconds: 9, title: "Held: she arrives",
+                     text: "A long press brings her: the dark, the flash, her name, the rings awake. No call "
+                         + "is open. The rim says SAY 醒来 TO WAKE HER."),
+            DemoStep(scene: .singularity, act: .wake, seconds: 10, title: "醒来",
+                     text: "When she hears it, the call opens and she speaks her line, carved in runes. In "
+                         + "the demo the line burns and nobody speaks."),
+            DemoStep(scene: .singularity, seconds: 5, title: "Held again: she goes",
+                     text: "Another long press sends her away, and ends the call if one is on."),
+        ]),
         Release(version: "20.0", name: "Loud", date: "2026-10-02", highlights: [
             Highlight(symbol: "waveform.path.ecg", name: "Music explodes on Singularity",
                       what: "While she is away and Spotify plays on the Mac, every beat throws a ring of light "
@@ -72,6 +172,18 @@ enum Releases {
             TourStep(scene: .singularity, title: "Wake her by voice",
                      text: "With no call on, say 醒来. The line at the bottom says whether she is listening "
                          + "for it, or why she cannot."),
+        ], demo: [
+            // Added in 21.0, when demos began; the highlights above are 20.0's own.
+            DemoStep(scene: .singularity, act: .music, seconds: 12, title: "Music explodes on Singularity",
+                     text: "A track playing on the Mac, pretended here: every beat throws a ring of light to "
+                         + "the edge, space bends with it and the colours turn."),
+            DemoStep(scene: .singularity, act: .listen, seconds: 7, title: "The music stops",
+                     text: "She goes back to her own cyan. With no call on, the rim says SAY 醒来 TO WAKE HER, "
+                         + "or why she cannot hear it."),
+            DemoStep(scene: .glance, act: .listen, seconds: 7, title: "The same line in Classic",
+                     text: "In voice mode the bar under her says it too."),
+            DemoStep(scene: .singularity, act: .wake, seconds: 10, title: "醒来 heard",
+                     text: "She arrives and the call starts with her line. In the demo, no call does."),
         ]),
         Release(version: "19.0", name: "Light rings", date: "2026-10-02", highlights: [
             Highlight(symbol: "circle.dashed", name: "Singularity costs a quarter of what it did",
@@ -612,6 +724,62 @@ struct TourOverlay: View {
     }
 }
 
+// MARK: - Demo card
+
+/// The caption of a demo playing: low on the screen so what it describes stays
+/// in view, with a bar for the time left on this stop. A tap anywhere else, or
+/// STOP, ends the demo and puts everything back.
+struct DemoCard: View {
+    let steps: [DemoStep]
+    let index: Int
+    let onStop: () -> Void
+    @State private var started = Date()
+
+    var body: some View {
+        let step = steps[min(index, steps.count - 1)]
+        // Voice mode's bar is along the bottom, and is often the thing being
+        // shown: the card goes to the top there.
+        let top = step.scene == .voice || step.scene == .glance
+        ZStack(alignment: top ? .top : .bottom) {
+            // Swallows touches: the screen underneath is being shown, not used,
+            // and a tap on Singularity would press one of his Mac's keys.
+            Color.black.opacity(0.001).contentShape(Rectangle()).onTapGesture { onStop() }
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("DEMO  \(index + 1) / \(steps.count)")
+                        .font(Skin.mono(11, .medium)).tracking(2).foregroundStyle(Skin.cyan)
+                    Spacer()
+                    Button("STOP") { onStop() }
+                        .font(Skin.mono(14, .semibold)).foregroundStyle(Skin.mag)
+                }
+                Text(step.title.uppercased())
+                    .font(Skin.mono(17, .bold)).tracking(2).foregroundStyle(Skin.mag)
+                Text(step.text)
+                    .font(Skin.mono(14)).foregroundStyle(.white)
+                    .fixedSize(horizontal: false, vertical: true)
+                TimelineView(.periodic(from: started, by: 0.25)) { tl in
+                    let k = min(1, tl.date.timeIntervalSince(started) / step.seconds)
+                    GeometryReader { g in
+                        Rectangle().fill(Skin.cyan.opacity(0.25))
+                            .overlay(alignment: .leading) {
+                                Rectangle().fill(Skin.cyan).frame(width: g.size.width * k)
+                            }
+                    }
+                    .frame(height: 2)
+                }
+            }
+            .padding(20)
+            .frame(maxWidth: 560)
+            .background(RoundedRectangle(cornerRadius: 14).fill(Color.black.opacity(0.85)))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Skin.cyan.opacity(0.7), lineWidth: 1))
+            .shadow(color: Skin.cyan.opacity(0.4), radius: 12)
+            .padding(.horizontal, 24).padding(top ? .top : .bottom, top ? 90 : 40)
+        }
+        .onChange(of: index) { _, _ in started = Date() }
+        .ignoresSafeArea()
+    }
+}
+
 // MARK: - Time machine
 
 /// The Mac's time machine, as the app sees it: `GET /deck/travel.json` for
@@ -693,10 +861,12 @@ final class TimeMachine: ObservableObject {
 /// What's new in this release, its tour, and the time machine.
 struct ReleasesSheet: View {
     let onTour: () -> Void
+    let onDemo: ([DemoStep]) -> Void
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @StateObject private var machine = TimeMachine()
-    @State private var tab = 0
+    /// Only ever set from a simulator launch, to check a tab (see ContentView).
+    @State private var tab = UserDefaults.standard.integer(forKey: "arisu.sheetTab")
     @State private var going: TimeMachine.Build?
 
     var body: some View {
@@ -743,22 +913,29 @@ struct ReleasesSheet: View {
 
     private var whatsNew: some View {
         VStack(alignment: .leading, spacing: 18) {
-            if !Releases.current.tour.isEmpty {
-                Button {
-                    dismiss(); onTour()
-                } label: {
-                    Label("TAKE THE TOUR", systemImage: "map")
-                        .font(Skin.mono(15, .bold)).tracking(2)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 18).padding(.vertical, 12)
-                        .background(RoundedRectangle(cornerRadius: 10).stroke(Skin.mag, lineWidth: 1.5))
-                        .shadow(color: Skin.mag.opacity(0.6), radius: 8)
+            HStack(spacing: 14) {
+                if !Releases.current.tour.isEmpty {
+                    bigButton("TAKE THE TOUR", "map") { dismiss(); onTour() }
                 }
-                .buttonStyle(.plain)
+                if !Releases.current.demo.isEmpty {
+                    bigButton("WATCH THE DEMO", "play.rectangle") { dismiss(); onDemo(Releases.current.demo) }
+                }
             }
             ForEach(Releases.current.highlights) { highlightRow($0) }
         }
         .padding(24)
+    }
+
+    private func bigButton(_ title: String, _ symbol: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .font(Skin.mono(15, .bold)).tracking(2)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 18).padding(.vertical, 12)
+                .background(RoundedRectangle(cornerRadius: 10).stroke(Skin.mag, lineWidth: 1.5))
+                .shadow(color: Skin.mag.opacity(0.6), radius: 8)
+        }
+        .buttonStyle(.plain)
     }
 
     private var releases: some View {
@@ -770,6 +947,18 @@ struct ReleasesSheet: View {
                             .font(Skin.mono(17, .bold)).tracking(1.5).foregroundStyle(Skin.mag)
                         Text(r.date).font(Skin.mono(12)).foregroundStyle(Skin.off)
                         if r.version == Releases.running { here }
+                        Spacer()
+                        // An older release's demo plays here too: its features
+                        // are still in this build (21.0).
+                        if !r.demo.isEmpty {
+                            Button { dismiss(); onDemo(r.demo) } label: {
+                                Label("DEMO", systemImage: "play.rectangle")
+                                    .font(Skin.mono(13, .bold)).tracking(1.5).foregroundStyle(.white)
+                                    .padding(.horizontal, 12).padding(.vertical, 7)
+                                    .overlay(RoundedRectangle(cornerRadius: 7).stroke(Skin.mag, lineWidth: 1))
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                     ForEach(r.highlights) { highlightRow($0) }
                 }

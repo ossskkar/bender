@@ -296,6 +296,13 @@ final class Brain {
     /// owns this batch and the next poll sees only what came after. Empty on
     /// any failure -- a desk that is asleep has nothing to say either.
     func commands(character: String = "") async -> [QueuedCommand] {
+        #if targetEnvironment(simulator)
+        // The simulator is a test bench on the Mac, never a screen he is in
+        // front of. Popping the queue there took his morning brief: a builder
+        // launching a test build at 03:12 on 2026-10-07 started a call in the
+        // simulator and said it to nobody (21.0).
+        return []
+        #else
         var c = URLComponents(url: Brain.base.appendingPathComponent("commands"),
                               resolvingAgainstBaseURL: false)!
         if !character.isEmpty {
@@ -306,6 +313,7 @@ final class Brain {
               let inbox = try? JSONDecoder().decode(CommandInbox.self, from: data)
         else { return [] }
         return inbox.commands
+        #endif
     }
 
     /// One of her clock lines -- `brief`, `weekly` -- composed now, for a

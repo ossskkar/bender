@@ -168,24 +168,19 @@ struct RecordPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             header
-            HStack(alignment: .top, spacing: 16) {
-                VStack(spacing: 10) {
-                    Spacer(minLength: 0)
-                    button
-                    status
-                    Spacer(minLength: 0)
+            // Side by side when there is room; the log under the button when
+            // the panel is narrow -- the iPad upright gives it about 200pt,
+            // and the log beside a 170pt button was one letter wide (21.0).
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: 16) {
+                    control.frame(width: 170)
+                    // Measured at 100pt, which the upright panel lacks and
+                    // the landscape one (about 300pt) has.
+                    log.frame(minWidth: 100, idealWidth: 100, maxWidth: .infinity)
                 }
-                .frame(width: 170)
-                ScrollViewReader { scroll in
-                    ScrollView {
-                        if showInsights { insights } else { history }
-                    }
-                    .defaultScrollAnchor(showInsights ? .top : .bottom)
-                    // Turning the iPad, or the deck's seam moving, resizes the
-                    // log; it rests on the newest dump again, as the chat has
-                    // since 14.0 (16.0). A new dump arriving does the same.
-                    .onGeometryChange(for: CGSize.self) { $0.size } action: { _ in newest(scroll) }
-                    .onChange(of: rec.dumps.count) { _, _ in newest(scroll) }
+                VStack(spacing: 10) {
+                    control.frame(maxHeight: 190)
+                    log
                 }
             }
         }
@@ -198,18 +193,57 @@ struct RecordPanel: View {
         }
     }
 
+    private var control: some View {
+        VStack(spacing: 10) {
+            Spacer(minLength: 0)
+            button
+            status
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var log: some View {
+                ScrollViewReader { scroll in
+                    ScrollView {
+                        if showInsights { insights } else { history }
+                    }
+                    .defaultScrollAnchor(showInsights ? .top : .bottom)
+                    // Turning the iPad, or the deck's seam moving, resizes the
+                    // log; it rests on the newest dump again, as the chat has
+                    // since 14.0 (16.0). A new dump arriving does the same.
+                    .onGeometryChange(for: CGSize.self) { $0.size } action: { _ in newest(scroll) }
+                    .onChange(of: rec.dumps.count) { _, _ in newest(scroll) }
+                }
+    }
+
     private var header: some View {
+        // One row when it fits, the tabs on a second when it does not; the
+        // title used to wrap a letter at a time (21.0).
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) { title; Spacer(); tabs }
+            VStack(alignment: .leading, spacing: 6) { title; tabs }
+        }
+    }
+
+    private var title: some View {
         HStack(spacing: 10) {
             Text("REC//BRAIN_DUMP")
                 .font(Skin.mono(14, .bold)).tracking(2)
                 .foregroundStyle(neon)
                 .shadow(color: neon.opacity(0.9), radius: 6)
+                .lineLimit(1).minimumScaleFactor(0.7)
             Text(String(format: "%03d LOGS", rec.dumps.count))
                 .font(Skin.mono(10)).foregroundStyle(wire.opacity(0.8))
-            Spacer()
+                .fixedSize()
+        }
+    }
+
+    private var tabs: some View {
+        HStack(spacing: 10) {
             tab("HISTORY", false)
             tab("INSIGHTS", true)
         }
+        .fixedSize()
     }
 
     private func tab(_ name: String, _ value: Bool) -> some View {

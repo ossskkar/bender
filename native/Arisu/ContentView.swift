@@ -59,6 +59,16 @@ struct ContentView: View {
     /// The last version whose tour started by itself: a new version opens on
     /// its tour once, then never again unless he asks (Oscar, 2026-10-02).
     @AppStorage("arisu.touredVersion") private var touredVersion = ""
+    /// The demo playing now, which stop it is on, and the task stepping it
+    /// (21.0). Its simulated inputs are read from `demoAct`.
+    @State private var demo: [DemoStep]?
+    @State private var demoIndex = 0
+    @State private var demoRun: Task<Void, Never>?
+    /// Summoned on Singularity with no call behind her: her arrival and her
+    /// rings awake, the iPad listening for 醒来, which is what starts the call
+    /// (Oscar, 2026-10-02: summoning shows the conversation look without
+    /// opening a call).
+    @State private var present = false
     /// The deck: his Mac's buttons, on the iPad.
     /// The deck rail, on the right of both modes. Up by default and kept across
     /// launches: it was a full screen he had to open until 2026-09-27, which
@@ -316,18 +326,25 @@ struct ContentView: View {
             // A version that is all her (Oscar, 2026-10-01).
             Metered(meter: pet.meter, music: music) { level, _ in
                 RealmView(level: level, idle: voiceState == .idle,
-                          speaking: voiceState == .speaking, running: pet.running,
+                          speaking: voiceState == .speaking,
+                          running: pet.running || present || demoAct.present,
                           tint: phaseColor, status: (pet.running ? stateWord : idleWord).uppercased(),
                           micOn: pet.running && !live.muted,
                           onHer: { pet.toggleMicrophone() },
                           onSummon: {
-                              // Held anywhere: she comes, listening; held again: she goes.
-                              if pet.running { pet.toggleRunning() } else { summon() }
+                              // Held anywhere: she arrives, and no call opens --
+                              // 醒来 starts that (Oscar, 2026-10-02). Held again:
+                              // she goes, ending the call if there is one.
+                              if pet.running { pet.toggleRunning() }
+                              else {
+                                  if !present { Awaken.play() }
+                                  present.toggle()
+                              }
                           },
                           // The room is alive the moment he walks in; two taps
                           // are what start her listening (Oscar, 2026-10-03).
                           onTalk: { if pet.running { pet.toggleRunning() } else { summon() } },
-                          chant: chantLine)
+                          chant: chantLine, fakeMusic: demoAct == .music)
             }
             .transition(.opacity)
         }
@@ -346,13 +363,18 @@ struct ContentView: View {
             }
         }
         .onChange(of: tourIndex) { _, i in if let tour, i < tour.count { stage(tour[i].scene) } }
+        .overlay {
+            if let demo {
+                DemoCard(steps: demo, index: demoIndex) { endDemo() }.transition(.opacity)
+            }
+        }
         .fontDesign(.monospaced)
         .ignoresSafeArea()
         // A page she was asked to show. The desk already decided how it can be
         // shown, so this only draws it.
         .sheet(item: $live.page) { PageSheet(page: $0) { live.page = nil } }
         .sheet(isPresented: $showSettings) { SettingsSheet(pet: pet, live: live) }
-        .sheet(isPresented: $showNew) { ReleasesSheet { startTour() } }
+        .sheet(isPresented: $showNew) { ReleasesSheet { startTour() } onDemo: { startDemo($0) } }
         .onChange(of: pet.heard) { _, t in
             lastSpoke = Date(); say(t, mine: true); obey(t); notice(t); record(t, "heard")
         }
@@ -369,6 +391,8 @@ struct ContentView: View {
         .onChange(of: pet.running) { _, on in
             if on { shownSourceLinks.removeAll() }
             record(on ? "call started" : "call ended", "call")
+            // She leaves with the call she was summoned for.
+            if !on { present = false }
             // A call she starts herself -- a queued brief on arrival -- is
             // voice, so the screen goes to her rather than staying on the
             // typed thread while she talks (Oscar, 2026-09-30).
@@ -393,8 +417,27 @@ struct ContentView: View {
             wake.onWake = { summon() }
             await wake.start()
         }
+        // Leaving Singularity sends her away; so does ten minutes of nobody
+        // saying 醒来, because a summoned room draws at full rate (21.0).
+        .onChange(of: look) { _, l in if l != .singularity { present = false } }
+        .task(id: present) {
+            guard present else { return }
+            try? await Task.sleep(for: .seconds(600))
+            if !Task.isCancelled && !pet.running { present = false }
+        }
         .onAppear {
             Task { await pet.arrive() }
+            #if DEBUG
+            // For checking a demo in the simulator, where nothing can tap:
+            // `simctl launch … -arisu.demo 21.0 [-arisu.demoStop 2]`; and the
+            // sheet behind the sparkles, on a tab: `-arisu.sheetTab 1`.
+            if UserDefaults.standard.object(forKey: "arisu.sheetTab") != nil { showNew = true }
+            if let v = UserDefaults.standard.string(forKey: "arisu.demo"),
+               let r = Releases.all.first(where: { $0.version == v }) {
+                Task { try? await Task.sleep(for: .seconds(2)); startDemo(r.demo) }
+                return
+            }
+            #endif
             if touredVersion != Releases.running && !Releases.current.tour.isEmpty {
                 touredVersion = Releases.running
                 Task { try? await Task.sleep(for: .seconds(1.5)); startTour() }
@@ -406,8 +449,53 @@ struct ContentView: View {
     /// What the screen says while no call is on: that she can be woken, or
     /// why she cannot be by voice.
     private var idleWord: String {
+        if let l = demoAct.line { return l }
         if let p = wake.problem { return "wake word off: " + p }
         return wake.listening ? "say 醒来 to wake her" : "not listening"
+    }
+
+    // MARK: Demos
+
+    /// What the demo stop showing now pretends, if a demo is playing.
+    private var demoAct: DemoAct {
+        guard let demo, demoIndex < demo.count else { return .none }
+        return demo[demoIndex].act
+    }
+
+    /// Play a demo: each stop stages its screen, pretends its input for its
+    /// seconds, and the last one puts him back where he was. Nothing here
+    /// opens the microphone or reaches the Mac or the desk.
+    private func startDemo(_ steps: [DemoStep]) {
+        guard !steps.isEmpty, tour == nil else { return }
+        demoRun?.cancel()
+        var from = 0
+        #if DEBUG
+        from = min(max(0, UserDefaults.standard.integer(forKey: "arisu.demoStop")), steps.count - 1)
+        #endif
+        modeBeforeTour = presentation
+        demoIndex = from
+        withAnimation { demo = steps }
+        demoRun = Task {
+            for i in from..<steps.count {
+                demoIndex = i
+                stage(steps[i].scene)
+                // The line she would speak as the call starts, carved as it is
+                // then; spoken by nobody.
+                if steps[i].act == .wake { chantLine = Self.victory.randomElement()! }
+                try? await Task.sleep(for: .seconds(steps[i].seconds))
+                if Task.isCancelled { return }
+            }
+            endDemo()
+        }
+    }
+
+    private func endDemo() {
+        demoRun?.cancel()
+        demoRun = nil
+        withAnimation { demo = nil; chrome = false }
+        demoIndex = 0
+        stage(.chat)
+        setPresentation(modeBeforeTour)
     }
 
     // MARK: Tours
@@ -972,7 +1060,8 @@ struct ContentView: View {
     /// and her first words a line of Old Norse about victory (2026-10-02).
     private func summon() {
         guard !pet.running else { return }
-        Awaken.play()
+        // Already summoned, she is here: the sound was her arrival.
+        if !present { Awaken.play() }
         showChat = false
         live.muted = false
         let line = Self.victory.randomElement()!

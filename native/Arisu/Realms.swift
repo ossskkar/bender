@@ -196,6 +196,9 @@ struct RealmView: View {
     var onTalk: () -> Void = {}
     /// The line she will speak, so it can be carved while she says it.
     var chant: String = ""
+    /// A demo's track instead of the Mac's: a beat every half second, louder
+    /// and softer over a few seconds, made here and heard by nobody (21.0).
+    var fakeMusic = false
 
     @StateObject private var deck = Deck()
     @StateObject private var music = MacMusic()
@@ -280,7 +283,8 @@ struct RealmView: View {
     private func step(_ t: Double) {
         let dt = min(0.05, max(0, t - clock.last))
         clock.last = t
-        let target = idle ? max(level, music.level) : level
+        let heard = fakeMusic ? 0.2 + 0.65 * exp(-frac(t * 2) * 7) * (0.75 + 0.25 * sin(t * 0.9)) : music.level
+        let target = idle ? max(level, heard) : level
         clock.amp += (target - clock.amp) * 0.25
         clock.energy += ((speaking ? clock.amp : 0) - clock.energy) * 0.3
         clock.tw += dt * (running ? 1 : 0.5)
@@ -292,7 +296,7 @@ struct RealmView: View {
             clock.waves.append((t, speaking ? 1.1 + clock.amp * 2.2 : 0.6 + clock.amp))
         }
         clock.lastAmp = clock.amp
-        let m = idle ? music.level : 0
+        let m = idle ? heard : 0
         clock.groove += (m - clock.groove) * 0.2
         clock.hue += dt * clock.groove * 0.25
         if m - clock.lastMusic > 0.08, t - clock.lastBoom > 0.12 {
@@ -822,7 +826,9 @@ private struct Scene {
         lit.stroke(ticks, with: .color(Skin.cyan.opacity(0.15 * pres)), lineWidth: 1)
         lit.stroke(big, with: .color(Skin.cyan.opacity(0.5 * pres)), lineWidth: 1)
         let now = Date().formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute().second())
-        let call = running ? status : "HOLD TO SUMMON"
+        // At rest the rim carries the wake line too -- whether she can hear
+        // 醒来, or why not -- which 20.0 promised and only Classic showed (21.0).
+        let call = running ? status : "HOLD TO SUMMON ∴ " + status
         let rimText = "ARISU ∴ EVENT HORIZON ∴ \(now) ∴ \(chosen.uppercased()) ∴ \(call) ∴ "
         textOnCircle(rimText + rimText, r: rim + 26, start: tw * 0.03, Skin.mag, 10,
                      opacity: 0.5)
