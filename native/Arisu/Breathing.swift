@@ -139,6 +139,9 @@ struct BreathingView: View {
                         .padding(.bottom, 60)
                 }
             }
+            // Two taps anywhere end it, like two taps end her call (Oscar, 2026-10-08).
+            .contentShape(Rectangle())
+            .onTapGesture(count: 2, perform: stop)
             .overlay(alignment: .topTrailing) {
                 Button(action: stop) {
                     Image(systemName: "xmark")
