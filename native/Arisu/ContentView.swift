@@ -336,6 +336,7 @@ struct ContentView: View {
                     if chrome {
                         commandButtons
                             .padding(.top, 96)
+                            .padding(.leading, 34)      // the transcript's margin
                             .padding(.trailing, 24)
                             .transition(.opacity)
                     }
