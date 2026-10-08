@@ -33,6 +33,8 @@ enum Skin {
     /// Free form (Oscar, 2026-10-01): no box, edge, bracket or grid line on
     /// any control -- only the words, the icons and her, with smoke.
     static let freeFormKey = "arisu.freeForm"
+    /// How much smoke free form draws round her; 0 is none, 1 the default.
+    static let smokeKey = "arisu.smoke"
 
     /// The fill of anything raised off the void: a key, a bubble, a bar.
     static let raised = Color.white.opacity(0.08)

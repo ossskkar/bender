@@ -1048,7 +1048,7 @@ private struct Scene {
         // the eye
         let Ri = M * 0.12 * st.eye * (1 + deco * 0.15)
         halo(center, Ri * 3, tint, (0.08 + deco * 0.15) * pres)
-        smoke(Ri)
+        smoke(Ri, n: Int(40 * (UserDefaults.standard.object(forKey: Skin.smokeKey) as? Double ?? 1)))
         // Asleep, the light barely leaves the hole; awake, it reaches out. No
         // eyelids: he wanted it subtler than drawing an eye (Oscar, 2026-10-01).
         let open = 1 - st.dim

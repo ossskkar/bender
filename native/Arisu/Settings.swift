@@ -32,9 +32,6 @@ struct SettingsSheet: View {
     @State private var failed = false
     @State private var notesPush: Task<Void, Never>?
     @State private var previewing = false
-    /// Shared with `ContentView`, which hands it to the face. A preference of
-    /// this screen, not of the character, so it lives on the device.
-    @AppStorage("arisu.live2d") private var live2dFace = true
     @AppStorage(Live.geminiKey) private var geminiVoice = false
     @AppStorage("arisu.faceStyle") private var faceStyle = FaceStyle.ribbon.rawValue
     /// Bubbles or terminal lines, for her subtitles and the typed chat alike.
@@ -47,6 +44,9 @@ struct SettingsSheet: View {
     @AppStorage("arisu.faceX") private var faceX = 0.0
     @AppStorage("arisu.faceY") private var faceY = 0.0
     @AppStorage(Skin.freeFormKey) private var freeForm = false
+    @AppStorage(Skin.smokeKey) private var smokeAmount = 1.0
+    /// The face card in the middle of the deck.
+    @State private var deckAt: String?
     @AppStorage(Night.fromKey) private var nightFrom = Night.from
     @AppStorage(Night.toKey) private var nightTo = Night.to
 
@@ -104,93 +104,36 @@ struct SettingsSheet: View {
             if let cast, cast.characters.count > 1 { castSection(cast) }
 
             Section {
-                // A picture of a person, or a picture of a voice. Shown as
-                // moving tiles rather than as a list of words: the names mean
-                // nothing until you have seen them (Oscar, 2026-09-29).
-                faceStyleGrid
+                faceDeck
+                    .listRowInsets(EdgeInsets())
+                dial("Size", $faceScale, 0.5...1.8)
+                dial("Glow", $faceBloom, 0...2.2)
+                dial("Pace", $faceSpeed, 0.3...2.0)
+                if freeForm { dial("Smoke", $smokeAmount, 0...2) }
+                dial("Left / right", $faceX, -400...400, "%.0f")
+                dial("Up / down", $faceY, -400...400, "%.0f")
+                Button("Reset") {
+                    faceScale = 1; faceBloom = 1; faceSpeed = 1; smokeAmount = 1
+                    faceX = 0; faceY = 0
+                }
+                .font(.system(size: 19))
             } header: {
                 header("Face")
             } footer: {
-                footer("Her voice, drawn: the state is the colour and the "
-                       + "movement, her level is how far it moves, and none "
-                       + "of it needs the desk. The portrait and the models "
-                       + "were taken out on 2026-09-29.")
+                footer("Roll the deck to choose. The colour is what she is doing, "
+                       + "the movement is her voice."
+                       + (freeForm ? " Smoke 0 is none." : ""))
             }
 
-            positionSection
-
             Section {
-                // One preference for both was the wrong shape: subtitles are
-                // read from across the room and the thread at arm's length
-                // (Oscar, 2026-09-29).
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Her subtitles in voice mode")
-                        .font(.system(size: 17, weight: .medium))
-                    Picker("Her subtitles in voice mode", selection: $voiceBubbles) {
-                        Text("Bubbles").tag(true)
-                        Text("Terminal").tag(false)
+                Picker("Voice", selection: Binding(
+                    get: { draft?.voice ?? "" },
+                    set: { pickVoice($0) })) {
+                    ForEach(voices, id: \.self) { name in
+                        Text(name.capitalized).tag(name)
                     }
-                    .pickerStyle(.segmented)
                 }
-                .padding(.vertical, 4)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("The typed thread in chat mode")
-                        .font(.system(size: 17, weight: .medium))
-                    Picker("The typed thread in chat mode", selection: $chatBubbles) {
-                        Text("Bubbles").tag(true)
-                        Text("Terminal").tag(false)
-                    }
-                    .pickerStyle(.segmented)
-                }
-                .padding(.vertical, 4)
-            } header: {
-                header("Messages")
-            } footer: {
-                footer("Bubbles put hers on the left and yours on the right. "
-                       + "Terminal puts every line on the left, one line each, "
-                       + "the way a log reads.")
-            }
-
-            Section {
-                Stepper(value: $nightFrom, in: 0...23) {
-                    Text("Asleep from " + String(format: "%02d:00", nightFrom)).font(.system(size: 17, weight: .medium))
-                }
-                Stepper(value: $nightTo, in: 0...23) {
-                    Text("Awake at " + String(format: "%02d:00", nightTo)).font(.system(size: 17, weight: .medium))
-                }
-            } header: {
-                header("Night").id("night")
-            } footer: {
-                footer(nightFrom == nightTo
-                       ? "Off: she listens for 醒来 day and night."
-                       : "From then until morning she does not listen for 醒来, her "
-                         + "face sleeps, dim and slow, and Singularity draws half as "
-                         + "often. Holding Singularity or "
-                         + "tapping the microphone still brings her. The same hour "
-                         + "twice switches night off.")
-            }
-
-            if isVisual { visualSection }
-            // The glow sliders light the portrait and the Live2D model. A
-            // voice visual carries its own light, so they would be four dead
-            // controls there (Oscar, 2026-09-29).
-            if !isVisual && live2dFace { glowSection }
-
-            Section {
-                dial("Warmth", "Friendly distance", "Openly fond",
-                     get: { $0.warmth }, set: { $0.warmth = $1 }, key: "warmth")
-                dial("Playfulness", "Earnest", "Teasing",
-                     get: { $0.playfulness }, set: { $0.playfulness = $1 },
-                     key: "playfulness")
-                dial("Brevity", "Room to talk", "One short sentence",
-                     get: { $0.brevity }, set: { $0.brevity = $1 }, key: "brevity")
-            } header: {
-                header("Manner")
-            } footer: {
-                footer("Takes effect on her next answer.")
-            }
-
-            Section {
+                .font(.system(size: 19))
                 Button {
                     Task { await preview() }
                 } label: {
@@ -210,36 +153,8 @@ struct SettingsSheet: View {
                     }
                 }
                 .disabled(previewing || live.paused)
-            } footer: {
-                footer(live.paused
-                       ? "She is paused. Start the conversation to hear her."
-                       : "She reconnects to say it, so she goes quiet for a "
-                         + "moment first. Her voice, her manner, as set above.")
-            }
-
-            Section {
-                Picker("Voice", selection: Binding(
-                    get: { draft?.voice ?? "" },
-                    set: { pickVoice($0) })) {
-                    ForEach(voices, id: \.self) { name in
-                        Text(name.capitalized).tag(name)
-                    }
-                }
-                .font(.system(size: 19))
-            } header: {
-                header("Voice")
-            } footer: {
-                // The voice is fixed to the session when it is minted, so it
-                // cannot change under her mid-sentence. Reconnecting is the
-                // only way to hear it, and doing that by hand was the first
-                // thing he tried and the first thing that looked broken.
-                footer("She reconnects to change voice, so she will go quiet "
-                       + "for a moment.")
-            }
-
-            // Gemini Live, behind a switch until it is proven on this iPad
-            // (stage 3 of arisu/GEMINI-LIVE-PLAN.md, 2026-10-07).
-            Section {
+                // Gemini Live, behind a switch until it is proven on this iPad
+                // (stage 3 of arisu/GEMINI-LIVE-PLAN.md, 2026-10-07).
                 Toggle("Gemini voice (test)", isOn: Binding(
                     get: { geminiVoice },
                     set: { on in
@@ -248,25 +163,76 @@ struct SettingsSheet: View {
                     }))
                 .font(.system(size: 19))
             } header: {
-                header("Engine")
+                header("Voice")
             } footer: {
-                footer("One Gemini model hears you, answers and uses her tools "
-                       + "itself: faster replies. Off is the voice she has had. "
-                       + "Her voice above applies only when this is off.")
+                // The voice is fixed to the session when it is minted, so it
+                // cannot change under her mid-sentence.
+                footer((live.paused ? "She is paused: start the conversation to hear her. " : "")
+                       + "She reconnects to change voice or engine, so she goes "
+                       + "quiet for a moment. The voice applies only with Gemini off.")
             }
 
             Section {
-                TextEditor(text: Binding(
-                    get: { draft?.notes ?? "" },
-                    set: { typeNotes($0) }))
-                    .font(.system(size: 19))
-                    .frame(minHeight: 130)
-                    .scrollContentBackground(.hidden)
+                dial("Warmth", "Friendly distance", "Openly fond",
+                     get: { $0.warmth }, set: { $0.warmth = $1 }, key: "warmth")
+                dial("Playfulness", "Earnest", "Teasing",
+                     get: { $0.playfulness }, set: { $0.playfulness = $1 },
+                     key: "playfulness")
+                dial("Brevity", "Room to talk", "One short sentence",
+                     get: { $0.brevity }, set: { $0.brevity = $1 }, key: "brevity")
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("In your own words").font(.system(size: 19, weight: .medium))
+                    TextEditor(text: Binding(
+                        get: { draft?.notes ?? "" },
+                        set: { typeNotes($0) }))
+                        .font(.system(size: 19))
+                        .frame(minHeight: 130)
+                        .scrollContentBackground(.hidden)
+                }
+                .padding(.vertical, 6)
             } header: {
-                header("In your own words")
+                header("Manner")
             } footer: {
-                footer("Anything here outranks the dials above. It is written "
-                       + "into her instructions exactly as you type it.")
+                footer("Takes effect on her next answer. Your own words outrank "
+                       + "the dials and go into her instructions as typed.")
+            }
+
+            Section {
+                // Subtitles are read from across the room and the thread at
+                // arm's length, so each has its own (Oscar, 2026-09-29).
+                Picker("Subtitles", selection: $voiceBubbles) {
+                    Text("Bubbles").tag(true)
+                    Text("Terminal").tag(false)
+                }
+                .font(.system(size: 19))
+                Picker("Chat", selection: $chatBubbles) {
+                    Text("Bubbles").tag(true)
+                    Text("Terminal").tag(false)
+                }
+                .font(.system(size: 19))
+            } header: {
+                header("Messages")
+            } footer: {
+                footer("Bubbles: hers left, yours right. Terminal: every line "
+                       + "on the left, the way a log reads.")
+            }
+
+            Section {
+                Stepper(value: $nightFrom, in: 0...23) {
+                    Text("Asleep from " + String(format: "%02d:00", nightFrom)).font(.system(size: 17, weight: .medium))
+                }
+                Stepper(value: $nightTo, in: 0...23) {
+                    Text("Awake at " + String(format: "%02d:00", nightTo)).font(.system(size: 17, weight: .medium))
+                }
+            } header: {
+                header("Night").id("night")
+            } footer: {
+                footer(nightFrom == nightTo
+                       ? "Off: she listens for 醒来 day and night."
+                       : "Until morning she does not listen for 醒来 and her face "
+                         + "sleeps, dim and slow. Holding Singularity or tapping the "
+                         + "microphone still brings her. The same hour twice "
+                         + "switches night off.")
             }
         }
         .tint(accent)
@@ -282,191 +248,69 @@ struct SettingsSheet: View {
         }
     }
 
-    /// The models as pictures, not names -- the same stills the web panel
-    /// shows, served by the desk. The character's choice is saved there.
-    private var modelGrid: some View {
-        let current = FaceView.models.contains(pet.model) ? pet.model
-            : (pet.face == "chopper" ? "Mao" : "Haru")
-        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
-                         spacing: 10) {
-            ForEach(FaceView.models, id: \.self) { m in
-                Button { pickModel(m) } label: {
-                    VStack(spacing: 4) {
-                        AsyncImage(url: Brain.base.appendingPathComponent("live2d/thumbs/\(m).png")) {
-                            $0.resizable().scaledToFit()
-                        } placeholder: { Color.white.opacity(0.05) }
-                        .aspectRatio(3 / 4, contentMode: .fit)
-                        Text(m).font(.system(size: 14))
-                            .foregroundStyle(m == current ? .white : .white.opacity(0.6))
-                    }
-                    .padding(6)
-                    .plate { RoundedRectangle(cornerRadius: Skin.radius)
-                        .fill(m == current ? accent.opacity(0.12) : Color.white.opacity(0.03)) }
-                    .edge { RoundedRectangle(cornerRadius: Skin.radius)
-                        .stroke(m == current ? accent : .white.opacity(0.1)) }
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.vertical, 6)
-    }
-
-    private func pickModel(_ m: String) {
-        guard m != pet.model else { return }
-        Task {
-            _ = try? await brain.setPersona(["model": m])
-            await pet.refreshCast()
-        }
-    }
-
-    /// The ten voice visuals and the portrait, each one moving, with the
-    /// chosen one ringed. Every tile cycles the four states on its own clock,
-    /// so a glance shows both the colour and the movement.
-    private var faceStyleGrid: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 12)], spacing: 12) {
-            ForEach(FaceStyle.offered) { style in
-                let on = style.rawValue == faceStyle
-                Button { faceStyle = style.rawValue } label: {
-                    VStack(spacing: 6) {
-                        FacePreview(style: style)
-                            .edge { RoundedRectangle(cornerRadius: Skin.radius)
-                                .stroke(on ? Skin.mag : Color.white.opacity(0.18),
-                                        lineWidth: on ? 2 : 1) }
-                        Text(style.label)
-                            .font(Skin.mono(11, on ? .semibold : .regular))
-                            .foregroundStyle(on ? Skin.mag : Skin.ink)
-                            .lineLimit(1).minimumScaleFactor(0.75)
+    /// The faces in one row that rolls like a drum (Oscar, 2026-10-08): the
+    /// one in the middle faces him and is the one she wears, the rest turn
+    /// away. Scroll or tap to choose. Each card is drawn with his dials, so
+    /// the deck is also the preview of them.
+    private var faceDeck: some View {
+        GeometryReader { g in
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 0) {
+                    ForEach(FaceStyle.offered) { style in
+                        let on = style.rawValue == faceStyle
+                        VStack(spacing: 8) {
+                            VoiceVisual(style: style, state: .speaking, amplitude: 0.5,
+                                        tint: Skin.cyan, scale: faceScale, bloom: faceBloom,
+                                        speed: faceSpeed, smoke: freeForm ? smokeAmount : 0)
+                                .frame(width: Self.card, height: Self.card)
+                                .background(Skin.void)
+                                .clipShape(RoundedRectangle(cornerRadius: Skin.radius))
+                                .edge { RoundedRectangle(cornerRadius: Skin.radius)
+                                    .stroke(on ? Skin.mag : Color.white.opacity(0.18),
+                                            lineWidth: on ? 2 : 1) }
+                            Text(style.label)
+                                .font(Skin.mono(13, on ? .semibold : .regular))
+                                .foregroundStyle(on ? Skin.mag : Skin.ink)
+                        }
+                        .frame(width: Self.card + 24)
+                        .contentShape(Rectangle())
+                        .onTapGesture { withAnimation(.snappy) { deckAt = style.rawValue } }
+                        .scrollTransition(.interactive.threshold(.centered), axis: .horizontal) { c, phase in
+                            c.rotation3DEffect(.degrees(phase.value * -50), axis: (0, 1, 0),
+                                               perspective: 0.5)
+                                .scaleEffect(1 - abs(phase.value) * 0.28)
+                                .opacity(1 - abs(phase.value) * 0.55)
+                        }
+                        .id(style.rawValue)
                     }
                 }
-                .buttonStyle(.plain)
+                .scrollTargetLayout()
             }
+            .contentMargins(.horizontal, max(0, (g.size.width - Self.card - 24) / 2), for: .scrollContent)
+            .scrollTargetBehavior(.viewAligned)
+            .scrollPosition(id: $deckAt, anchor: .center)
         }
-        .padding(.vertical, 6)
+        .frame(height: Self.card + 56)
+        .padding(.vertical, 8)
+        .onAppear { deckAt = faceStyle }
+        .onChange(of: deckAt) { if let deckAt { faceStyle = deckAt } }
     }
 
-    /// Is she drawn as a voice visual rather than as a picture of a person.
-    private var isVisual: Bool {
-        (FaceStyle(rawValue: faceStyle) ?? .ribbon) != .portrait
-    }
-
-    /// The three dials that shape a drawn face. Size and pace are the ones he
-    /// will actually move; the glow is here because the old glow sliders only
-    /// ever reached the portrait.
-    private var visualSection: some View {
-        Section {
-            // The dials on the thing they move, at the size he is choosing.
-            VoiceVisual(style: FaceStyle(rawValue: faceStyle) ?? .ribbon,
-                        state: .speaking, amplitude: 0.5, tint: Skin.cyan,
-                        scale: faceScale, bloom: faceBloom, speed: faceSpeed, smoke: freeForm)
-                .frame(height: 170)
-                .frame(maxWidth: .infinity)
-                .background(Skin.void)
-                .clipShape(RoundedRectangle(cornerRadius: Skin.radius))
-                .edge { RoundedRectangle(cornerRadius: Skin.radius)
-                    .stroke(Color.white.opacity(0.14)) }
-                .padding(.vertical, 6)
-            dial("Size", $faceScale, 0.5...1.8)
-            dial("Glow", $faceBloom, 0...2.2)
-            dial("Pace", $faceSpeed, 0.3...2.0)
-            Button("Back to the middle") { faceScale = 1; faceBloom = 1; faceSpeed = 1 }
-                .font(.system(size: 19))
-        } header: {
-            header("The animation")
-        } footer: {
-            footer("How big she is drawn, how hard she glows, and how fast "
-                   + "everything moves. The state still picks the colour and "
-                   + "the movement; these only scale them.")
-        }
-    }
+    private static let card: CGFloat = 200
 
     private func dial(_ title: String, _ value: Binding<Double>,
-                      _ range: ClosedRange<Double>) -> some View {
+                      _ range: ClosedRange<Double>, _ format: String = "%.2f") -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(title).font(.system(size: 19, weight: .medium))
                 Spacer()
-                Text(String(format: "%.2f", value.wrappedValue))
+                Text(String(format: format, value.wrappedValue))
                     .font(.system(size: 15, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.4))
             }
             Slider(value: value, in: range)
         }
         .padding(.vertical, 6)
-    }
-
-    /// Where she stands on the screen. Kept on the device, not on the
-    /// character: her face is a square tile in the middle of whatever screen
-    /// is showing it, and the iPad on the desk and a phone on a shelf want
-    /// different answers (Oscar, 2026-09-26).
-    private var positionSection: some View {
-        Section {
-            positionDial("Left / right", $faceX)
-            positionDial("Up / down", $faceY)
-            Button("Put her back in the middle") { faceX = 0; faceY = 0 }
-                .font(.system(size: 19))
-        } header: {
-            header("Where she stands")
-        } footer: {
-            footer("Moves her on the screen. The light and the ground stay "
-                   + "where they are.")
-        }
-    }
-
-    private func positionDial(_ title: String, _ value: Binding<Double>) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(title).font(.system(size: 19, weight: .medium))
-                Spacer()
-                Text(String(Int(value.wrappedValue)))
-                    .font(.system(size: 15, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.4))
-            }
-            Slider(value: value, in: -400...400, step: 4)
-        }
-        .padding(.vertical, 6)
-    }
-
-    /// The spotlight behind the model. The light moves under his thumb, and
-    /// the desk hears once he lets go. Defaults mirror cues.js.
-    private var glowSection: some View {
-        Section {
-            glowDial("Strength", \.strength, 1.5, 0...4, "Off", "Bright")
-            glowDial("Size", \.size, 1.3, 0.4...3, "Tight", "Wide")
-            glowDial("Left / right", \.x, 54, 0...100, "Left", "Right")
-            glowDial("Up / down", \.y, 42, 0...100, "Top", "Bottom")
-            Button("Reset the glow") {
-                pet.glow = Persona.Glow(strength: 1.5, size: 1.3, x: 54, y: 42)
-                saveGlow()
-            }
-            .font(.system(size: 19))
-        } header: {
-            header("Glow")
-        } footer: {
-            footer("The light behind her. Its colour follows what she is doing.")
-        }
-    }
-
-    private func glowDial(_ title: String, _ key: WritableKeyPath<Persona.Glow, Double?>,
-                          _ fallback: Double, _ range: ClosedRange<Double>,
-                          _ low: String, _ high: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.system(size: 19, weight: .medium))
-            Slider(value: Binding(get: { pet.glow[keyPath: key] ?? fallback },
-                                  set: { pet.glow[keyPath: key] = $0 }),
-                   in: range,
-                   onEditingChanged: { if !$0 { saveGlow() } })
-            HStack { Text(low); Spacer(); Text(high) }
-                .font(.system(size: 13))
-                .foregroundStyle(.white.opacity(0.4))
-        }
-        .padding(.vertical, 6)
-    }
-
-    private func saveGlow() {
-        let g = pet.glow
-        let patch = ["strength": g.strength ?? 1.5, "size": g.size ?? 1.3,
-                     "x": g.x ?? 54, "y": g.y ?? 42]
-        Task { try? await brain.setPersona(["glow": patch]) }
     }
 
     /// Who is on the desk.

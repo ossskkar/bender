@@ -140,7 +140,8 @@ struct VoiceVisual: View {
     var bloom: Double = 1
     var speed: Double = 1
     /// Free form's smoke: white cloud around her, Gear 5 (Oscar, 2026-10-01).
-    var smoke = false
+    /// How much: 0 none, 1 the default, 2 thick (Settings ▸ Face ▸ Smoke).
+    var smoke = 0.0
     /// The most frames a second she is drawn at; nil is the display's own
     /// rate, which is what the iPad keeps. The desk canvas fills a monitor on
     /// an Intel Mac, and at the display rate it held one GPU at 92-95%
@@ -167,9 +168,9 @@ struct VoiceVisual: View {
                 let w = min(size.width, size.height)
                 ctx.translateBy(x: size.width / 2, y: size.height / 2)
                 let s = w * max(0.2, scale)
-                if smoke { puffs(ctx, s, t, front: false) }
+                if smoke > 0 { puffs(ctx, s, t, front: false) }
                 draw(ctx, w: s, t: t)
-                if smoke { puffs(ctx, s, t, front: true) }
+                if smoke > 0 { puffs(ctx, s, t, front: true) }
                 // The dashboard's own finish, over whatever was drawn.
                 // Over the whole pane, not a square of its short side: a tall
                 // pane showed a lighter band below her (Oscar, 2026-10-02).
@@ -297,13 +298,16 @@ struct VoiceVisual: View {
         }
         func ease(_ x: Double) -> Double { let x = max(0, min(1, x)); return x * x * (3 - 2 * x) }
         let a = max(0, min(1, clock.amp)), pk = clock.pk
-        for i in 0..<72 {
+        // More smoke is more puffs and each a little denser, so a low setting
+        // is a few wisps rather than the same cloud gone faint.
+        let n = Int((72 * smoke).rounded()), thick = 0.6 + 0.4 * min(smoke, 2)
+        for i in 0..<n {
             let h1 = hash(i, 1), h2 = hash(i, 2), h3 = hash(i, 3), h4 = hash(i, 4)
             let life = (pk * (0.07 + 0.06 * h1) + h2).truncatingRemainder(dividingBy: 1)
             let ang = h3 * .pi * 2 + t * 0.12 + life * 0.6
             let near = ease((sin(ang) - 0.05) / 0.5)
             let layer = front ? near : 1 - near
-            let o = ease(life / 0.2) * pow(1 - life, 1.3) * (0.26 + 0.16 * a) * layer
+            let o = ease(life / 0.2) * pow(1 - life, 1.3) * (0.26 + 0.16 * a) * thick * layer
             guard o > 0.005 else { continue }
             let r = w * (0.29 + 0.12 * life + 0.04 * a)
             let sway = t * (0.4 + 0.5 * h4) + h4 * 6.28 + life * 4
@@ -603,41 +607,5 @@ struct VoiceVisual: View {
             disc.stroke(curtain, with: .color(col.opacity(0.10 + a * 0.10)),
                         lineWidth: R * 0.03)
         }
-    }
-}
-
-/// A face, small, moving, to choose from. The picker was a list of words and
-/// none of them told him what he was choosing (Oscar, 2026-09-29); each tile
-/// cycles the four states so the colour and the movement are both on show.
-struct FacePreview: View {
-    let style: FaceStyle
-    var side: CGFloat = 92
-
-    @State private var step = 0
-    private static let states: [(VoiceState, Color)] = [
-        (.idle,      Color(red: 0.50, green: 0.55, blue: 1.0)),
-        (.listening, Color(red: 0.30, green: 1.0, blue: 0.50)),
-        (.thinking,  Color(red: 1.0, green: 0.22, blue: 0.78)),
-        (.speaking,  Color(red: 0.27, green: 0.90, blue: 0.97)),
-    ]
-    private let clock = Timer.publish(every: 2.4, on: .main, in: .common).autoconnect()
-
-    var body: some View {
-        let (state, tint) = Self.states[step % Self.states.count]
-        return ZStack {
-            Skin.void
-            if style == .portrait {
-                Image(systemName: "person.crop.square")
-                    .font(.system(size: side * 0.42, weight: .thin))
-                    .foregroundStyle(Skin.cyan.opacity(0.7))
-            } else {
-                // A level she never actually holds, so a still glance shows
-                // the shape at work rather than at rest.
-                VoiceVisual(style: style, state: state, amplitude: 0.55, tint: tint)
-            }
-        }
-        .frame(width: side, height: side)
-        .clipShape(RoundedRectangle(cornerRadius: Skin.radius))
-        .onReceive(clock) { _ in step += 1 }
     }
 }

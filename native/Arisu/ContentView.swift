@@ -24,6 +24,7 @@ struct ContentView: View {
     /// The Live2D face instead of the portrait. Off by default: it loads from
     /// the desk, and the portrait is the face that works with no network.
     @AppStorage("arisu.live2d") private var live2dFace = true
+    @AppStorage(Skin.smokeKey) private var smokeAmount = 1.0
     /// Her face in voice mode: the portrait/Live2D renderer, or one of the
     /// voice visuals. Ribbon by default -- it is the one that reads as her
     /// from across the desk and still shows the level up close.
@@ -1118,7 +1119,7 @@ struct ContentView: View {
                         // Mic off reads as cyan (Oscar, 2026-10-01).
                         tint: live.muted || !pet.running ? Skin.cyan : phaseColor,
                         scale: faceScale, bloom: faceBloom * (sleeping ? 0.5 : 1),
-                        speed: faceSpeed * (sleeping ? 0.3 : 1), smoke: freeForm,
+                        speed: faceSpeed * (sleeping ? 0.3 : 1), smoke: freeForm ? smokeAmount : 0,
                         fps: sleeping ? 15 : nil)
         }
         .opacity(sleeping ? 0.5 : 1)
@@ -1141,7 +1142,7 @@ struct ContentView: View {
                         amplitude: showChat ? 0 : (state == .idle ? max(level, musicLevel) : level),
                         tint: showChat || live.muted || !pet.running ? Skin.cyan : phaseColor,
                         scale: faceScale * 1.5, bloom: faceBloom * (sleeping ? 0.5 : 1),
-                        speed: sleeping ? faceSpeed * 0.3 : showChat ? 0.45 : faceSpeed, smoke: true,
+                        speed: sleeping ? faceSpeed * 0.3 : showChat ? 0.45 : faceSpeed, smoke: smokeAmount,
                         fps: sleeping ? 15 : nil)
         }
         .opacity(sleeping ? 0.5 : 1)
