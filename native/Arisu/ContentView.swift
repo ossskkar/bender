@@ -1071,7 +1071,10 @@ struct ContentView: View {
             }
         }
         .animation(.easeInOut(duration: 0.6), value: breathing)
-        .onChange(of: pet.heard) { if let b = Breath.asked(pet.heard) { startBreathing(b) } }
+        .onAppear { live.onBreathe = { startBreathing($0) } }
+        .onReceive(NotificationCenter.default.publisher(for: Breath.pressed)) {
+            if let b = $0.object as? Breath { startBreathing(b) }
+        }
     }
 
     /// A breathing exercise: her song on the Mac, the microphone muted so the
@@ -1083,6 +1086,7 @@ struct ContentView: View {
         live.muted = true
         breathAt = Date()
         breathing = b
+        live.holdSpeech = true
         lastSpoke = Date()
         Task { await Breath.press(b.songButton) }
         let mark = breathAt
@@ -1095,6 +1099,7 @@ struct ContentView: View {
     private func endBreathing(done: Bool) {
         guard breathing != nil else { return }
         breathing = nil
+        live.holdSpeech = false
         lastSpoke = Date()
         live.muted = breathWasMuted
         Task { await Breath.press("spotify.pause") }

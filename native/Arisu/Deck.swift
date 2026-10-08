@@ -264,6 +264,12 @@ struct DeckButton: Codable, Equatable, Identifiable {
     /// Press a deck action by its stable id. Permanent actions use the same
     /// fixed-id executor as the app-specific rail.
     func run(id: String) async {
+        // A breathing button is the iPad's own: the exercise screen starts here
+        // and plays its song on the Mac itself (Oscar, 2026-10-08).
+        if id.hasPrefix("breathe."), let b = Breath(rawValue: String(id.dropFirst(8))) {
+            NotificationCenter.default.post(name: Breath.pressed, object: b)
+            return
+        }
         struct Answer: Decodable { let ok: Bool?; let detail: String?; let error: String? }
         Usage.bump(id)
         running = id

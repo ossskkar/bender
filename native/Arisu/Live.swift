@@ -149,6 +149,11 @@ final class Live: ObservableObject {
 
     /// She called `set_mood`: the hologram's colour and animation.
     var onMood: ((String, String) -> Void)?
+    /// She called `breathing_exercise`: the screen starts it. Answered here,
+    /// never by the desk, so she knows it began (Oscar, 2026-10-08).
+    var onBreathe: ((Breath) -> Void)?
+    /// An exercise is running: queued lines (reminders, nudges) wait for it.
+    var holdSpeech = false
     /// Her words, as they are spoken -- for the caption under the pet.
     var onTranscript: ((String) -> Void)?
     /// What he said, once the model has transcribed it.
@@ -383,6 +388,9 @@ final class Live: ObservableObject {
 
     private func sayCommands(_ cmds: [QueuedCommand]) async {
         for cmd in cmds {
+            while holdSpeech && !stopped && !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+            }
             guard !stopped, !Task.isCancelled else { return }
             // The page goes up with the words, as on the web: a panel that
             // appears with nothing said reads as a glitch, and a line about a
@@ -1111,6 +1119,8 @@ final class Live: ObservableObject {
                 onMood?(o["mood"] as? String ?? "calm",
                         o["action"] as? String ?? "idle")
             }
+        } else if name == Live.breatheTool {
+            output = breathe(args)
         } else if dispatch {
             output = (try? await brain.tool(name: name, rawArgs: effectiveArgs))
                      ?? "{\"error\":\"desk unreachable\"}"
@@ -1134,6 +1144,25 @@ final class Live: ObservableObject {
         // reply per turn for the newest question -- see workDone.
         if role.group { if Live.isWork(name) { answer() } }
         else { workDone(name: name, responseID: responseID) }
+    }
+
+    static let breatheTool = "breathing_exercise"
+
+    /// Her `breathing_exercise` call: start it on screen and tell her what
+    /// is playing and for how long, so what she says matches what he sees.
+    private func breathe(_ args: String) -> String {
+        let o = args.data(using: .utf8)
+            .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+        let b = Breath(rawValue: (o["kind"] as? String ?? "").lowercased()) ?? .calm
+        var r: [String: Any] = ["ok": false, "error": "no exercise screen here"]
+        if let onBreathe {
+            onBreathe(b)
+            r = ["ok": true, "kind": b.rawValue, "song": b.song, "rhythm": b.rhythm,
+                 "minutes": Int((b.duration / 60).rounded()),
+                 "next": "Say one short line to begin, then stay silent until it ends."]
+        }
+        let data = (try? JSONSerialization.data(withJSONObject: ["result": r])) ?? Data()
+        return String(data: data, encoding: .utf8) ?? "{}"
     }
 
     private func rememberAnswer(_ output: String, responseID: String, callID: String) {
@@ -1596,7 +1625,8 @@ extension Live {
         toolsOut += 1
         lastVoice = Date()
         defer { toolsOut = max(0, toolsOut - 1) }
-        let out = (try? await brain.tool(name: name, rawArgs: raw)) ?? "{\"error\":\"desk unreachable\"}"
+        let out = name == Live.breatheTool ? breathe(raw)
+            : (try? await brain.tool(name: name, rawArgs: raw)) ?? "{\"error\":\"desk unreachable\"}"
         let response: Any = (out.data(using: .utf8))
             .flatMap { try? JSONSerialization.jsonObject(with: $0) } ?? ["result": out]
         guard onGemini, socket != nil else { return }

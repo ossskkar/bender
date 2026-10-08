@@ -2,8 +2,9 @@ import SwiftUI
 
 /// Breathing exercises (Oscar, 2026-10-08): Calm, Activate and Angry, each
 /// with its own rhythm and its own song on the Mac's Spotify. An exercise
-/// lasts as long as its song. He asks her out loud ("a calm breathing
-/// exercise", "breathe, I'm angry") or presses one under her commands.
+/// lasts as long as its song. He asks her out loud and she calls
+/// `breathing_exercise` (answered by `Live`), or he presses one under her
+/// commands.
 ///
 /// Foundation only down to the marker, so `checks/breathing.py` can compile
 /// the real thing without the app.
@@ -69,22 +70,17 @@ enum Breath: String, CaseIterable, Identifiable {
         return (steps[0], steps[0].seconds, from)
     }
 
-    /// The exercise he asked for, or nil when he did not ask for one. A
-    /// breathing word and a kind, or "breathing exercise" alone for Calm --
-    /// "out of breath after the run" starts nothing.
-    static func asked(_ text: String) -> Breath? {
-        let t = text.lowercased()
-        func has(_ p: String) -> Bool { t.range(of: p, options: .regularExpression) != nil }
-        guard has(#"\bbreath(e|es|ing)?\b"#) else { return nil }
-        if has(#"\b(angry|anger|mad|furious|frustrat\w*|irritat\w*|pissed)\b"#) { return .angry }
-        if has(#"\b(activat\w*|energi\w*|energy|wake me|awake|alert|pump\w*)\b"#) { return .activate }
-        if has(#"\b(calm\w*|relax\w*|stress\w*|anxi\w*|unwind)\b"#) { return .calm }
-        return has(#"\bbreathing (exercise|session)\b"#) ? .calm : nil
+    /// The rhythm in words, for her: "in 4, hold 2, out 6".
+    var rhythm: String {
+        steps.map { "\($0.word) \(Int($0.seconds))" }.joined(separator: ", ")
     }
 }
 // MARK: - end of Breath
 
 extension Breath {
+    /// A Breathe button on the deck was pressed.
+    static let pressed = Notification.Name("arisu.breathe")
+
     var tint: Color {
         switch self {
         case .calm: return Skin.cyan

@@ -380,36 +380,36 @@
     },
     {
       "id": "breathe.calm",
-      "group": "Spotify",
+      "group": "Breathe",
       "label": "Calm",
       "icon": "🌊",
       "action": {
         "script": "tell application \"Spotify\" to play track \"spotify:track:6kkwzB6hXLIONkEk9JciA6\"",
         "type": "applescript"
       },
-      "about": "Weightless, Marconi Union: the calm breathing exercise's song."
+      "about": "Starts the calm breathing exercise on the iPad with its song."
     },
     {
       "id": "breathe.activate",
-      "group": "Spotify",
+      "group": "Breathe",
       "label": "Activate",
       "icon": "⚡",
       "action": {
         "script": "tell application \"Spotify\" to play track \"spotify:track:0mL7jKqLliIYtbEOyBlIhJ\"",
         "type": "applescript"
       },
-      "about": "Victory, Two Steps from Hell: the activating breathing exercise's song."
+      "about": "Starts the activate breathing exercise on the iPad with its song."
     },
     {
       "id": "breathe.angry",
-      "group": "Spotify",
+      "group": "Breathe",
       "label": "Angry",
       "icon": "🔥",
       "action": {
         "script": "tell application \"Spotify\" to play track \"spotify:track:56oReVXIfUO9xkX7pHmEU0\"",
         "type": "applescript"
       },
-      "about": "On the Nature of Daylight, Max Richter: the anger breathing exercise's song."
+      "about": "Starts the angry breathing exercise on the iPad with its song."
     },
     {
       "id": "spotify.pause",

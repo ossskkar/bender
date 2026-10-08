@@ -329,7 +329,8 @@ struct DeckRail: View {
 
     private func key(_ b: DeckButton) -> some View {
         let busy = deck.running == b.id
-        let symbol = b.id == DeckButton.sleepID ? "moon.zzz" : b.action.symbol
+        let symbol = b.id == DeckButton.sleepID ? "moon.zzz"
+            : b.id.hasPrefix("breathe.") ? "wind" : b.action.symbol
         let ink = outcomeInk(b.id, busy: busy, editing: editing)
         return Button {
             if editing { sheet = b } else {
