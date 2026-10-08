@@ -1058,7 +1058,11 @@ struct ContentView: View {
                         withAnimation { breathOpen = false }
                         startBreathing(b)
                     } label: {
-                        commandLabel(b.label, b.tint, fill: true, pad: 4, size: 12, center: true)
+                        commandLabel(b.label, b.tint, fill: false, pad: 10, size: 12)
+                            // As wide as its word: in voice mode nothing bounds
+                            // the row, and three shares of the screen read as
+                            // a banner (Oscar, 2026-10-08).
+                            .fixedSize()
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Breathing exercise: " + b.label)
