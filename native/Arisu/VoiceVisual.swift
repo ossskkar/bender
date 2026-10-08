@@ -105,6 +105,10 @@ struct Motion {
 final class VisualClock {
     private var last: Double?
     private(set) var t = 0.0, ps = 0.0, pw = 0.0, pf = 0.0, amp = 0.0
+    /// The smoke's own phase, faster while she is loud. Integrated like the
+    /// others: `t x (1 + level)` rescaled all elapsed time whenever her level
+    /// moved, so every puff jumped and the smoke blinked (Oscar, 2026-10-08).
+    private(set) var pk = 0.0
     private(set) var m = Motion.of(.idle)
 
     func tick(now: Double, speed: Double, target: Motion, amplitude: Double) {
@@ -114,6 +118,7 @@ final class VisualClock {
         amp += (amplitude - amp) * (1 - exp(-dt * 14))     // level, de-stepped
         let s = max(0.1, speed) * dt
         t += s; ps += m.spin * s; pw += m.wobble * s; pf += m.flow * s
+        pk += (1 + 0.8 * amp) * s
     }
 }
 
@@ -279,31 +284,44 @@ struct VoiceVisual: View {
         ctx.fill(p, with: .color(.black.opacity(0.20)))
     }
 
-    /// Gear 5: soft white cloud rolling off a ring at her shoulders and
-    /// rising, fuller and faster when she is loud. The puffs on the near side
-    /// of the ring are drawn over her, the rest behind, so it wraps her.
+    /// Gear 5: white smoke rolling off a ring at her shoulders and rising,
+    /// fuller and faster when she is loud. Each puff is a few soft gradient
+    /// lobes that turn and spread as it climbs, swaying on its own slow
+    /// current; it fades in quickly and thins out slowly, and lifetimes
+    /// overlap so the cloud never empties. Near-side puffs are drawn over
+    /// her, the rest behind, cross-faded so none hops between layers.
     private func puffs(_ ctx: GraphicsContext, _ w: Double, _ t: Double, front: Bool) {
         func hash(_ i: Int, _ k: Double) -> Double {
             let v = sin(Double(i) * 12.9898 + k * 78.233) * 43758.5453
             return v - v.rounded(.down)
         }
-        let a = amp(t)
-        var c = ctx
-        c.addFilter(.blur(radius: w * (front ? 0.022 : 0.04)))
-        for i in 0..<44 {
-            let h1 = hash(i, 1), h2 = hash(i, 2), h3 = hash(i, 3)
-            let life = (t * (0.09 + 0.07 * h1) * (1 + 0.8 * a) + h2)
-                .truncatingRemainder(dividingBy: 1)
-            let ang = h3 * .pi * 2 + t * 0.18 + life * 0.9
-            guard (sin(ang) > 0.3) == front else { continue }
-            let r = w * (0.30 + 0.14 * life + 0.05 * a)
-            let x = cos(ang) * r
-            let y = sin(ang) * r * 0.32 + w * 0.10 - life * w * (0.30 + 0.20 * h1)
-            let size = w * (0.045 + 0.085 * life) * (0.8 + 0.5 * a + 0.3 * h2)
-            let o = sin(life * .pi) * (front ? 0.30 : 0.55) * (0.6 + 0.4 * a)
-            c.fill(Path(ellipseIn: CGRect(x: x - size, y: y - size,
-                                          width: size * 2, height: size * 2)),
-                   with: .color(.white.opacity(o)))
+        func ease(_ x: Double) -> Double { let x = max(0, min(1, x)); return x * x * (3 - 2 * x) }
+        let a = max(0, min(1, clock.amp)), pk = clock.pk
+        for i in 0..<72 {
+            let h1 = hash(i, 1), h2 = hash(i, 2), h3 = hash(i, 3), h4 = hash(i, 4)
+            let life = (pk * (0.07 + 0.06 * h1) + h2).truncatingRemainder(dividingBy: 1)
+            let ang = h3 * .pi * 2 + t * 0.12 + life * 0.6
+            let near = ease((sin(ang) - 0.05) / 0.5)
+            let layer = front ? near : 1 - near
+            let o = ease(life / 0.2) * pow(1 - life, 1.3) * (0.26 + 0.16 * a) * layer
+            guard o > 0.005 else { continue }
+            let r = w * (0.29 + 0.12 * life + 0.04 * a)
+            let sway = t * (0.4 + 0.5 * h4) + h4 * 6.28 + life * 4
+            let x = cos(ang) * r + w * 0.07 * life * sin(sway)
+            let y = sin(ang) * r * 0.30 + w * 0.12
+                - w * (0.50 + 0.25 * h1) * pow(life, 1.25) + w * 0.02 * life * cos(sway * 1.3)
+            let size = w * (0.08 + 0.15 * life) * (0.85 + 0.3 * h2) * (1 + 0.3 * a)
+            for k in 0..<3 {
+                let la = h4 * .pi * 2 + Double(k) * 2.1 + t * 0.25 * (h1 - 0.5) + life * 1.5
+                let p = CGPoint(x: x + cos(la) * size * 0.45, y: y + sin(la) * size * 0.35)
+                let lr = size * (0.70 + 0.15 * Double(k))
+                ctx.fill(Path(ellipseIn: CGRect(x: p.x - lr, y: p.y - lr, width: lr * 2, height: lr * 2)),
+                         with: .radialGradient(Gradient(stops: [
+                            .init(color: .white.opacity(o * 0.8), location: 0),
+                            .init(color: .white.opacity(o * 0.4), location: 0.45),
+                            .init(color: .white.opacity(0), location: 1)]),
+                            center: p, startRadius: 0, endRadius: lr))
+            }
         }
     }
 
