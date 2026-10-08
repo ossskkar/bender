@@ -130,6 +130,8 @@ struct ContentView: View {
     @State private var breathing: Breath?
     @State private var breathAt = Date()
     @State private var breathWasMuted = false
+    /// The Breath action is open, showing the three exercises.
+    @State private var breathOpen = false
     @State private var shownSourceLinks = Set<URL>()
     /// The typed thread. Held here rather than inside the pane so that it
     /// survives switching to her voice and back -- the conversation is one
@@ -1026,26 +1028,6 @@ struct ContentView: View {
 
     private var commandButtons: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                ForEach(Breath.allCases) { b in
-                    Button { startBreathing(b) } label: {
-                        Text(b.label)
-                            .font(Skin.mono(13, .semibold))
-                            .lineLimit(1).minimumScaleFactor(0.7)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 8)
-                            .frame(maxWidth: .infinity)
-                            .plate { Capsule().fill(Color.black.opacity(0.45)) }
-                            .edge { Capsule().stroke(b.tint.opacity(0.6), lineWidth: 1) }
-                            // Free form takes the capsule away, and with it every
-                            // tappable pixel but the letters (Oscar, 2026-10-08).
-                            .contentShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Breathing exercise: " + b.label)
-                }
-            }
             ForEach(Self.commands, id: \.label) { c in
                 Button { press(c.line, c.ask) } label: {
                     Text(c.label)
@@ -1061,7 +1043,60 @@ struct ContentView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(c.label)
             }
+            breathAction
         }
+    }
+
+    /// One action, Breath, that opens sideways into the three exercises and
+    /// closes again once one starts (Oscar, 2026-10-08): the three side by
+    /// side above the commands sat in the wrong place.
+    private var breathAction: some View {
+        HStack(spacing: 6) {
+            if breathOpen {
+                ForEach(Breath.allCases) { b in
+                    Button {
+                        withAnimation { breathOpen = false }
+                        startBreathing(b)
+                    } label: {
+                        commandLabel(b.label, b.tint, fill: true, pad: 4, size: 12, center: true)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Breathing exercise: " + b.label)
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+                }
+            } else {
+                Button {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { breathOpen = true }
+                    // Closes by itself if he does not pick one.
+                    Task {
+                        try? await Task.sleep(for: .seconds(8))
+                        withAnimation { breathOpen = false }
+                    }
+                } label: {
+                    commandLabel("Breath ›", Skin.cyan, fill: true)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Breathing exercises")
+                .transition(.opacity)
+            }
+        }
+    }
+
+    /// A command's capsule. The whole capsule is the tap area: free form
+    /// takes the capsule away, and with it every tappable pixel but the
+    /// letters (Oscar, 2026-10-08).
+    private func commandLabel(_ text: String, _ tint: Color, fill: Bool, pad: CGFloat = 14,
+                              size: CGFloat = 14, center: Bool = false) -> some View {
+        Text(text)
+            .font(Skin.mono(size, .semibold))
+            .lineLimit(1).minimumScaleFactor(0.6)
+            .foregroundStyle(.white)
+            .padding(.horizontal, pad)
+            .padding(.vertical, 8)
+            .frame(maxWidth: fill ? .infinity : nil, alignment: center ? .center : .leading)
+            .plate { Capsule().fill(Color.black.opacity(0.45)) }
+            .edge { Capsule().stroke(tint.opacity(0.55), lineWidth: 1) }
+            .contentShape(Capsule())
     }
 
     private var breathingLayer: some View {
