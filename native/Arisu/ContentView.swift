@@ -1038,6 +1038,9 @@ struct ContentView: View {
                             .frame(maxWidth: .infinity)
                             .plate { Capsule().fill(Color.black.opacity(0.45)) }
                             .edge { Capsule().stroke(b.tint.opacity(0.6), lineWidth: 1) }
+                            // Free form takes the capsule away, and with it every
+                            // tappable pixel but the letters (Oscar, 2026-10-08).
+                            .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Breathing exercise: " + b.label)
@@ -1053,6 +1056,7 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .plate { Capsule().fill(Color.black.opacity(0.45)) }
                         .edge { Capsule().stroke(Skin.cyan.opacity(0.5), lineWidth: 1) }
+                        .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(c.label)
