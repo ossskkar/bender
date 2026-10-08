@@ -379,6 +379,50 @@
       "about": "Volume down 6; at zero, back to 55."
     },
     {
+      "id": "breathe.calm",
+      "group": "Spotify",
+      "label": "Calm",
+      "icon": "🌊",
+      "action": {
+        "script": "tell application \"Spotify\" to play track \"spotify:track:6kkwzB6hXLIONkEk9JciA6\"",
+        "type": "applescript"
+      },
+      "about": "Weightless, Marconi Union: the calm breathing exercise's song."
+    },
+    {
+      "id": "breathe.activate",
+      "group": "Spotify",
+      "label": "Activate",
+      "icon": "⚡",
+      "action": {
+        "script": "tell application \"Spotify\" to play track \"spotify:track:0mL7jKqLliIYtbEOyBlIhJ\"",
+        "type": "applescript"
+      },
+      "about": "Victory, Two Steps from Hell: the activating breathing exercise's song."
+    },
+    {
+      "id": "breathe.angry",
+      "group": "Spotify",
+      "label": "Angry",
+      "icon": "🔥",
+      "action": {
+        "script": "tell application \"Spotify\" to play track \"spotify:track:56oReVXIfUO9xkX7pHmEU0\"",
+        "type": "applescript"
+      },
+      "about": "On the Nature of Daylight, Max Richter: the anger breathing exercise's song."
+    },
+    {
+      "id": "spotify.pause",
+      "group": "Spotify",
+      "label": "Pause",
+      "icon": "⏸",
+      "action": {
+        "script": "if application \"Spotify\" is running then tell application \"Spotify\" to pause",
+        "type": "applescript"
+      },
+      "about": "Pause Spotify; nothing if it is already paused. Ends a breathing exercise."
+    },
+    {
       "id": "chrome.k1",
       "group": "Google Chrome",
       "label": "New tab",

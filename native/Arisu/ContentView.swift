@@ -122,6 +122,14 @@ struct ContentView: View {
     /// command suggestions and the bar; another tap hides them (Oscar,
     /// 2026-10-01). Replaces the subtitles button and its saved setting.
     @State private var chrome = false
+    /// Free form, chat: the title bar's buttons, hidden until he taps the bar
+    /// (Oscar, 2026-10-08).
+    @State private var barShown = false
+    /// The breathing exercise under way, when it began, and whether the
+    /// microphone was muted before it (it is muted for the song).
+    @State private var breathing: Breath?
+    @State private var breathAt = Date()
+    @State private var breathWasMuted = false
     @State private var shownSourceLinks = Set<URL>()
     /// The typed thread. Held here rather than inside the pane so that it
     /// survives switching to her voice and back -- the conversation is one
@@ -308,7 +316,7 @@ struct ContentView: View {
                 }
             }
         }
-        .opacity(freeForm && !showChat ? 0.08 : 1)
+        .opacity(freeForm && !showChat ? 0 : 1)
         .allowsHitTesting(!freeForm || showChat)
         .accessibilityHidden(freeForm && !showChat)
         if freeForm && !showChat {
@@ -316,10 +324,16 @@ struct ContentView: View {
                 .contentShape(Rectangle())
                 .onTapGesture(count: 2) { pet.toggleRunning() }
                 .onTapGesture { withAnimation(.easeOut(duration: 0.2)) { chrome.toggle() } }
+                // Nothing on screen until he taps once (Oscar, 2026-10-08):
+                // the title bar, the commands, the transcript and the buttons
+                // all come and go together.
+                .overlay(alignment: .top) {
+                    if chrome { topBar.transition(.opacity) }
+                }
                 .overlay(alignment: .topTrailing) {
                     if chrome {
                         commandButtons
-                            .padding(.top, 24)
+                            .padding(.top, 96)
                             .padding(.trailing, 24)
                             .transition(.opacity)
                     }
@@ -334,7 +348,7 @@ struct ContentView: View {
                     }
                 }
                 .overlay(alignment: .bottomTrailing) {
-                    // Keep the way back and microphone reachable over the faded screen.
+                    if chrome {
                     HStack(spacing: 10) {
                         squareButton("text.bubble", "Commands and transcript",
                                      tint: chrome ? Skin.cyan : off) {
@@ -348,6 +362,8 @@ struct ContentView: View {
                     }
                     .padding(.trailing, 18)
                     .padding(.bottom, 28)
+                    .transition(.opacity)
+                    }
                 }
                 .zIndex(2)
         }
@@ -386,6 +402,7 @@ struct ContentView: View {
         .background(Color.black)
         .background(PencilWatch(enabled: !scribbling) { scribbling = true })
         .overlay { if scribbling { ScribbleCanvas { scribbling = false } } }
+        .overlay { breathingLayer }
         .overlayPreferenceValue(TourSpots.self) { spots in
             if let tour {
                 TourOverlay(steps: tour, spots: spots, index: $tourIndex) { endTour() }
@@ -924,6 +941,7 @@ struct ContentView: View {
         HStack(alignment: .top, spacing: 10) {
             masthead.tourSpot("title")
             Spacer(minLength: 12)
+            Group {
             // Is the microphone hot. Its own control since 2026-09-27, because
             // "mode" is no longer a screen he leaves: typing while she is
             // listening is legal now, and so is shutting the room up without
@@ -964,10 +982,17 @@ struct ContentView: View {
             // Shared by both screens.
             squareButton("square.grid.3x3.fill", "Deck",
                          tint: deckShown ? glow : Skin.cyan, stroke: 0.7, ink: .white) { deckShown.toggle() }
+            }
+            .opacity(barHidden ? 0 : 1)
+            .allowsHitTesting(!barHidden)
         }
         .padding(.vertical, 14)
         .padding(.horizontal, 22)
         .background(Grid(tint: Skin.mag))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if freeForm && showChat { withAnimation(.easeOut(duration: 0.2)) { barShown.toggle() } }
+        }
     }
 
     /// Things he asks for often enough to press (Backlog: command buttons
@@ -997,8 +1022,27 @@ struct ContentView: View {
         .tourSpot("commands")
     }
 
+    private var barHidden: Bool { freeForm && showChat && !barShown }
+
     private var commandButtons: some View {
         VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                ForEach(Breath.allCases) { b in
+                    Button { startBreathing(b) } label: {
+                        Text(b.label)
+                            .font(Skin.mono(13, .semibold))
+                            .lineLimit(1).minimumScaleFactor(0.7)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .frame(maxWidth: .infinity)
+                            .plate { Capsule().fill(Color.black.opacity(0.45)) }
+                            .edge { Capsule().stroke(b.tint.opacity(0.6), lineWidth: 1) }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Breathing exercise: " + b.label)
+                }
+            }
             ForEach(Self.commands, id: \.label) { c in
                 Button { press(c.line, c.ask) } label: {
                     Text(c.label)
@@ -1014,6 +1058,47 @@ struct ContentView: View {
                 .accessibilityLabel(c.label)
             }
         }
+    }
+
+    private var breathingLayer: some View {
+        let saved = FaceStyle(rawValue: faceStyle) ?? .ribbon
+        return ZStack {
+            if let b = breathing {
+                BreathingView(kind: b, started: breathAt, style: saved == .portrait ? .ribbon : saved,
+                              scale: faceScale * (freeForm ? 1.5 : 1), bloom: faceBloom,
+                              smoke: freeForm ? smokeAmount : 0) { endBreathing(done: false) }
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.6), value: breathing)
+        .onChange(of: pet.heard) { if let b = Breath.asked(pet.heard) { startBreathing(b) } }
+    }
+
+    /// A breathing exercise: her song on the Mac, the microphone muted so the
+    /// music is not taken for him, and the exercise over the screen until the
+    /// song ends or he stops it.
+    private func startBreathing(_ b: Breath) {
+        guard breathing == nil else { return }
+        breathWasMuted = live.muted
+        live.muted = true
+        breathAt = Date()
+        breathing = b
+        lastSpoke = Date()
+        Task { await Breath.press(b.songButton) }
+        let mark = breathAt
+        Task {
+            try? await Task.sleep(for: .seconds(b.duration))
+            if breathing != nil && breathAt == mark { endBreathing(done: true) }
+        }
+    }
+
+    private func endBreathing(done: Bool) {
+        guard breathing != nil else { return }
+        breathing = nil
+        lastSpoke = Date()
+        live.muted = breathWasMuted
+        Task { await Breath.press("spotify.pause") }
+        if done && pet.running { Task { await live.speak("That's it. Well done.") } }
     }
 
     private func press(_ line: String?, _ ask: String?) {
@@ -1044,7 +1129,7 @@ struct ContentView: View {
     private func closeQuietRoom() async {
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(20))
-            if pet.running && !showChat && Date().timeIntervalSince(lastSpoke) > 300 {
+            if pet.running && !showChat && breathing == nil && Date().timeIntervalSince(lastSpoke) > 300 {
                 toChat()
             }
         }
