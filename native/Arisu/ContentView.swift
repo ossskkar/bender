@@ -299,7 +299,8 @@ struct ContentView: View {
                                 RecordPanel { pet.stop() }
                                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                                     .tourSpot("record")
-                                Rectangle().fill(Skin.cyan.opacity(0.3)).frame(width: 1)
+                                // Free form has no edges or lines (Oscar, 2026-10-09).
+                                Rectangle().fill(Skin.cyan.opacity(freeForm ? 0 : 0.3)).frame(width: 1)
                                 voiceCommandsPanel
                                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                             }
@@ -1000,14 +1001,57 @@ struct ContentView: View {
 
     /// Things he asks for often enough to press (Backlog: command buttons
     /// over her voice animation). A `line` is composed on the desk and said
-    /// word for word; an `ask` is put to her as his own question.
-    private static let commands: [(label: String, line: String?, ask: String?)] = [
-        ("Today's brief", "brief", nil),
-        ("Week review", "weekly", nil),
-        ("AI signals", "signals", nil),
-        ("What's next?", nil, "What is next on my plan today?"),
-        ("How's my running?", nil, "How is my running going this week?"),
+    /// word for word; an `ask` is put to her as his own question. "breath" is
+    /// the Breath action, which opens into its three exercises.
+    ///
+    /// Ordered by use (Oscar, 2026-10-09): the least used at the top, the
+    /// most used at the bottom, nearest his hand. `seed` is how often he asked
+    /// her for that kind of thing in his first ~1,350 lines to her (typed and
+    /// spoken, to 2026-10-09); every press adds one.
+    private struct Command { let label: String; let line: String?; let ask: String?; let seed: Int }
+    private static let commands: [Command] = [
+        Command(label: "Week review", line: "weekly", ask: nil, seed: 1),
+        Command(label: "How's my running?", line: nil, ask: "How is my running going this week?", seed: 2),
+        Command(label: "AI Gov report", line: "govai", ask: nil, seed: 2),
+        Command(label: "Breath ›", line: nil, ask: nil, seed: 2),
+        Command(label: "Today's brief", line: "brief", ask: nil, seed: 3),
+        Command(label: "AI signals", line: "signals", ask: nil, seed: 3),
+        Command(label: "What's next?", line: nil, ask: "What is next on my plan today?", seed: 4),
+        Command(label: "Coders status", line: nil,
+                ask: "Are my coding agents finished? Give me the status of each task.", seed: 5),
+        Command(label: "Something interesting", line: nil, ask: "Tell me something interesting.", seed: 5),
+        Command(label: "World news", line: nil, ask: "What is important happening in the world today?", seed: 6),
+        Command(label: "My week", line: nil, ask: "What is on my calendar this week?", seed: 6),
+        Command(label: "My email", line: nil, ask: "Anything important in my email today?", seed: 7),
+        Command(label: "Backlog status", line: nil,
+                ask: "Backlog status: what is in progress, and what is next?", seed: 8),
     ]
+    /// Presses per command label, as JSON, kept on the iPad.
+    @AppStorage("arisu.commandUse") private var commandUse = ""
+
+    private var useCounts: [String: Int] {
+        (try? JSONDecoder().decode([String: Int].self, from: Data(commandUse.utf8))) ?? [:]
+    }
+
+    /// Least used first; ties keep the list's order.
+    private var orderedCommands: [Command] {
+        let used = useCounts
+        return Self.commands.enumerated()
+            .sorted { a, b in
+                let x = a.element.seed + used[a.element.label, default: 0]
+                let y = b.element.seed + used[b.element.label, default: 0]
+                return x != y ? x < y : a.offset < b.offset
+            }
+            .map(\.element)
+    }
+
+    private func used(_ label: String) {
+        var c = useCounts
+        c[label, default: 0] += 1
+        if let d = try? JSONEncoder().encode(c), let j = String(data: d, encoding: .utf8) {
+            withAnimation(.easeInOut(duration: 0.3)) { commandUse = j }
+        }
+    }
 
     private var voiceCommandsPanel: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -1015,8 +1059,9 @@ struct ContentView: View {
                 .font(Skin.mono(12, .bold)).tracking(2)
                 .foregroundStyle(Skin.mag)
                 .lineLimit(1).minimumScaleFactor(0.8)
-            commandButtons
-            Spacer(minLength: 0)
+            // The most used are at the bottom, so that is where it rests.
+            ScrollView(showsIndicators: false) { commandButtons }
+                .defaultScrollAnchor(.bottom)
         }
         .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -1029,8 +1074,9 @@ struct ContentView: View {
 
     private var commandButtons: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(Self.commands, id: \.label) { c in
-                Button { press(c.line, c.ask) } label: {
+            ForEach(orderedCommands, id: \.label) { c in
+                if c.label == "Breath ›" { breathAction } else {
+                Button { used(c.label); press(c.line, c.ask) } label: {
                     Text(c.label)
                         .font(Skin.mono(14, .semibold))
                         .foregroundStyle(.white)
@@ -1043,8 +1089,8 @@ struct ContentView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(c.label)
+                }
             }
-            breathAction
         }
     }
 
@@ -1071,6 +1117,7 @@ struct ContentView: View {
                 }
             } else {
                 Button {
+                    used("Breath ›")
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { breathOpen = true }
                     // Closes by itself if he does not pick one.
                     Task {
@@ -1155,9 +1202,11 @@ struct ContentView: View {
         if let ask { notice(ask) }
         Task {
             if let line {
-                guard let text = await brain.line(line) else { return }
-                if pet.running { await live.speak(text) }
-                else { pet.begin(saying: [QueuedCommand(id: line, text: text, show: nil)]) }
+                guard let (text, page) = await brain.line(line) else { return }
+                if pet.running {
+                    if let page { live.page = page }
+                    await live.speak(text)
+                } else { pet.begin(saying: [QueuedCommand(id: line, text: text, show: page)]) }
             } else if let ask {
                 if !pet.running { pet.begin() }
                 await live.ask(ask)

@@ -16,6 +16,18 @@
             "paste": true
           },
           {
+            "type": "shell",
+            "cmd": "sleep 0.4"
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          },
+          {
+            "type": "shell",
+            "cmd": "sleep 0.5"
+          },
+          {
             "type": "keys",
             "keys": "return"
           }
@@ -36,8 +48,20 @@
             "paste": true
           },
           {
-            "keys": "return",
-            "type": "keys"
+            "type": "shell",
+            "cmd": "sleep 0.4"
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          },
+          {
+            "type": "shell",
+            "cmd": "sleep 0.5"
+          },
+          {
+            "type": "keys",
+            "keys": "return"
           }
         ],
         "type": "compound"
@@ -79,6 +103,18 @@
             "paste": true
           },
           {
+            "type": "shell",
+            "cmd": "sleep 0.4"
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          },
+          {
+            "type": "shell",
+            "cmd": "sleep 0.5"
+          },
+          {
             "type": "keys",
             "keys": "return"
           }
@@ -98,6 +134,18 @@
             "type": "text",
             "text": "/explain",
             "paste": true
+          },
+          {
+            "type": "shell",
+            "cmd": "sleep 0.4"
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          },
+          {
+            "type": "shell",
+            "cmd": "sleep 0.5"
           },
           {
             "type": "keys",
@@ -121,6 +169,18 @@
             "paste": true
           },
           {
+            "type": "shell",
+            "cmd": "sleep 0.4"
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          },
+          {
+            "type": "shell",
+            "cmd": "sleep 0.5"
+          },
+          {
             "type": "keys",
             "keys": "return"
           }
@@ -140,8 +200,20 @@
             "paste": true
           },
           {
-            "keys": "return",
-            "type": "keys"
+            "type": "shell",
+            "cmd": "sleep 0.4"
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          },
+          {
+            "type": "shell",
+            "cmd": "sleep 0.5"
+          },
+          {
+            "type": "keys",
+            "keys": "return"
           }
         ],
         "type": "compound"
@@ -161,8 +233,20 @@
             "paste": true
           },
           {
-            "keys": "return",
-            "type": "keys"
+            "type": "shell",
+            "cmd": "sleep 0.4"
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          },
+          {
+            "type": "shell",
+            "cmd": "sleep 0.5"
+          },
+          {
+            "type": "keys",
+            "keys": "return"
           }
         ],
         "type": "compound"
@@ -513,6 +597,18 @@
             "paste": true
           },
           {
+            "type": "shell",
+            "cmd": "sleep 0.4"
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          },
+          {
+            "type": "shell",
+            "cmd": "sleep 0.5"
+          },
+          {
             "type": "keys",
             "keys": "return"
           }
@@ -533,8 +629,20 @@
             "paste": true
           },
           {
-            "keys": "return",
-            "type": "keys"
+            "type": "shell",
+            "cmd": "sleep 0.4"
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          },
+          {
+            "type": "shell",
+            "cmd": "sleep 0.5"
+          },
+          {
+            "type": "keys",
+            "keys": "return"
           }
         ],
         "type": "compound"
@@ -576,6 +684,18 @@
             "paste": true
           },
           {
+            "type": "shell",
+            "cmd": "sleep 0.4"
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          },
+          {
+            "type": "shell",
+            "cmd": "sleep 0.5"
+          },
+          {
             "type": "keys",
             "keys": "return"
           }
@@ -595,6 +715,18 @@
             "type": "text",
             "text": "/explain",
             "paste": true
+          },
+          {
+            "type": "shell",
+            "cmd": "sleep 0.4"
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          },
+          {
+            "type": "shell",
+            "cmd": "sleep 0.5"
           },
           {
             "type": "keys",
@@ -618,6 +750,18 @@
             "paste": true
           },
           {
+            "type": "shell",
+            "cmd": "sleep 0.4"
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          },
+          {
+            "type": "shell",
+            "cmd": "sleep 0.5"
+          },
+          {
             "type": "keys",
             "keys": "return"
           }
@@ -637,8 +781,20 @@
             "paste": true
           },
           {
-            "keys": "return",
-            "type": "keys"
+            "type": "shell",
+            "cmd": "sleep 0.4"
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          },
+          {
+            "type": "shell",
+            "cmd": "sleep 0.5"
+          },
+          {
+            "type": "keys",
+            "keys": "return"
           }
         ],
         "type": "compound"
@@ -658,8 +814,20 @@
             "paste": true
           },
           {
-            "keys": "return",
-            "type": "keys"
+            "type": "shell",
+            "cmd": "sleep 0.4"
+          },
+          {
+            "type": "keys",
+            "keys": "return"
+          },
+          {
+            "type": "shell",
+            "cmd": "sleep 0.5"
+          },
+          {
+            "type": "keys",
+            "keys": "return"
           }
         ],
         "type": "compound"

@@ -34,6 +34,13 @@ import GameController
     /// for the moment. lain's server/suggest.py makes them, one cached Gemini
     /// call shared with the web chat, so asking often costs nothing extra.
     @Published private(set) var suggestions = Suggestions()
+    /// The row on screen was made for her previous line: hidden from the
+    /// moment he sends until the guesses for her answer arrive (Oscar,
+    /// 2026-10-09: "they should change after each response").
+    @Published private(set) var stale = false
+    /// Her answers so far; a suggestion fetch begun before the latest one is
+    /// for the old line and is dropped.
+    private var answered = 0
 
     struct Suggestions: Decodable, Equatable {
         struct Command: Decodable, Equatable, Hashable { let label: String; let text: String }
@@ -100,6 +107,7 @@ import GameController
         guard !said.isEmpty, !thinking else { return }
         lines.append(Line(mine: true, text: said, at: Date()))
         thinking = true
+        stale = true
         defer { thinking = false }
         var r = URLRequest(url: Brain.base.appendingPathComponent("chat"))
         r.httpMethod = "POST"
@@ -117,7 +125,9 @@ import GameController
         } catch {
             failed = error.localizedDescription
         }
-        // Her answer moved the conversation, so the desk has new guesses.
+        // Her answer moved the conversation, so the desk has new guesses
+        // (already being made: the desk starts them as it stores her line).
+        answered += 1
         Task { await suggest() }
     }
 
@@ -151,11 +161,13 @@ import GameController
         r.httpMethod = "POST"
         lines.removeAll()
         failed = nil
+        stale = true
         // She opens it: hello and today's top three (Oscar, 2026-10-01).
         if let (data, _) = try? await net.data(for: r),
            let hello = (try? JSONDecoder().decode(Fresh.self, from: data))?.greeting, !hello.isEmpty {
             lines.append(Line(mine: false, text: hello, at: Date()))
         }
+        answered += 1
         Task { await suggest() }
     }
 
@@ -163,10 +175,12 @@ import GameController
     /// as the web chat does: a row that blanks on a slow model is worse than
     /// one that is a minute old.
     func suggest() async {
-        guard let (data, _) = try? await net.data(from: Brain.base.appendingPathComponent("chat/suggest")),
-              let got = try? JSONDecoder().decode(Suggestions.self, from: data),
-              !got.isEmpty else { return }
-        suggestions = got
+        let mark = answered
+        let got = try? await JSONDecoder().decode(Suggestions.self, from:
+            net.data(from: Brain.base.appendingPathComponent("chat/suggest")).0)
+        guard mark == answered, !thinking else { return }
+        if let got, !got.isEmpty { suggestions = got }
+        stale = false
     }
 
     private let brain = Brain()
@@ -431,6 +445,14 @@ struct ChatPane: View, Equatable {
     @AppStorage("arisu.bubbles.chat") private var bubbles = true
     @State private var typing = ""
     @State private var keyboardConnected = false
+    /// How much of the pane the on-screen keyboard (or a hardware keyboard's
+    /// shortcut bar) covers. The app draws under every safe area, the
+    /// keyboard's included, so the pane lifts itself above it (Oscar,
+    /// 2026-10-09: the keyboard covered the composer and the whole bottom).
+    @State private var keyboardCover: CGFloat = 0
+    /// A key pressed while the field was not focused: the field takes it.
+    @State private var keyHit = 0
+    @State private var keyChar = ""
     @State private var showHistory = false
     /// The page being fetched for the sheet, so its chip can say so.
     @State private var opening: URL?
@@ -467,18 +489,42 @@ struct ChatPane: View, Equatable {
             // thread an empty grid in the simulator.
             if !chat.suggestions.isEmpty {
                 suggestRow
-                    .opacity(chat.thinking ? 0 : 1)
-                    .allowsHitTesting(!chat.thinking)
+                    .opacity(chat.thinking || chat.stale ? 0 : 1)
+                    .allowsHitTesting(!chat.thinking && !chat.stale)
                     .transition(.opacity)
             }
             composer
         }
         .animation(.easeOut(duration: 0.25), value: chat.suggestions)
         .animation(.easeOut(duration: 0.25), value: chat.thinking)
+        .animation(.easeOut(duration: 0.25), value: chat.stale)
         .padding(.top, topInset)
         .console(Skin.cyan, brackets: Skin.mag)
         // The same 10pt inset as Record and Deck, so the corners line up.
         .padding(10)
+        .padding(.bottom, keyboardCover)
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) {
+            keyboard($0, hiding: false)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) {
+            keyboard($0, hiding: true)
+        }
+        // With a hardware keyboard the field is where typing goes, always
+        // (Oscar, 2026-10-09): focus that is lost -- a send, a tap on the
+        // thread, a sheet closing -- comes back, and a key pressed meanwhile
+        // is not lost.
+        .onChange(of: writing) { _, on in
+            guard !on else { return }
+            Task {
+                try? await Task.sleep(for: .milliseconds(120))
+                if active && keyboardConnected && !Self.sheetUp && !writing { writing = true }
+            }
+        }
+        .onChange(of: keyHit) { _, _ in
+            guard active, !writing, !Self.sheetUp else { return }
+            typing += keyChar
+            writing = true
+        }
         // A two-finger double tap is a new conversation (Oscar, 2026-10-02).
         .background(MultiTap(touches: 2, taps: 2) { Task { await chat.new() } })
         .onChange(of: active) { _, on in
@@ -490,6 +536,7 @@ struct ChatPane: View, Equatable {
         }
         .onReceive(NotificationCenter.default.publisher(for: .GCKeyboardDidConnect)) { _ in
             keyboardConnected = GCKeyboard.coalesced != nil
+            listenForKeys()
         }
         .onReceive(NotificationCenter.default.publisher(for: .GCKeyboardDidDisconnect)) { _ in
             keyboardConnected = GCKeyboard.coalesced != nil
@@ -511,6 +558,7 @@ struct ChatPane: View, Equatable {
         .onAppear {
             keyboardConnected = GCKeyboard.coalesced != nil
             writing = active && keyboardConnected
+            listenForKeys()
             if openHistory { showHistory = true; openHistory = false }
         }
         .sheet(isPresented: $showHistory) { ChatHistory(chat: chat) }
@@ -806,6 +854,64 @@ struct ChatPane: View, Equatable {
         let said = typing
         typing = ""
         Task { await chat.send(said) }
+    }
+
+    /// Something is presented over the app (a sheet, the history, settings):
+    /// its own fields own the keys then.
+    private static var sheetUp: Bool {
+        let scene = UIApplication.shared.connectedScenes.first { $0.activationState == .foregroundActive }
+        return (scene as? UIWindowScene)?.keyWindow?.rootViewController?.presentedViewController != nil
+    }
+
+    /// The keyboard's top edge, against the bottom of the window the pane
+    /// reaches. A full on-screen keyboard also says no hardware keyboard is
+    /// typing, whatever GameController thought, so focus stops coming back.
+    private func keyboard(_ n: Notification, hiding: Bool) {
+        var cover: CGFloat = 0
+        if !hiding, let f = n.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect,
+           let w = (UIApplication.shared.connectedScenes.first { $0.activationState == .foregroundActive }
+                    as? UIWindowScene)?.keyWindow {
+            let r = w.convert(f, from: w.screen.coordinateSpace)
+            // A floating or undocked keyboard is not at the bottom edge.
+            if r.maxY >= w.bounds.maxY - 1 { cover = max(0, w.bounds.maxY - r.minY) }
+        }
+        if cover > 150 { keyboardConnected = false }
+        let d = n.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double ?? 0.25
+        // Less the pane's own 10pt inset and the composer's 18pt floor, which
+        // the keyboard may cover.
+        withAnimation(.easeOut(duration: d)) { keyboardCover = max(0, cover - 28) }
+    }
+
+    /// The hardware keyboard's keys, heard whether or not the field is
+    /// focused. Only the first key that lands while it is not focused is
+    /// used: the field takes it and every key after it.
+    /// ponytail: letters, digits and space, by US position; a first key that
+    /// is punctuation still focuses the field but is dropped.
+    private func listenForKeys() {
+        GCKeyboard.coalesced?.keyboardInput?.keyChangedHandler = { kb, _, code, pressed in
+            guard pressed else { return }
+            let raw = code.rawValue
+            let shift = kb.button(forKeyCode: .leftShift)?.isPressed == true
+                || kb.button(forKeyCode: .rightShift)?.isPressed == true
+            var ch = ""
+            if (0x04...0x1D).contains(raw), let u = UnicodeScalar(UInt32(raw - 0x04) + 97) {
+                ch = String(Character(u)); if shift { ch = ch.uppercased() }
+            } else if (0x1E...0x26).contains(raw) {
+                ch = String(raw - 0x1D)
+            } else if raw == 0x27 {
+                ch = "0"
+            } else if raw == 0x2C {
+                ch = " "
+            }
+            // A shortcut, not typing.
+            if kb.button(forKeyCode: .leftGUI)?.isPressed == true
+                || kb.button(forKeyCode: .rightGUI)?.isPressed == true
+                || kb.button(forKeyCode: .leftControl)?.isPressed == true { return }
+            Task { @MainActor in
+                keyChar = ch
+                keyHit += 1
+            }
+        }
     }
 
 }

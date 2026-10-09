@@ -379,7 +379,9 @@ final class Brain {
 
     /// One of her clock lines -- `brief`, `weekly` -- composed now, for a
     /// command button. Nothing is queued: the scheduled one still goes out.
-    func line(_ key: String) async -> String? {
+    /// With the page that goes with it when there is one (the AI Government
+    /// report's links, 2026-10-09); the desk's own pages are shown as they are.
+    func line(_ key: String) async -> (text: String, page: ShowPage?)? {
         var c = URLComponents(url: Brain.base.appendingPathComponent("line"),
                               resolvingAgainstBaseURL: false)!
         c.queryItems = [URLQueryItem(name: "key", value: key)]
@@ -387,6 +389,12 @@ final class Brain {
               (resp as? HTTPURLResponse)?.statusCode == 200,
               let o = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return nil }
-        return o["text"] as? String
+        guard let text = o["text"] as? String else { return nil }
+        var page: ShowPage?
+        if let p = o["page"] as? String, let url = URL(string: p, relativeTo: Brain.base)?.absoluteURL {
+            page = ShowPage(url: url.absoluteString, host: url.host(), mode: "frame", title: nil,
+                            text: nil, headlines: nil, ok: true, error: nil)
+        }
+        return (text, page)
     }
 }
